@@ -10,7 +10,7 @@
 
 - **項目規劃**: Epic 架構設計、功能規劃、路線圖
 - **進度追蹤**: 每日/每週進度報告、Sprint 計劃
-- **變更管理**: Bug 修復記錄（54 份，FIX-050~054 全數完成）、功能變更追蹤（54 份）
+- **變更管理**: Bug 修復記錄（54 份，FIX-050~054 全數完成）、功能變更追蹤（56 份，最新 CHANGE-056）
 - **AI 協作**: 情境提示詞、工作流程指南、分析報告
 - **知識傳承**: 開發經驗、故障排查、部署指南
 
@@ -158,7 +158,7 @@ claudedocs/
 
 | 類型 | 數量 | 最新編號 | 路徑 |
 |------|------|---------|------|
-| 功能變更 (CHANGE) | **55 份** | CHANGE-055 | `4-changes/feature-changes/` |
+| 功能變更 (CHANGE) | **56 份** | CHANGE-056 | `4-changes/feature-changes/` |
 | Bug 修復 (FIX) | **54 份**（全部已完成）| FIX-054 | `4-changes/bug-fixes/` |
 
 ### FIX-050 ~ FIX-054（Codebase 品質與部署可靠性系列）✅ 全數完成
@@ -171,12 +171,13 @@ claudedocs/
 | FIX-053 | Smart Routing Dual Logic Conflict | ✅ 已修復（2026-04-21） |
 | FIX-054 | SYSTEM_USER_ID 硬編碼 'dev-user-1' 為生產依賴 | ✅ 已修復（2026-04-22） |
 
-### CHANGE-054 / 055（部署系列）
+### CHANGE-054 / 055 / 056（部署系列）
 
 | 編號 | 名稱 | 狀態 |
 |------|------|------|
 | CHANGE-054 | Local Deployment Readiness：一鍵 init 腳本 + verify-environment + .env.example 全面重寫 | ✅ 已完成（2026-04-22） |
-| CHANGE-055 | Azure Production Deployment Foundation | 📋 Phase 1 規劃中（2026-04-22 主規劃文件已建） |
+| CHANGE-055 | Azure Production Deployment Foundation | 📋 Phase 1 規劃中（2026-04-22 v0.2：4 個 Critical 議題已定案） |
+| CHANGE-056 | Prisma Migration Baseline（重建基線 + 歸檔舊 migrations） | 📋 規劃中（2026-04-22 規劃文件已建，CHANGE-055 分支獨立追蹤） |
 
 ### 重要重構記錄
 
@@ -218,7 +219,7 @@ claudedocs/
 
 位於 `claudedocs/4-changes/feature-changes/`，命名格式 `CHANGE-{NNN}-{description}.md`
 
-**CHANGE 編號範圍**: 001-055（共 55 份；CHANGE-055 規劃中）
+**CHANGE 編號範圍**: 001-056（共 56 份；CHANGE-055/056 規劃中）
 
 ### Bug 修復 (FIX-*)
 
@@ -384,7 +385,7 @@ claudedocs/
 2. **使用正確的命名約定** - CHANGE 下一個編號 034，FIX 下一個編號 036
 3. **遵循格式範本** - 參考 `7-archive/templates/` 下的範本
 
-> **下一個可用編號**: CHANGE-056、FIX-055（建立前請 Glob `CHANGE-*.md` / `FIX-*.md` 確認最新編號）
+> **下一個可用編號**: CHANGE-057、FIX-055（建立前請 Glob `CHANGE-*.md` / `FIX-*.md` 確認最新編號）
 
 ---
 
@@ -418,5 +419,5 @@ claudedocs/
 ---
 
 **維護者**: AI 助手 + 開發團隊
-**最後更新**: 2026-04-22（新增 FIX-054 + CHANGE-054 部署可靠性強化）
-**文檔版本**: 3.2.0
+**最後更新**: 2026-04-22（v3.3.0：CHANGE-055 v0.2 Critical 決策定案 + 新增 CHANGE-056 Prisma migration baseline）
+**文檔版本**: 3.3.0
