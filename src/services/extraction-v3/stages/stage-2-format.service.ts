@@ -14,7 +14,11 @@
  *
  * @module src/services/extraction-v3/stages/stage-2-format.service
  * @since CHANGE-024 - Three-Stage Extraction Architecture
- * @lastModified 2026-03-02
+ * @lastModified 2026-05-31
+ *
+ *   FIX-058：jitCreateFormat 改為 find-or-create（先查唯一鍵
+ *   (companyId, documentType, documentSubtype)），避免同公司第 2+ 份文件
+ *   重複建立 (INVOICE, GENERAL) 格式撞唯一約束導致 OCR_FAILED
  *
  * @features
  *   - 分層配置查詢：公司特定 → 統一格式 → LLM 推斷
@@ -535,12 +539,29 @@ Focus on the visual layout, table structure, and distinctive formatting elements
     companyId: string,
     characteristics: string[]
   ): Promise<{ id: string; name: string }> {
+    const documentType = 'INVOICE' as const;
+    const documentSubtype = 'GENERAL' as const; // 使用 GENERAL 作為預設子類型
+
+    // FIX-058: 先以唯一鍵 (companyId, documentType, documentSubtype) 查找既有格式，
+    //          避免重複 create 撞唯一約束（同公司同 type/subtype 的第 2+ 份文件）
+    const existing = await this.prisma.documentFormat.findFirst({
+      where: { companyId, documentType, documentSubtype },
+      select: { id: true, name: true },
+    });
+
+    if (existing) {
+      return {
+        id: existing.id,
+        name: existing.name || formatName,
+      };
+    }
+
     const newFormat = await this.prisma.documentFormat.create({
       data: {
         name: formatName,
         companyId,
-        documentType: 'INVOICE',
-        documentSubtype: 'GENERAL', // 使用 GENERAL 作為預設子類型
+        documentType,
+        documentSubtype,
         commonTerms: [],
         identificationRules: {
           keywords: characteristics,
