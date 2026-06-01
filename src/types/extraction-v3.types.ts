@@ -1729,10 +1729,13 @@ export interface EffectivePipelineConfig {
   fxConvertExtraCharges: boolean;
   fxRoundingPrecision: number;
   fxFallbackBehavior: 'skip' | 'warn' | 'error';
+  /** CHANGE-071: 只轉指定來源幣別清單（null/空 = 全轉，向後相容） */
+  fxSourceCurrencies: string[] | null;
   /** 配置來源摘要 */
   resolvedFrom: {
     global?: string;
     region?: string;
     company?: string;
+    format?: string;
   };
 }

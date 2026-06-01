@@ -45,6 +45,7 @@ interface PipelineConfigCreateInput {
   scope: PipelineConfigScope;
   regionId?: string | null;
   companyId?: string | null;
+  documentFormatId?: string | null;
   refMatchEnabled?: boolean;
   refMatchTypes?: string[];
   refMatchMaxResults?: number;
@@ -54,6 +55,7 @@ interface PipelineConfigCreateInput {
   fxConvertExtraCharges?: boolean;
   fxRoundingPrecision?: number;
   fxFallbackBehavior?: string;
+  fxSourceCurrencies?: string[] | null;
   isActive?: boolean;
   description?: string | null;
 }
@@ -68,6 +70,7 @@ interface PipelineConfigUpdateInput {
   fxConvertExtraCharges?: boolean;
   fxRoundingPrecision?: number;
   fxFallbackBehavior?: string;
+  fxSourceCurrencies?: string[] | null;
   isActive?: boolean;
   description?: string | null;
 }
@@ -86,6 +89,7 @@ const DEFAULT_EFFECTIVE_CONFIG: EffectivePipelineConfig = {
   fxConvertExtraCharges: true,
   fxRoundingPrecision: 2,
   fxFallbackBehavior: 'skip',
+  fxSourceCurrencies: null,
   resolvedFrom: {},
 };
 
@@ -175,6 +179,14 @@ export async function getPipelineConfigById(id: string) {
     include: {
       region: { select: { id: true, name: true, code: true } },
       company: { select: { id: true, name: true } },
+      // CHANGE-071: FORMAT scope 顯示格式名 + 所屬公司
+      documentFormat: {
+        select: {
+          id: true,
+          name: true,
+          company: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 
@@ -193,11 +205,19 @@ export async function createPipelineConfig(data: PipelineConfigCreateInput) {
   if (data.scope === 'GLOBAL') {
     data.regionId = null;
     data.companyId = null;
+    data.documentFormatId = null;
   } else if (data.scope === 'REGION') {
     if (!data.regionId) throw new Error('Region scope requires regionId');
     data.companyId = null;
+    data.documentFormatId = null;
   } else if (data.scope === 'COMPANY') {
     if (!data.companyId) throw new Error('Company scope requires companyId');
+    data.documentFormatId = null;
+  } else if (data.scope === 'FORMAT') {
+    // CHANGE-071: FORMAT scope 以 documentFormatId 為鍵（格式已隱含公司）
+    if (!data.documentFormatId) throw new Error('Format scope requires documentFormatId');
+    data.regionId = null;
+    data.companyId = null;
   }
 
   // 檢查重複
@@ -206,11 +226,12 @@ export async function createPipelineConfig(data: PipelineConfigCreateInput) {
       scope: data.scope,
       regionId: data.regionId ?? null,
       companyId: data.companyId ?? null,
+      documentFormatId: data.documentFormatId ?? null,
     },
   });
 
   if (existing) {
-    throw new Error('此 scope + region + company 組合的配置已存在');
+    throw new Error('此 scope + region + company + format 組合的配置已存在');
   }
 
   return prisma.pipelineConfig.create({
@@ -218,6 +239,7 @@ export async function createPipelineConfig(data: PipelineConfigCreateInput) {
       scope: data.scope,
       regionId: data.regionId ?? null,
       companyId: data.companyId ?? null,
+      documentFormatId: data.documentFormatId ?? null,
       refMatchEnabled: data.refMatchEnabled ?? false,
       refMatchTypes: data.refMatchTypes ?? ['SHIPMENT', 'HAWB', 'MAWB', 'BL', 'CONTAINER'],
       refMatchMaxResults: data.refMatchMaxResults ?? 10,
@@ -227,12 +249,24 @@ export async function createPipelineConfig(data: PipelineConfigCreateInput) {
       fxConvertExtraCharges: data.fxConvertExtraCharges ?? true,
       fxRoundingPrecision: data.fxRoundingPrecision ?? 2,
       fxFallbackBehavior: data.fxFallbackBehavior ?? 'skip',
+      fxSourceCurrencies:
+        data.fxSourceCurrencies == null
+          ? undefined
+          : (data.fxSourceCurrencies as unknown as Prisma.InputJsonValue),
       isActive: data.isActive ?? true,
       description: data.description ?? null,
     },
     include: {
       region: { select: { id: true, name: true, code: true } },
       company: { select: { id: true, name: true } },
+      // CHANGE-071: FORMAT scope 顯示格式名 + 所屬公司
+      documentFormat: {
+        select: {
+          id: true,
+          name: true,
+          company: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 }
@@ -252,6 +286,11 @@ export async function updatePipelineConfig(id: string, data: PipelineConfigUpdat
     refMatchTypes: data.refMatchTypes === undefined
       ? undefined
       : data.refMatchTypes as unknown as Prisma.InputJsonValue,
+    fxSourceCurrencies: data.fxSourceCurrencies === undefined
+      ? undefined
+      : data.fxSourceCurrencies === null
+        ? Prisma.DbNull
+        : data.fxSourceCurrencies as unknown as Prisma.InputJsonValue,
   };
 
   return prisma.pipelineConfig.update({
@@ -260,6 +299,14 @@ export async function updatePipelineConfig(id: string, data: PipelineConfigUpdat
     include: {
       region: { select: { id: true, name: true, code: true } },
       company: { select: { id: true, name: true } },
+      // CHANGE-071: FORMAT scope 顯示格式名 + 所屬公司
+      documentFormat: {
+        select: {
+          id: true,
+          name: true,
+          company: { select: { id: true, name: true } },
+        },
+      },
     },
   });
 }
@@ -287,9 +334,9 @@ export async function deletePipelineConfig(id: string) {
  * @returns 合併後的有效配置
  */
 export async function resolveEffectiveConfig(
-  options: { regionId?: string; companyId?: string } = {}
+  options: { regionId?: string; companyId?: string; formatId?: string } = {}
 ): Promise<EffectivePipelineConfig> {
-  const { regionId, companyId } = options;
+  const { regionId, companyId, formatId } = options;
 
   // 1. 載入 GLOBAL config
   const globalConfig = await prisma.pipelineConfig.findFirst({
@@ -325,8 +372,20 @@ export async function resolveEffectiveConfig(
     });
   }
 
-  // 4. 逐欄位合併：COMPANY > REGION > GLOBAL > DEFAULT
-  const configs = [globalConfig, regionConfig, companyConfig].filter(
+  // 3.5 載入 FORMAT config（if formatId provided）— CHANGE-071
+  let formatConfig: PipelineConfig | null = null;
+  if (formatId) {
+    formatConfig = await prisma.pipelineConfig.findFirst({
+      where: {
+        scope: 'FORMAT',
+        documentFormatId: formatId,
+        isActive: true,
+      },
+    });
+  }
+
+  // 4. 逐欄位合併：FORMAT > COMPANY > REGION > GLOBAL > DEFAULT
+  const configs = [globalConfig, regionConfig, companyConfig, formatConfig].filter(
     (c): c is PipelineConfig => c !== null
   );
 
@@ -380,6 +439,10 @@ export async function resolveEffectiveConfig(
     }
     if (config.fxTargetCurrency) {
       resolved.fxTargetCurrency = config.fxTargetCurrency;
+    }
+    // CHANGE-071: 來源幣別清單為 nullable，非 null 時才覆蓋（含明確空陣列 = 全轉）
+    if (config.fxSourceCurrencies != null) {
+      resolved.fxSourceCurrencies = config.fxSourceCurrencies as unknown as string[];
     }
 
     resolvedFrom[scopeLabel] = config.id;

@@ -37,9 +37,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
  */
 export interface PipelineConfigItem {
   id: string
-  scope: 'GLOBAL' | 'REGION' | 'COMPANY'
+  scope: 'GLOBAL' | 'REGION' | 'COMPANY' | 'FORMAT'
   regionId: string | null
   companyId: string | null
+  documentFormatId: string | null
   refMatchEnabled: boolean
   refMatchTypes: string[] | null
   refMatchMaxResults: number
@@ -49,12 +50,18 @@ export interface PipelineConfigItem {
   fxConvertExtraCharges: boolean
   fxRoundingPrecision: number
   fxFallbackBehavior: string
+  fxSourceCurrencies: string[] | null
   isActive: boolean
   description: string | null
   createdAt: string
   updatedAt: string
   region?: { id: string; name: string } | null
   company?: { id: string; name: string } | null
+  documentFormat?: {
+    id: string
+    name: string | null
+    company?: { id: string; name: string } | null
+  } | null
 }
 
 /**
@@ -100,7 +107,7 @@ interface PipelineConfigResponse {
 export interface PipelineConfigQueryParams {
   page?: number
   limit?: number
-  scope?: 'GLOBAL' | 'REGION' | 'COMPANY'
+  scope?: 'GLOBAL' | 'REGION' | 'COMPANY' | 'FORMAT'
   isActive?: boolean
   sortBy?: 'createdAt' | 'updatedAt' | 'scope'
   sortOrder?: 'asc' | 'desc'
@@ -110,9 +117,10 @@ export interface PipelineConfigQueryParams {
  * 建立 Pipeline Config 輸入
  */
 export interface CreatePipelineConfigInput {
-  scope: 'GLOBAL' | 'REGION' | 'COMPANY'
+  scope: 'GLOBAL' | 'REGION' | 'COMPANY' | 'FORMAT'
   regionId?: string | null
   companyId?: string | null
+  documentFormatId?: string | null
   refMatchEnabled?: boolean
   refMatchTypes?: string[]
   refMatchMaxResults?: number
@@ -122,6 +130,7 @@ export interface CreatePipelineConfigInput {
   fxConvertExtraCharges?: boolean
   fxRoundingPrecision?: number
   fxFallbackBehavior?: string
+  fxSourceCurrencies?: string[] | null
   isActive?: boolean
   description?: string | null
 }
@@ -139,6 +148,7 @@ export interface UpdatePipelineConfigInput {
   fxConvertExtraCharges?: boolean
   fxRoundingPrecision?: number
   fxFallbackBehavior?: string
+  fxSourceCurrencies?: string[] | null
   isActive?: boolean
   description?: string | null
 }

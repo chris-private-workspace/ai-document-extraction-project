@@ -142,6 +142,12 @@ export function PipelineConfigList({
       if (item.scope === 'GLOBAL') return t('list.global')
       if (item.scope === 'REGION' && item.region) return item.region.name
       if (item.scope === 'COMPANY' && item.company) return item.company.name
+      // CHANGE-071: FORMAT scope 顯示「公司 / 格式名」
+      if (item.scope === 'FORMAT' && item.documentFormat) {
+        const fmt = item.documentFormat
+        const name = fmt.name || fmt.id
+        return fmt.company ? `${fmt.company.name} / ${name}` : name
+      }
       return '-'
     },
     [t]

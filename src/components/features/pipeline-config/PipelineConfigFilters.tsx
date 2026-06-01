@@ -35,7 +35,7 @@ import {
 // ============================================================
 
 export interface PipelineConfigFilterValues {
-  scope?: 'GLOBAL' | 'REGION' | 'COMPANY'
+  scope?: 'GLOBAL' | 'REGION' | 'COMPANY' | 'FORMAT'
   isActive?: boolean
 }
 
@@ -50,7 +50,7 @@ interface PipelineConfigFiltersProps {
 // Constants
 // ============================================================
 
-const SCOPE_OPTIONS = ['GLOBAL', 'REGION', 'COMPANY'] as const
+const SCOPE_OPTIONS = ['GLOBAL', 'REGION', 'COMPANY', 'FORMAT'] as const
 const ALL_VALUE = '__all__'
 
 // ============================================================

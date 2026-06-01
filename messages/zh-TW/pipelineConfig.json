@@ -4,7 +4,8 @@
   "scope": {
     "GLOBAL": "全域",
     "REGION": "區域",
-    "COMPANY": "公司"
+    "COMPANY": "公司",
+    "FORMAT": "格式"
   },
   "filters": {
     "scope": "範圍",
@@ -33,12 +34,14 @@
       "edit": "編輯管線配置"
     },
     "scopeSection": "範圍設定",
-    "scopeDescription": "定義此配置的適用範圍。全域適用於所有處理，區域覆蓋特定區域，公司覆蓋特定公司。",
+    "scopeDescription": "定義此配置的適用範圍。解析順序 全域 → 區域 → 公司 → 格式（越具體越優先）。格式適用於特定公司的文件格式。",
     "scope": "配置範圍",
     "region": "區域",
     "company": "公司",
     "selectRegion": "選擇區域",
     "selectCompany": "選擇公司",
+    "format": "文件格式",
+    "selectFormat": "選擇格式",
     "refMatchSection": "參考編號比對",
     "refMatchDescription": "從檔案名稱中使用子字串匹配，在資料庫中比對參考編號。",
     "refMatchEnabled": "啟用參考編號比對",
@@ -49,6 +52,8 @@
     "fxConversionEnabled": "啟用匯率轉換",
     "fxTargetCurrency": "目標貨幣",
     "fxTargetCurrencyPlaceholder": "例如 USD",
+    "fxSourceCurrencies": "來源幣別過濾",
+    "fxSourceCurrenciesDescription": "只轉換來源幣別在此清單內的文件；不選則全部轉換。",
     "fxConvertLineItems": "轉換明細項目",
     "fxConvertExtraCharges": "轉換附加費用",
     "fxRoundingPrecision": "四捨五入精度",

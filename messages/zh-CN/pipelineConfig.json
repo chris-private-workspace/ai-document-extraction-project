@@ -4,7 +4,8 @@
   "scope": {
     "GLOBAL": "全局",
     "REGION": "区域",
-    "COMPANY": "公司"
+    "COMPANY": "公司",
+    "FORMAT": "格式"
   },
   "filters": {
     "scope": "范围",
@@ -33,12 +34,14 @@
       "edit": "编辑管线配置"
     },
     "scopeSection": "范围设置",
-    "scopeDescription": "定义此配置的适用范围。全局适用于所有处理，区域覆盖特定区域，公司覆盖特定公司。",
+    "scopeDescription": "定义此配置的适用范围。解析顺序 全局 → 区域 → 公司 → 格式（越具体越优先）。格式适用于特定公司的文件格式。",
     "scope": "配置范围",
     "region": "区域",
     "company": "公司",
     "selectRegion": "选择区域",
     "selectCompany": "选择公司",
+    "format": "文件格式",
+    "selectFormat": "选择格式",
     "refMatchSection": "参考编号匹配",
     "refMatchDescription": "从文件名中使用子字符串匹配，在数据库中匹配参考编号。",
     "refMatchEnabled": "启用参考编号匹配",
@@ -49,6 +52,8 @@
     "fxConversionEnabled": "启用汇率转换",
     "fxTargetCurrency": "目标货币",
     "fxTargetCurrencyPlaceholder": "例如 USD",
+    "fxSourceCurrencies": "来源币别过滤",
+    "fxSourceCurrenciesDescription": "仅转换来源币别在此清单内的文件；不选则全部转换。",
     "fxConvertLineItems": "转换明细项目",
     "fxConvertExtraCharges": "转换附加费用",
     "fxRoundingPrecision": "四舍五入精度",

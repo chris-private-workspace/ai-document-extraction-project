@@ -4,7 +4,8 @@
   "scope": {
     "GLOBAL": "Global",
     "REGION": "Region",
-    "COMPANY": "Company"
+    "COMPANY": "Company",
+    "FORMAT": "Format"
   },
   "filters": {
     "scope": "Scope",
@@ -33,12 +34,14 @@
       "edit": "Edit Pipeline Configuration"
     },
     "scopeSection": "Scope",
-    "scopeDescription": "Define the scope of this configuration. GLOBAL applies to all, REGION overrides for a specific region, COMPANY overrides for a specific company.",
+    "scopeDescription": "Define the scope of this configuration. Resolution order GLOBAL → REGION → COMPANY → FORMAT (most specific wins). FORMAT applies to a specific company's document format.",
     "scope": "Configuration Scope",
     "region": "Region",
     "company": "Company",
     "selectRegion": "Select a region",
     "selectCompany": "Select a company",
+    "format": "Document Format",
+    "selectFormat": "Select a format",
     "refMatchSection": "Reference Number Matching",
     "refMatchDescription": "Match reference numbers from file names against the database using substring matching.",
     "refMatchEnabled": "Enable Reference Number Matching",
@@ -49,6 +52,8 @@
     "fxConversionEnabled": "Enable FX Conversion",
     "fxTargetCurrency": "Target Currency",
     "fxTargetCurrencyPlaceholder": "e.g. USD",
+    "fxSourceCurrencies": "Source Currencies Filter",
+    "fxSourceCurrenciesDescription": "Only convert documents whose source currency is in this list. Leave empty to convert all currencies.",
     "fxConvertLineItems": "Convert Line Items",
     "fxConvertExtraCharges": "Convert Extra Charges",
     "fxRoundingPrecision": "Rounding Precision",

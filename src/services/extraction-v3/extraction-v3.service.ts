@@ -483,6 +483,8 @@ export class ExtractionV3Service {
         const fxConfig = await resolveEffectiveConfig({
           regionId: input.regionId,
           companyId: threeStageResult.stage1?.companyId || undefined,
+          // CHANGE-071: 傳入 Stage 2 格式 ID，支援 FORMAT scope 條件式 FX 轉換
+          formatId: threeStageResult.stage2?.formatId || undefined,
         });
 
         if (fxConfig.fxConversionEnabled && threeStageResult.stage3) {

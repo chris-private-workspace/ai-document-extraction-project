@@ -60,6 +60,8 @@ import {
 } from '@/hooks/use-pipeline-configs'
 import { RegionSelect } from '@/components/features/region/RegionSelect'
 import { useCompanies } from '@/hooks/use-companies'
+import { useCompanyFormats } from '@/hooks/use-company-formats'
+import { COMMON_CURRENCIES } from '@/types/exchange-rate'
 
 // ============================================================
 // Types
@@ -93,9 +95,10 @@ const FALLBACK_OPTIONS = ['skip', 'warn', 'error'] as const
 
 const formSchema = z
   .object({
-    scope: z.enum(['GLOBAL', 'REGION', 'COMPANY']),
+    scope: z.enum(['GLOBAL', 'REGION', 'COMPANY', 'FORMAT']),
     regionId: z.string().nullable().optional(),
     companyId: z.string().nullable().optional(),
+    documentFormatId: z.string().nullable().optional(),
     refMatchEnabled: z.boolean(),
     refMatchTypes: z.array(z.string()),
     refMatchMaxResults: z.number().int().min(1).max(100),
@@ -105,6 +108,7 @@ const formSchema = z
     fxConvertExtraCharges: z.boolean(),
     fxRoundingPrecision: z.number().int().min(0).max(8),
     fxFallbackBehavior: z.enum(['skip', 'warn', 'error']),
+    fxSourceCurrencies: z.array(z.string()),
     isActive: z.boolean(),
     description: z.string().nullable().optional(),
   })
@@ -121,6 +125,13 @@ const formSchema = z
       return true
     },
     { message: 'Company is required for COMPANY scope', path: ['companyId'] }
+  )
+  .refine(
+    (data) => {
+      if (data.scope === 'FORMAT') return !!data.documentFormatId
+      return true
+    },
+    { message: 'Format is required for FORMAT scope', path: ['documentFormatId'] }
   )
 
 type FormValues = z.infer<typeof formSchema>
@@ -145,6 +156,16 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
   const { data: companiesData } = useCompanies({ limit: 100 })
   const companies = companiesData?.data ?? []
 
+  // --- CHANGE-071: FORMAT scope「公司 → 格式」級聯（formatCompanyId 僅過濾用，不儲存）---
+  const [formatCompanyId, setFormatCompanyId] = React.useState<string>(
+    initialData?.documentFormat?.company?.id ?? ''
+  )
+  const { formats: companyFormats } = useCompanyFormats({
+    companyId: formatCompanyId,
+    enabled: !!formatCompanyId,
+    limit: 100,
+  })
+
   // --- Form ---
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -152,6 +173,7 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
       scope: initialData?.scope ?? 'GLOBAL',
       regionId: initialData?.regionId ?? null,
       companyId: initialData?.companyId ?? null,
+      documentFormatId: initialData?.documentFormatId ?? null,
       refMatchEnabled: initialData?.refMatchEnabled ?? false,
       refMatchTypes: (initialData?.refMatchTypes as string[]) ?? [
         'SHIPMENT',
@@ -168,6 +190,7 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
       fxRoundingPrecision: initialData?.fxRoundingPrecision ?? 2,
       fxFallbackBehavior:
         (initialData?.fxFallbackBehavior as 'skip' | 'warn' | 'error') ?? 'skip',
+      fxSourceCurrencies: (initialData?.fxSourceCurrencies as string[]) ?? [],
       isActive: initialData?.isActive ?? true,
       description: initialData?.description ?? null,
     },
@@ -194,6 +217,10 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
               fxConvertExtraCharges: values.fxConvertExtraCharges,
               fxRoundingPrecision: values.fxRoundingPrecision,
               fxFallbackBehavior: values.fxFallbackBehavior,
+              fxSourceCurrencies:
+                values.fxSourceCurrencies.length > 0
+                  ? values.fxSourceCurrencies
+                  : null,
               isActive: values.isActive,
               description: values.description,
             },
@@ -204,6 +231,8 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
             scope: values.scope,
             regionId: values.scope === 'REGION' ? values.regionId : null,
             companyId: values.scope === 'COMPANY' ? values.companyId : null,
+            documentFormatId:
+              values.scope === 'FORMAT' ? values.documentFormatId : null,
             refMatchEnabled: values.refMatchEnabled,
             refMatchTypes: values.refMatchTypes,
             refMatchMaxResults: values.refMatchMaxResults,
@@ -213,6 +242,10 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
             fxConvertExtraCharges: values.fxConvertExtraCharges,
             fxRoundingPrecision: values.fxRoundingPrecision,
             fxFallbackBehavior: values.fxFallbackBehavior,
+            fxSourceCurrencies:
+              values.fxSourceCurrencies.length > 0
+                ? values.fxSourceCurrencies
+                : null,
             isActive: values.isActive,
             description: values.description,
           })
@@ -249,6 +282,19 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
 
   const selectedRefTypes = form.watch('refMatchTypes')
 
+  // CHANGE-071: 來源幣別多選 toggle
+  const selectedSourceCurrencies = form.watch('fxSourceCurrencies')
+  const toggleSourceCurrency = React.useCallback(
+    (code: string) => {
+      const current = form.getValues('fxSourceCurrencies')
+      const updated = current.includes(code)
+        ? current.filter((c) => c !== code)
+        : [...current, code]
+      form.setValue('fxSourceCurrencies', updated)
+    },
+    [form]
+  )
+
   // --- Render ---
   return (
     <Form {...form}>
@@ -275,7 +321,7 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
                     className="flex gap-4"
                     disabled={isEditing}
                   >
-                    {(['GLOBAL', 'REGION', 'COMPANY'] as const).map((s) => (
+                    {(['GLOBAL', 'REGION', 'COMPANY', 'FORMAT'] as const).map((s) => (
                       <div key={s} className="flex items-center space-x-2">
                         <RadioGroupItem value={s} id={`scope-${s}`} />
                         <Label htmlFor={`scope-${s}`}>{t(`scope.${s}`)}</Label>
@@ -338,6 +384,64 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
                 </FormItem>
               )}
             />
+          )}
+
+          {watchScope === 'FORMAT' && (
+            <>
+              {/* CHANGE-071: 先選公司（過濾用，不儲存），再選該公司的格式 */}
+              <FormItem>
+                <FormLabel>{t('form.company')}</FormLabel>
+                <Select
+                  value={formatCompanyId}
+                  onValueChange={(val) => {
+                    setFormatCompanyId(val)
+                    form.setValue('documentFormatId', null)
+                  }}
+                  disabled={isEditing}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('form.selectCompany')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((c: { id: string; name: string }) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormItem>
+
+              <FormField
+                control={form.control}
+                name="documentFormatId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('form.format')}</FormLabel>
+                    <FormControl>
+                      <Select
+                        value={field.value ?? ''}
+                        onValueChange={(val) => field.onChange(val || null)}
+                        disabled={isEditing || !formatCompanyId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('form.selectFormat')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companyFormats.map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {f.name ||
+                                `${f.documentType} / ${f.documentSubtype}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
           )}
         </div>
 
@@ -467,6 +571,30 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
                   </FormItem>
                 )}
               />
+
+              {/* CHANGE-071: 只轉指定來源幣別（不選 = 全轉） */}
+              <div className="space-y-2">
+                <Label>{t('form.fxSourceCurrencies')}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {t('form.fxSourceCurrenciesDescription')}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {COMMON_CURRENCIES.map((currency) => (
+                    <Badge
+                      key={currency.code}
+                      variant={
+                        selectedSourceCurrencies.includes(currency.code)
+                          ? 'default'
+                          : 'outline'
+                      }
+                      className="cursor-pointer"
+                      onClick={() => toggleSourceCurrency(currency.code)}
+                    >
+                      {currency.code}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField

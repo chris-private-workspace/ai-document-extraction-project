@@ -2893,6 +2893,7 @@ model DocumentFormat {
   promptConfigs         PromptConfig[]
   templateFieldMappings TemplateFieldMapping[]
   fieldDefinitionSets   FieldDefinitionSet[]       // CHANGE-042: 欄位定義集關聯
+  pipelineConfigs       PipelineConfig[]           // CHANGE-071: FORMAT scope 管線配置關聯
 
   @@unique([companyId, documentType, documentSubtype])
   @@index([companyId])
@@ -4297,6 +4298,7 @@ enum PipelineConfigScope {
   GLOBAL
   REGION
   COMPANY
+  FORMAT
 }
 
 /// Pipeline 配置
@@ -4307,6 +4309,8 @@ model PipelineConfig {
   scope                  PipelineConfigScope
   regionId               String?             @map("region_id")
   companyId              String?             @map("company_id")
+  // CHANGE-071: FORMAT scope 文件格式關聯（公司 × 格式條件式 FX 轉換）
+  documentFormatId       String?             @map("document_format_id")
 
   // Reference Number Matching 配置（CHANGE-036: 移除 regex，改用 DB substring 匹配）
   refMatchEnabled        Boolean             @default(false) @map("ref_match_enabled")
@@ -4320,6 +4324,8 @@ model PipelineConfig {
   fxConvertExtraCharges  Boolean             @default(true) @map("fx_convert_extra_charges")
   fxRoundingPrecision    Int                 @default(2) @map("fx_rounding_precision")
   fxFallbackBehavior     String              @default("skip") @map("fx_fallback_behavior")
+  // CHANGE-071: 只轉指定來源幣別清單（null/空 = 全轉，向後相容）
+  fxSourceCurrencies     Json?               @map("fx_source_currencies")
 
   // 通用欄位
   isActive               Boolean             @default(true) @map("is_active")
@@ -4330,10 +4336,12 @@ model PipelineConfig {
   // 關聯
   region                 Region?             @relation(fields: [regionId], references: [id])
   company                Company?            @relation(fields: [companyId], references: [id])
+  documentFormat         DocumentFormat?     @relation(fields: [documentFormatId], references: [id])
 
-  @@unique([scope, regionId, companyId])
+  @@unique([scope, regionId, companyId, documentFormatId])
   @@index([scope])
   @@index([isActive])
+  @@index([documentFormatId])
   @@map("pipeline_configs")
 }
 

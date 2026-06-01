@@ -114,53 +114,65 @@ export class ExchangeRateConverterService {
       }
     }
 
+    // CHANGE-071: 來源幣別條件 — 文件主幣別是否在過濾清單內（清單空/null = 全轉）
+    const sourceCurrencies = config.fxSourceCurrencies ?? null;
+    const convertMain = this.shouldConvertCurrency(sourceCurrency, sourceCurrencies);
+
     // FIX-037 BUG-5: 預查匯率，避免 N+1 查詢
     // 主貨幣對只查一次
     const rateCache = new Map<string, { rate: number; rateId?: string; path: string }>();
-    try {
-      const mainResult = await convert(sourceCurrency, targetCurrency, 1, invoiceYear, invoiceDate);
-      rateCache.set(
-        `${sourceCurrency.toUpperCase()}->${targetCurrency.toUpperCase()}`,
-        { rate: mainResult.rate, rateId: mainResult.rateId, path: mainResult.path }
-      );
-    } catch (error) {
-      // 主匯率查詢失敗 — 根據 fallback 策略處理
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      if (config.fxFallbackBehavior === 'error') {
-        throw new Error(`FX rate lookup failed for ${sourceCurrency}->${targetCurrency}: ${errorMsg}`);
+
+    if (convertMain) {
+      try {
+        const mainResult = await convert(sourceCurrency, targetCurrency, 1, invoiceYear, invoiceDate);
+        rateCache.set(
+          `${sourceCurrency.toUpperCase()}->${targetCurrency.toUpperCase()}`,
+          { rate: mainResult.rate, rateId: mainResult.rateId, path: mainResult.path }
+        );
+      } catch (error) {
+        // 主匯率查詢失敗 — 根據 fallback 策略處理
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        if (config.fxFallbackBehavior === 'error') {
+          throw new Error(`FX rate lookup failed for ${sourceCurrency}->${targetCurrency}: ${errorMsg}`);
+        }
+        warnings.push(`FX rate lookup failed for ${sourceCurrency}->${targetCurrency}: ${errorMsg}`);
+        return {
+          enabled: true,
+          conversions: [],
+          sourceCurrency,
+          targetCurrency,
+          warnings,
+          processingTimeMs: Date.now() - startTime,
+        };
       }
-      warnings.push(`FX rate lookup failed for ${sourceCurrency}->${targetCurrency}: ${errorMsg}`);
-      return {
-        enabled: true,
-        conversions: [],
-        sourceCurrency,
-        targetCurrency,
-        warnings,
-        processingTimeMs: Date.now() - startTime,
-      };
-    }
 
-    // 轉換標準金額欄位
-    this.convertStandardFieldsCached(
-      stage3Result,
-      sourceCurrency,
-      targetCurrency,
-      precision,
-      config.fxFallbackBehavior,
-      conversions,
-      warnings,
-      rateCache
-    );
-
-    // 轉換 lineItems
-    if (config.fxConvertLineItems && stage3Result.lineItems?.length > 0) {
-      this.convertLineItemsCached(
+      // 轉換標準金額欄位
+      this.convertStandardFieldsCached(
         stage3Result,
         sourceCurrency,
         targetCurrency,
         precision,
+        config.fxFallbackBehavior,
         conversions,
+        warnings,
         rateCache
+      );
+
+      // 轉換 lineItems
+      if (config.fxConvertLineItems && stage3Result.lineItems?.length > 0) {
+        this.convertLineItemsCached(
+          stage3Result,
+          sourceCurrency,
+          targetCurrency,
+          precision,
+          conversions,
+          rateCache
+        );
+      }
+    } else if (sourceCurrencies && sourceCurrencies.length > 0) {
+      // CHANGE-071: 主幣別不在過濾清單 → 標準欄位/行項目略過（extraCharges 仍依各自幣別判斷）
+      warnings.push(
+        `來源幣別 ${sourceCurrency} 不在 fxSourceCurrencies 過濾清單內，標準欄位與行項目略過轉換`
       );
     }
 
@@ -176,7 +188,8 @@ export class ExchangeRateConverterService {
         warnings,
         rateCache,
         invoiceYear,
-        invoiceDate
+        invoiceDate,
+        sourceCurrencies
       );
     }
 
@@ -278,7 +291,8 @@ export class ExchangeRateConverterService {
     warnings: string[],
     rateCache: Map<string, { rate: number; rateId?: string; path: string }>,
     invoiceYear?: number,
-    invoiceDate?: Date
+    invoiceDate?: Date,
+    sourceCurrencies?: string[] | null
   ): Promise<void> {
     const charges = stage3Result.extraCharges || [];
     for (let i = 0; i < charges.length; i++) {
@@ -288,6 +302,8 @@ export class ExchangeRateConverterService {
       // extraCharge 可能有自己的貨幣
       const chargeCurrency = charge.currency || sourceCurrency;
       if (chargeCurrency.toUpperCase() === targetCurrency.toUpperCase()) continue;
+      // CHANGE-071: 附加費依各自幣別套用來源幣別過濾
+      if (!this.shouldConvertCurrency(chargeCurrency, sourceCurrencies ?? null)) continue;
 
       const cacheKey = `${chargeCurrency.toUpperCase()}->${targetCurrency.toUpperCase()}`;
       let cached = rateCache.get(cacheKey);
@@ -332,6 +348,19 @@ export class ExchangeRateConverterService {
     }
 
     warnings.push(`FX conversion skipped for ${field}: ${errorMsg}`);
+  }
+
+  /**
+   * CHANGE-071: 判斷某幣別是否在「只轉指定來源幣別」清單內
+   * @returns 清單為空/null → true（全轉，向後相容）；否則僅清單內幣別回 true
+   */
+  private shouldConvertCurrency(
+    currency: string,
+    sourceCurrencies: string[] | null
+  ): boolean {
+    if (!sourceCurrencies || sourceCurrencies.length === 0) return true;
+    const upper = currency.toUpperCase();
+    return sourceCurrencies.some((c) => c.toUpperCase() === upper);
   }
 
   /**
