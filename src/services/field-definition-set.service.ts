@@ -418,6 +418,56 @@ export async function getResolvedFields(
 }
 
 /**
+ * 三層合併解析欄位（GLOBAL base → COMPANY override → FORMAT override）
+ *
+ * @description
+ *   與 stage-3-extraction.service 的 loadFieldDefinitionSet 採用**相同的合併語意**：
+ *   GLOBAL 為基底，COMPANY 覆蓋/追加，FORMAT 覆蓋/追加（同 key 取代、新 key 追加）。
+ *
+ *   與 getResolvedFields 的差異：getResolvedFields 只回傳「最具體那一層」的欄位集，
+ *   而本函式回傳「合併後的完整欄位集」，與實際提取時 stage3Result.fields 的 key 集合一致。
+ *
+ *   用途：需要完整欄位定義的場景，例如 CHANGE-072 匯率換算需依 dataType==='currency'
+ *   判定動態 fields 中哪些 key 是貨幣金額欄位（這些 key 可能來自任一層）。
+ *
+ * @param companyId - 公司 ID（可選）
+ * @param formatId - 格式 ID（可選；需與 companyId 並用才查 FORMAT 層）
+ * @returns 合併後的 FieldDefinitionEntry 陣列；全部找不到時 fallback 到候選欄位清單
+ * @since CHANGE-072
+ */
+export async function getMergedResolvedFields(
+  companyId?: string,
+  formatId?: string
+): Promise<FieldDefinitionEntry[]> {
+  const [formatSet, companySet, globalSet] = await Promise.all([
+    companyId && formatId
+      ? prisma.fieldDefinitionSet.findFirst({
+          where: { scope: 'FORMAT', companyId, documentFormatId: formatId, isActive: true },
+          select: { fields: true },
+        })
+      : Promise.resolve(null),
+    companyId
+      ? prisma.fieldDefinitionSet.findFirst({
+          where: { scope: 'COMPANY', companyId, documentFormatId: null, isActive: true },
+          select: { fields: true },
+        })
+      : Promise.resolve(null),
+    prisma.fieldDefinitionSet.findFirst({
+      where: { scope: 'GLOBAL', companyId: null, documentFormatId: null, isActive: true },
+      select: { fields: true },
+    }),
+  ]);
+
+  const merged = new Map<string, FieldDefinitionEntry>();
+  for (const f of parseFieldEntries(globalSet?.fields)) merged.set(f.key, f);
+  for (const f of parseFieldEntries(companySet?.fields)) merged.set(f.key, f);
+  for (const f of parseFieldEntries(formatSet?.fields)) merged.set(f.key, f);
+
+  if (merged.size === 0) return getCandidateFields();
+  return Array.from(merged.values());
+}
+
+/**
  * 欄位覆蓋率分析
  *
  * @description 聚合 FieldExtractionFeedback，計算各欄位 found/missing 比率

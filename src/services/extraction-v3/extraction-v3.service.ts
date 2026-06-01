@@ -492,6 +492,9 @@ export class ExtractionV3Service {
           fxConversionResult = await converter.convert({
             stage3Result: threeStageResult.stage3,
             config: fxConfig,
+            // CHANGE-072: 傳入公司/格式 ID，載入合併 FieldDefinitionSet 判定動態 currency 欄位
+            companyId: threeStageResult.stage1?.companyId || undefined,
+            formatId: threeStageResult.stage2?.formatId || undefined,
           });
 
           stepTimings['EXCHANGE_RATE_CONVERSION'] = Date.now() - fxStart;

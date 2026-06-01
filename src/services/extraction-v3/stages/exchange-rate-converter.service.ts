@@ -7,17 +7,19 @@
  *
  * @module src/services/extraction-v3/stages/exchange-rate-converter
  * @since CHANGE-032 - Pipeline Reference Number Matching & FX Conversion
- * @lastModified 2026-02-11
+ * @lastModified 2026-06-01
  *
  * @features
  *   - 轉換 totalAmount, subtotal 等標準欄位
  *   - 可選轉換 lineItems 和 extraCharges
+ *   - CHANGE-072: 轉換動態 currency 欄位（stage3Result.fields，依 FieldDefinitionSet 判定）
+ *   - CHANGE-072: 換算後覆蓋寫回欄位值，原值保留於 conversions[] 供審計
  *   - 可配置的精度和 fallback 行為
- *   - 原始值不被取代，轉換值作為額外欄位
  *   - 非阻塞：失敗依 fallback 策略處理
  *
  * @dependencies
  *   - src/services/exchange-rate.service.ts - convert
+ *   - src/services/field-definition-set.service.ts - getMergedResolvedFields (CHANGE-072)
  *   - src/types/extraction-v3.types.ts - ExchangeRateConversionResult
  *
  * @related
@@ -26,6 +28,7 @@
  */
 
 import { convert } from '@/services/exchange-rate.service';
+import { getMergedResolvedFields } from '@/services/field-definition-set.service';
 import type {
   EffectivePipelineConfig,
   ExchangeRateConversionResult,
@@ -47,9 +50,13 @@ export class ExchangeRateConverterService {
   async convert(input: {
     stage3Result: Stage3ExtractionResult;
     config: EffectivePipelineConfig;
+    /** CHANGE-072: 公司 ID（載入合併 FieldDefinitionSet 以判定動態 currency 欄位） */
+    companyId?: string;
+    /** CHANGE-072: 格式 ID（同上，需與 companyId 並用才查 FORMAT 層） */
+    formatId?: string;
   }): Promise<ExchangeRateConversionResult> {
     const startTime = Date.now();
-    const { stage3Result, config } = input;
+    const { stage3Result, config, companyId, formatId } = input;
 
     // 功能未啟用
     if (!config.fxConversionEnabled) {
@@ -169,6 +176,25 @@ export class ExchangeRateConverterService {
           rateCache
         );
       }
+
+      // CHANGE-072: 轉換動態 currency 欄位（fields Record）並覆蓋寫回
+      if (stage3Result.fields && Object.keys(stage3Result.fields).length > 0) {
+        await this.convertDynamicFieldsCached(
+          stage3Result,
+          sourceCurrency,
+          targetCurrency,
+          precision,
+          conversions,
+          rateCache,
+          companyId,
+          formatId
+        );
+      }
+
+      // CHANGE-072: 主幣別已換算 → 覆蓋文件主幣別欄位為目標幣別
+      if (stage3Result.standardFields.currency) {
+        stage3Result.standardFields.currency.value = targetCurrency;
+      }
     } else if (sourceCurrencies && sourceCurrencies.length > 0) {
       // CHANGE-071: 主幣別不在過濾清單 → 標準欄位/行項目略過（extraCharges 仍依各自幣別判斷）
       warnings.push(
@@ -235,15 +261,19 @@ export class ExchangeRateConverterService {
       const amount = parseFloat(String(fieldValue.value));
       if (isNaN(amount)) continue;
 
+      const convertedAmount = this.round(amount * cached.rate, precision);
       conversions.push({
         field,
         originalAmount: amount,
         originalCurrency: sourceCurrency,
-        convertedAmount: this.round(amount * cached.rate, precision),
+        convertedAmount,
         targetCurrency,
         rate: cached.rate,
         path,
       });
+
+      // CHANGE-072: 覆蓋寫回換算後金額（原值保留於 conversions[] 供審計）
+      fieldValue.value = convertedAmount;
     }
   }
 
@@ -266,15 +296,19 @@ export class ExchangeRateConverterService {
       const item = stage3Result.lineItems[i];
       if (item.amount === undefined || item.amount === null) continue;
 
+      const convertedAmount = this.round(item.amount * cached.rate, precision);
       conversions.push({
         field: 'lineItem.amount',
         originalAmount: item.amount,
         originalCurrency: sourceCurrency,
-        convertedAmount: this.round(item.amount * cached.rate, precision),
+        convertedAmount,
         targetCurrency,
         rate: cached.rate,
         path: `lineItems[${i}].amount`,
       });
+
+      // CHANGE-072: 覆蓋寫回
+      item.amount = convertedAmount;
     }
   }
 
@@ -320,15 +354,77 @@ export class ExchangeRateConverterService {
         }
       }
 
+      const convertedAmount = this.round(charge.amount * cached.rate, precision);
       conversions.push({
         field: 'extraCharge.amount',
         originalAmount: charge.amount,
         originalCurrency: chargeCurrency,
-        convertedAmount: this.round(charge.amount * cached.rate, precision),
+        convertedAmount,
         targetCurrency,
         rate: cached.rate,
         path: `extraCharges[${i}].amount`,
       });
+
+      // CHANGE-072: 覆蓋寫回 + 幣別改為目標幣別
+      charge.amount = convertedAmount;
+      charge.currency = targetCurrency;
+    }
+  }
+
+  /**
+   * CHANGE-072: 轉換動態 currency 欄位（stage3Result.fields）並覆蓋寫回
+   *
+   * @description
+   *   CHANGE-042 動態欄位以 Record<string, FieldValue> 儲存，FieldValue 本身不帶 dataType。
+   *   透過 companyId + formatId 載入「合併後」的 FieldDefinitionSet（GLOBAL→COMPANY→FORMAT，
+   *   與 stage-3 提取時相同語意），篩出 dataType==='currency' 的欄位 key，僅對這些 key 換算。
+   *   動態金額視為文件主幣別（sourceCurrency），使用主幣別匯率（rateCache 已預查）。
+   *   原值保留於 conversions[] 供審計。
+   */
+  private async convertDynamicFieldsCached(
+    stage3Result: Stage3ExtractionResult,
+    sourceCurrency: string,
+    targetCurrency: string,
+    precision: number,
+    conversions: FxConversionItem[],
+    rateCache: Map<string, { rate: number; rateId?: string; path: string }>,
+    companyId?: string,
+    formatId?: string
+  ): Promise<void> {
+    const fields = stage3Result.fields;
+    if (!fields || Object.keys(fields).length === 0) return;
+
+    const cacheKey = `${sourceCurrency.toUpperCase()}->${targetCurrency.toUpperCase()}`;
+    const cached = rateCache.get(cacheKey);
+    if (!cached) return;
+
+    // 載入合併欄位定義，取得 currency 型別欄位 key 集合
+    const mergedDefs = await getMergedResolvedFields(companyId, formatId);
+    const currencyKeys = new Set(
+      mergedDefs.filter((d) => d.dataType === 'currency').map((d) => d.key)
+    );
+    if (currencyKeys.size === 0) return;
+
+    for (const key of currencyKeys) {
+      const fieldValue = fields[key];
+      if (!fieldValue || fieldValue.value === null || fieldValue.value === undefined) continue;
+
+      const amount = parseFloat(String(fieldValue.value));
+      if (isNaN(amount)) continue;
+
+      const convertedAmount = this.round(amount * cached.rate, precision);
+      conversions.push({
+        field: key,
+        originalAmount: amount,
+        originalCurrency: sourceCurrency,
+        convertedAmount,
+        targetCurrency,
+        rate: cached.rate,
+        path: `fields.${key}`,
+      });
+
+      // 覆蓋寫回換算後金額（原值保留於 conversions[] 供審計）
+      fieldValue.value = convertedAmount;
     }
   }
 
