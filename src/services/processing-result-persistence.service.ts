@@ -299,6 +299,10 @@ export async function persistProcessingResult(
         stage1DurationMs: result.stageAiDetails?.stage1?.durationMs ?? null,
         stage2DurationMs: result.stageAiDetails?.stage2?.durationMs ?? null,
         stage3DurationMs: result.stageAiDetails?.stage3?.durationMs ?? null,
+        // CHANGE-072: 持久化 FX 換算審計（覆蓋寫回後原值僅存於此）
+        fxConversionResult: result.exchangeRateConversion
+          ? (result.exchangeRateConversion as unknown as Prisma.InputJsonValue)
+          : undefined,
       },
       update: {
         companyId: result.companyId ?? null,
@@ -333,6 +337,10 @@ export async function persistProcessingResult(
         stage1DurationMs: result.stageAiDetails?.stage1?.durationMs ?? null,
         stage2DurationMs: result.stageAiDetails?.stage2?.durationMs ?? null,
         stage3DurationMs: result.stageAiDetails?.stage3?.durationMs ?? null,
+        // CHANGE-072: 持久化 FX 換算審計（覆蓋寫回後原值僅存於此）
+        fxConversionResult: result.exchangeRateConversion
+          ? (result.exchangeRateConversion as unknown as Prisma.InputJsonValue)
+          : undefined,
       },
     }),
 

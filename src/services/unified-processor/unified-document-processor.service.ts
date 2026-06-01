@@ -484,6 +484,9 @@ export class UnifiedDocumentProcessorService {
         fields: result.fields ? { ...result.fields } : undefined, // FIX-045: 保留原始 key
         lineItems: result.lineItems ? [...result.lineItems] : undefined,
       } : undefined,
+      // CHANGE-072: 帶上 FX 換算結果，使 persistProcessingResult 能持久化審計原值
+      //（覆蓋寫回後，原始金額僅存於 fxConversionResult.conversions[]）
+      exchangeRateConversion: v3Result.exchangeRateConversion,
     };
   }
 

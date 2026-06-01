@@ -32,6 +32,7 @@ import { getMergedResolvedFields } from '@/services/field-definition-set.service
 import type {
   EffectivePipelineConfig,
   ExchangeRateConversionResult,
+  FieldValue,
   FxConversionItem,
   Stage3ExtractionResult,
 } from '@/types/extraction-v3.types';
@@ -153,6 +154,10 @@ export class ExchangeRateConverterService {
         };
       }
 
+      // CHANGE-072: 追蹤已換算的 FieldValue 物件（以身分去重），
+      // 防止 standardFields 與動態 fields 別名同一物件時被重複換算
+      const convertedFieldValues = new Set<FieldValue>();
+
       // 轉換標準金額欄位
       this.convertStandardFieldsCached(
         stage3Result,
@@ -162,7 +167,8 @@ export class ExchangeRateConverterService {
         config.fxFallbackBehavior,
         conversions,
         warnings,
-        rateCache
+        rateCache,
+        convertedFieldValues
       );
 
       // 轉換 lineItems
@@ -187,7 +193,8 @@ export class ExchangeRateConverterService {
           conversions,
           rateCache,
           companyId,
-          formatId
+          formatId,
+          convertedFieldValues
         );
       }
 
@@ -240,7 +247,8 @@ export class ExchangeRateConverterService {
     fallbackBehavior: string,
     conversions: FxConversionItem[],
     warnings: string[],
-    rateCache: Map<string, { rate: number; rateId?: string; path: string }>
+    rateCache: Map<string, { rate: number; rateId?: string; path: string }>,
+    convertedFieldValues: Set<FieldValue>
   ): void {
     const amountFields = [
       { field: 'totalAmount', path: 'standardFields.totalAmount' },
@@ -257,6 +265,8 @@ export class ExchangeRateConverterService {
     for (const { field, path } of amountFields) {
       const fieldValue = stage3Result.standardFields[field as keyof typeof stage3Result.standardFields];
       if (!fieldValue?.value) continue;
+      // CHANGE-072: 同一 FieldValue 物件只換算一次（避免別名雙重換算）
+      if (convertedFieldValues.has(fieldValue)) continue;
 
       const amount = parseFloat(String(fieldValue.value));
       if (isNaN(amount)) continue;
@@ -274,6 +284,7 @@ export class ExchangeRateConverterService {
 
       // CHANGE-072: 覆蓋寫回換算後金額（原值保留於 conversions[] 供審計）
       fieldValue.value = convertedAmount;
+      convertedFieldValues.add(fieldValue);
     }
   }
 
@@ -388,8 +399,9 @@ export class ExchangeRateConverterService {
     precision: number,
     conversions: FxConversionItem[],
     rateCache: Map<string, { rate: number; rateId?: string; path: string }>,
-    companyId?: string,
-    formatId?: string
+    companyId: string | undefined,
+    formatId: string | undefined,
+    convertedFieldValues: Set<FieldValue>
   ): Promise<void> {
     const fields = stage3Result.fields;
     if (!fields || Object.keys(fields).length === 0) return;
@@ -408,6 +420,9 @@ export class ExchangeRateConverterService {
     for (const key of currencyKeys) {
       const fieldValue = fields[key];
       if (!fieldValue || fieldValue.value === null || fieldValue.value === undefined) continue;
+      // CHANGE-072: 同一 FieldValue 物件只換算一次
+      // （standardFields.totalAmount 等可能與 fields[snake_case] 別名同一物件）
+      if (convertedFieldValues.has(fieldValue)) continue;
 
       const amount = parseFloat(String(fieldValue.value));
       if (isNaN(amount)) continue;
@@ -425,6 +440,7 @@ export class ExchangeRateConverterService {
 
       // 覆蓋寫回換算後金額（原值保留於 conversions[] 供審計）
       fieldValue.value = convertedAmount;
+      convertedFieldValues.add(fieldValue);
     }
   }
 
