@@ -10,7 +10,7 @@
  *
  * @module src/services/monthly-cost-report.service
  * @since Epic 7 - Story 7.10 (月度成本分攤報告)
- * @lastModified 2025-12-20
+ * @lastModified 2026-06-02
  *
  * @features
  *   - AC1: 月度報告數據聚合
@@ -274,30 +274,38 @@ export class MonthlyCostReportService {
     startDate: Date,
     endDate: Date
   ): Promise<CityStats[]> {
-    const stats = await prisma.$queryRaw<
-      Array<{
-        cityCode: string
-        volume: bigint
-        aiCost: number
-      }>
-    >`
-      SELECT
-        city_code as "cityCode",
-        COUNT(*)::bigint as volume,
-        COALESCE(SUM(ai_cost), 0)::float as "aiCost"
-      FROM documents
-      WHERE created_at >= ${startDate} AND created_at <= ${endDate}
-        AND city_code IS NOT NULL
-      GROUP BY city_code
-    `
+    // 文件量（volume）來自 documents；AI 成本來自 api_usage_logs.estimated_cost。
+    // 城市維度無需日期分桶，改用型別安全的 groupBy 取代原生 SQL（與 getApiStats 一致），
+    // 兩個維度分別查詢後以 cityCode 為鍵合併。
+    const [volumeByCity, costByCity] = await Promise.all([
+      prisma.document.groupBy({
+        by: ['cityCode'],
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _count: true,
+      }),
+      prisma.apiUsageLog.groupBy({
+        by: ['cityCode'],
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _sum: { estimatedCost: true },
+      }),
+    ])
 
-    return stats.map((s) => ({
-      cityCode: s.cityCode,
-      volume: Number(s.volume),
-      aiCost: s.aiCost,
-      laborCost: this.estimateLaborCost(Number(s.volume)),
-      totalCost: s.aiCost + this.estimateLaborCost(Number(s.volume)),
-    }))
+    const aiCostByCity = new Map(
+      costByCity.map((c) => [c.cityCode, Number(c._sum.estimatedCost ?? 0)])
+    )
+
+    return volumeByCity.map((row) => {
+      const volume = row._count
+      const aiCost = aiCostByCity.get(row.cityCode) ?? 0
+      const laborCost = this.estimateLaborCost(volume)
+      return {
+        cityCode: row.cityCode,
+        volume,
+        aiCost,
+        laborCost,
+        totalCost: aiCost + laborCost,
+      }
+    })
   }
 
   /**
@@ -348,28 +356,42 @@ export class MonthlyCostReportService {
     startDate: Date,
     endDate: Date
   ): Promise<DailyTrendItem[]> {
-    const trend = await prisma.$queryRaw<
-      Array<{
-        date: Date
-        volume: bigint
-        cost: number
-      }>
-    >`
-      SELECT
-        DATE(created_at) as date,
-        COUNT(*)::bigint as volume,
-        COALESCE(SUM(ai_cost), 0)::float as cost
-      FROM documents
-      WHERE created_at >= ${startDate} AND created_at <= ${endDate}
-      GROUP BY DATE(created_at)
-      ORDER BY date
-    `
+    // volume 來自 documents；每日 AI 成本來自 api_usage_logs.estimated_cost。
+    // 日期分桶（GROUP BY DATE()）Prisma Client 無法表達，故保留 $queryRaw，
+    // 但成本改用正確的表，volume 與 cost 分別查詢後以日期鍵合併。
+    const [volumeByDay, costByDay] = await Promise.all([
+      prisma.$queryRaw<Array<{ date: Date; volume: bigint }>>`
+        SELECT
+          DATE(created_at) as date,
+          COUNT(*)::bigint as volume
+        FROM documents
+        WHERE created_at >= ${startDate} AND created_at <= ${endDate}
+        GROUP BY DATE(created_at)
+      `,
+      prisma.$queryRaw<Array<{ date: Date; cost: number }>>`
+        SELECT
+          DATE(created_at) as date,
+          COALESCE(SUM(estimated_cost), 0)::float as cost
+        FROM api_usage_logs
+        WHERE created_at >= ${startDate} AND created_at <= ${endDate}
+        GROUP BY DATE(created_at)
+      `,
+    ])
 
-    return trend.map((t) => ({
-      date: t.date.toISOString().split('T')[0],
-      volume: Number(t.volume),
-      cost: t.cost,
-    }))
+    const costByDate = new Map(
+      costByDay.map((row) => [row.date.toISOString().split('T')[0], row.cost])
+    )
+
+    return volumeByDay
+      .map((row) => {
+        const date = row.date.toISOString().split('T')[0]
+        return {
+          date,
+          volume: Number(row.volume),
+          cost: costByDate.get(date) ?? 0,
+        }
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
   }
 
   /**

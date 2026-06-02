@@ -69,6 +69,7 @@ scripts/validate-*
 scripts/verify-*
 !scripts/verify-claude-md-sync.sh
 !scripts/verify-environment.ts
+!scripts/verify-fix-059-monthly-cost-sql.ts
 scripts/create-*
 scripts/export-*
 scripts/list-*
