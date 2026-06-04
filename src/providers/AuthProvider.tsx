@@ -47,12 +47,16 @@ interface AuthProviderProps {
  *   此組件必須放在客戶端組件中，並包裹在應用程式的根層級。
  *
  *   配置說明：
+ *   - refetchInterval: 每 5 分鐘輪詢一次 session，讓閒置（未重新聚焦視窗）也能
+ *     及時偵測 session 過期，配合 SessionGuard 導回登入頁（FIX-061）
  *   - refetchOnWindowFocus: 當窗口獲得焦點時重新獲取 session，確保登錄後立即更新
  *   - refetchWhenOffline: 離線時不刷新，避免不必要的錯誤
  */
 export function AuthProvider({ children }: AuthProviderProps) {
   return (
     <SessionProvider
+      // 每 5 分鐘（300 秒）輪詢一次 session，及時偵測閒置過期（FIX-061）
+      refetchInterval={5 * 60}
       // 當窗口獲得焦點時重新獲取 session
       refetchOnWindowFocus={true}
       // 離線時不刷新

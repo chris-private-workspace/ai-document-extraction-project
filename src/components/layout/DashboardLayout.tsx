@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TopBar } from '@/components/layout/TopBar'
+import { SessionGuard } from '@/components/layout/SessionGuard'
 
 // ============================================================
 // Types
@@ -78,6 +79,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950">
+      {/* Session 守衛：session 過期時導回登入頁（FIX-061） */}
+      <SessionGuard />
+
       {/* Desktop Sidebar - 固定在左側 */}
       <div
         className={cn(
