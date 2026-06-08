@@ -81,7 +81,7 @@ export default function NewDataTemplatePage() {
 
   // --- Render ---
   return (
-    <div className="container mx-auto py-6 max-w-4xl">
+    <div className="container mx-auto py-6">
       {/* Page Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">

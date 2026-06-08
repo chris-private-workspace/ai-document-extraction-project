@@ -65,7 +65,7 @@ export default function UploadPage() {
   }, [groupedCities])
 
   return (
-    <div className="container mx-auto py-6 max-w-3xl">
+    <div className="container mx-auto py-6">
       <Card>
         <CardHeader>
           <CardTitle>{t('upload.title')}</CardTitle>

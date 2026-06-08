@@ -49,7 +49,7 @@ export default function EditFieldDefinitionSetPage() {
   // Loading
   if (isLoading) {
     return (
-      <div className="container mx-auto py-6 max-w-3xl">
+      <div className="container mx-auto py-6">
         <Button variant="ghost" className="mb-4" asChild>
           <Link href="/admin/field-definition-sets">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -78,7 +78,7 @@ export default function EditFieldDefinitionSetPage() {
   // Error
   if (error || !data) {
     return (
-      <div className="container mx-auto py-6 max-w-3xl">
+      <div className="container mx-auto py-6">
         <Button variant="ghost" className="mb-4" asChild>
           <Link href="/admin/field-definition-sets">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -99,7 +99,7 @@ export default function EditFieldDefinitionSetPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-3xl space-y-6">
+    <div className="container mx-auto py-6 space-y-6">
       {/* Back link */}
       <Button variant="ghost" asChild>
         <Link href="/admin/field-definition-sets">

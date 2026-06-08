@@ -157,7 +157,7 @@ export default function RuleEditPage({ params }: PageProps) {
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-4xl">
+    <div className="container mx-auto py-6">
       {/* Header */}
       <div className="mb-6">
         <Button variant="ghost" size="sm" asChild className="mb-4">

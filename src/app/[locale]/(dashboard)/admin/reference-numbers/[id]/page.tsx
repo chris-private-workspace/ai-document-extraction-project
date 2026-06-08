@@ -74,7 +74,7 @@ export default function EditReferenceNumberPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-6 max-w-3xl">
+      <div className="container mx-auto py-6">
         <Skeleton className="h-8 w-32 mb-4" />
         <Skeleton className="h-[500px] w-full rounded-lg" />
       </div>
@@ -85,7 +85,7 @@ export default function EditReferenceNumberPage() {
 
   if (!item) {
     return (
-      <div className="container mx-auto py-6 max-w-3xl">
+      <div className="container mx-auto py-6">
         <Button variant="ghost" className="mb-4" asChild>
           <Link href="/admin/reference-numbers">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -100,7 +100,7 @@ export default function EditReferenceNumberPage() {
   // --- Render ---
 
   return (
-    <div className="container mx-auto py-6 max-w-3xl">
+    <div className="container mx-auto py-6">
       {/* 返回連結 */}
       <Button variant="ghost" className="mb-4" asChild>
         <Link href="/admin/reference-numbers">

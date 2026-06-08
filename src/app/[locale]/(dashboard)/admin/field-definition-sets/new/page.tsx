@@ -33,7 +33,7 @@ export default function NewFieldDefinitionSetPage() {
   const t = useTranslations('fieldDefinitionSet');
 
   return (
-    <div className="container mx-auto py-6 max-w-3xl">
+    <div className="container mx-auto py-6">
       {/* Back link */}
       <Button variant="ghost" className="mb-4" asChild>
         <Link href="/admin/field-definition-sets">

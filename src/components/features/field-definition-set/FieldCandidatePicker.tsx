@@ -249,7 +249,7 @@ export function FieldCandidatePicker({
       </div>
 
       {/* Candidate groups */}
-      <div className="border rounded-md divide-y max-h-[400px] overflow-y-auto">
+      <div className="relative border rounded-md divide-y max-h-[400px] overflow-y-auto">
         {groupedCandidates.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             {t('form.fieldPicker.noResults')}

@@ -100,7 +100,7 @@ export default async function EditTemplateFieldMappingPage({ params }: PageProps
   const { dataTemplates, companies, documentFormats } = await getFormData();
 
   return (
-    <div className="container mx-auto py-6 space-y-6 max-w-4xl">
+    <div className="container mx-auto py-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
           {t('page.editTitle', { name: mapping.name })}

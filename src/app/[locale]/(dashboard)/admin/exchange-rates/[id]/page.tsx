@@ -95,7 +95,7 @@ export default function EditExchangeRatePage() {
   // --- 載入中狀態 ---
   if (isLoading) {
     return (
-      <div className="container mx-auto py-6 max-w-2xl">
+      <div className="container mx-auto py-6">
         <Button variant="ghost" className="mb-4" asChild>
           <Link href="/admin/exchange-rates">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -121,7 +121,7 @@ export default function EditExchangeRatePage() {
   // --- 錯誤狀態 ---
   if (error || !data) {
     return (
-      <div className="container mx-auto py-6 max-w-2xl">
+      <div className="container mx-auto py-6">
         <Button variant="ghost" className="mb-4" asChild>
           <Link href="/admin/exchange-rates">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -144,7 +144,7 @@ export default function EditExchangeRatePage() {
 
   // --- 正常渲染 ---
   return (
-    <div className="container mx-auto py-6 max-w-2xl">
+    <div className="container mx-auto py-6">
       {/* 返回連結 */}
       <Button variant="ghost" className="mb-4" asChild>
         <Link href="/admin/exchange-rates">

@@ -25,7 +25,7 @@ export default async function NewPipelineConfigPage() {
   const t = await getTranslations('pipelineConfig')
 
   return (
-    <div className="container mx-auto py-6 max-w-2xl">
+    <div className="container mx-auto py-6">
       {/* 返回連結 */}
       <Button variant="ghost" className="mb-4" asChild>
         <Link href="/admin/pipeline-settings">

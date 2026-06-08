@@ -94,7 +94,7 @@ export default function EditDataTemplatePage() {
   // --- Loading State ---
   if (isLoading) {
     return (
-      <div className="container mx-auto py-6 max-w-4xl">
+      <div className="container mx-auto py-6">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -105,7 +105,7 @@ export default function EditDataTemplatePage() {
   // --- Error State ---
   if (error || !template) {
     return (
-      <div className="container mx-auto py-6 max-w-4xl">
+      <div className="container mx-auto py-6">
         <Alert variant="destructive">
           <AlertDescription>
             {error?.message || t('edit.notFound')}
@@ -119,7 +119,7 @@ export default function EditDataTemplatePage() {
   const isReadOnly = template.isSystem;
 
   return (
-    <div className="container mx-auto py-6 max-w-4xl">
+    <div className="container mx-auto py-6">
       {/* Page Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">

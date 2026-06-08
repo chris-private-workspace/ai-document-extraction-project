@@ -99,7 +99,7 @@ export default function NewRulePage() {
   const t = useTranslations('rules')
 
   return (
-    <div className="container mx-auto py-6 space-y-6 max-w-4xl">
+    <div className="container mx-auto py-6 space-y-6">
       {/* 頁面標題 */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>

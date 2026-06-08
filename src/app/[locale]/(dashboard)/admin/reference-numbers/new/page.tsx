@@ -58,7 +58,7 @@ export default function NewReferenceNumberPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-3xl">
+    <div className="container mx-auto py-6">
       {/* 返回連結 */}
       <Button variant="ghost" className="mb-4" asChild>
         <Link href="/admin/reference-numbers">

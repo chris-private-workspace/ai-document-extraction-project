@@ -77,7 +77,7 @@ export default function EditPipelineConfigPage() {
   // --- 載入中狀態 ---
   if (isLoading) {
     return (
-      <div className="container mx-auto py-6 max-w-2xl">
+      <div className="container mx-auto py-6">
         <Button variant="ghost" className="mb-4" asChild>
           <Link href="/admin/pipeline-settings">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -103,7 +103,7 @@ export default function EditPipelineConfigPage() {
   // --- 錯誤狀態 ---
   if (error || !data) {
     return (
-      <div className="container mx-auto py-6 max-w-2xl">
+      <div className="container mx-auto py-6">
         <Button variant="ghost" className="mb-4" asChild>
           <Link href="/admin/pipeline-settings">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -126,7 +126,7 @@ export default function EditPipelineConfigPage() {
 
   // --- 正常渲染 ---
   return (
-    <div className="container mx-auto py-6 max-w-2xl">
+    <div className="container mx-auto py-6">
       {/* 返回連結 */}
       <Button variant="ghost" className="mb-4" asChild>
         <Link href="/admin/pipeline-settings">
