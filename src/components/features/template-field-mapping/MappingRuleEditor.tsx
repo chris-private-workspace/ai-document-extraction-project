@@ -2,11 +2,11 @@
  * @fileoverview 映射規則編輯器組件
  * @description
  *   管理多條映射規則的編輯器
- *   支援新增、刪除、重新排序
+ *   支援新增、刪除、重新排序（↑↓ 按鈕 + @dnd-kit 拖放，CHANGE-075）
  *
  * @module src/components/features/template-field-mapping
  * @since Epic 19 - Story 19.4
- * @lastModified 2026-02-11
+ * @lastModified 2026-06-03
  */
 
 'use client';
@@ -14,6 +14,22 @@
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus, AlertCircle } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -63,9 +79,27 @@ export function MappingRuleEditor({
 }: MappingRuleEditorProps) {
   const t = useTranslations('templateFieldMapping');
 
-  // Track expanded rules
-  const [expandedIndex, setExpandedIndex] = React.useState<number | null>(
-    rules.length > 0 ? 0 : null
+  // Stable client-side ids for each rule — used by drag-and-drop (dnd-kit
+  // requires a stable id per sortable item) and for tracking which rule is
+  // expanded across reorders. These are transient and NOT persisted: the
+  // parent form rebuilds the submit payload field-by-field, so they never
+  // reach the API. The ids array is kept length-aligned with `rules` by
+  // updating it inside every handler that changes the rule count/order.
+  const idCounterRef = React.useRef(0);
+  const makeId = React.useCallback(() => `rule-${idCounterRef.current++}`, []);
+  const [ids, setIds] = React.useState<string[]>(() => rules.map(() => makeId()));
+
+  // Track expanded rule by its stable id (index-based tracking would break
+  // when rules are reordered).
+  const [expandedId, setExpandedId] = React.useState<string | null>(
+    () => ids[0] ?? null
+  );
+
+  // Drag sensors: pointer (with small activation distance to avoid hijacking
+  // clicks) + keyboard (accessible reordering).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   // Get used fields
@@ -90,10 +124,11 @@ export function MappingRuleEditor({
       order: rules.length,
       description: '',
     };
-    const newRules = [...rules, newRule];
-    onChange(newRules);
-    setExpandedIndex(newRules.length - 1);
-  }, [rules, onChange]);
+    const newId = makeId();
+    onChange([...rules, newRule]);
+    setIds((prev) => [...prev, newId]);
+    setExpandedId(newId);
+  }, [rules, onChange, makeId]);
 
   // Update rule
   const handleRuleChange = React.useCallback(
@@ -109,31 +144,69 @@ export function MappingRuleEditor({
   // Delete rule
   const handleDeleteRule = React.useCallback(
     (index: number) => {
-      const newRules = rules.filter((_, i) => i !== index);
-      // Update order for remaining rules
-      const reorderedRules = newRules.map((rule, i) => ({
+      const removedId = ids[index];
+      const newRules = rules
+        .filter((_, i) => i !== index)
+        .map((rule, i) => ({ ...rule, order: i }));
+      onChange(newRules);
+      setIds((prev) => prev.filter((_, i) => i !== index));
+      if (expandedId === removedId) {
+        setExpandedId(null);
+      }
+    },
+    [rules, onChange, ids, expandedId]
+  );
+
+  // Move a rule to a new position, reindexing every rule's `order` to match
+  // its new array position. This reindexing is required for correctness:
+  // the projection merge path sorts target fields by `order`, so a stale
+  // `order` would produce the wrong output column order.
+  const handleMove = React.useCallback(
+    (from: number, to: number) => {
+      if (
+        from === to ||
+        from < 0 ||
+        to < 0 ||
+        from >= rules.length ||
+        to >= rules.length
+      ) {
+        return;
+      }
+      const reordered = arrayMove(rules, from, to).map((rule, i) => ({
         ...rule,
         order: i,
       }));
-      onChange(reorderedRules);
-
-      // Adjust expanded index
-      if (expandedIndex === index) {
-        setExpandedIndex(null);
-      } else if (expandedIndex !== null && expandedIndex > index) {
-        setExpandedIndex(expandedIndex - 1);
-      }
+      onChange(reordered);
+      setIds((prev) => arrayMove(prev, from, to));
     },
-    [rules, onChange, expandedIndex]
+    [rules, onChange]
   );
 
-  // Toggle expand
-  const handleExpandToggle = React.useCallback(
-    (index: number) => {
-      setExpandedIndex(expandedIndex === index ? null : index);
-    },
-    [expandedIndex]
+  const handleMoveUp = React.useCallback(
+    (index: number) => handleMove(index, index - 1),
+    [handleMove]
   );
+
+  const handleMoveDown = React.useCallback(
+    (index: number) => handleMove(index, index + 1),
+    [handleMove]
+  );
+
+  const handleDragEnd = React.useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const from = ids.indexOf(String(active.id));
+      const to = ids.indexOf(String(over.id));
+      handleMove(from, to);
+    },
+    [ids, handleMove]
+  );
+
+  // Toggle expand (tracked by stable id)
+  const handleExpandToggle = React.useCallback((id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -182,25 +255,38 @@ export function MappingRuleEditor({
           </Button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {rules.map((rule, index) => (
-            <MappingRuleItem
-              key={index}
-              rule={rule}
-              index={index}
-              onChange={(updated) => handleRuleChange(index, updated)}
-              onDelete={() => handleDeleteRule(index)}
-              templateFields={templateFields}
-              usedSourceFields={usedSourceFields}
-              usedTargetFields={usedTargetFields}
-              formatId={formatId}
-              resolveByContext={resolveByContext}
-              isExpanded={expandedIndex === index}
-              onExpandToggle={() => handleExpandToggle(index)}
-              disabled={disabled}
-            />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+          modifiers={[restrictToVerticalAxis]}
+        >
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {rules.map((rule, index) => (
+                <MappingRuleItem
+                  key={ids[index]}
+                  sortableId={ids[index]}
+                  rule={rule}
+                  index={index}
+                  total={rules.length}
+                  onChange={(updated) => handleRuleChange(index, updated)}
+                  onDelete={() => handleDeleteRule(index)}
+                  onMoveUp={() => handleMoveUp(index)}
+                  onMoveDown={() => handleMoveDown(index)}
+                  templateFields={templateFields}
+                  usedSourceFields={usedSourceFields}
+                  usedTargetFields={usedTargetFields}
+                  formatId={formatId}
+                  resolveByContext={resolveByContext}
+                  isExpanded={expandedId === ids[index]}
+                  onExpandToggle={() => handleExpandToggle(ids[index])}
+                  disabled={disabled}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* Summary */}

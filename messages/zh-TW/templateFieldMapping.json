@@ -134,7 +134,10 @@
     "required": "必填",
     "markRequired": "標記為必填",
     "description": "說明（選填）",
-    "descriptionPlaceholder": "為此規則添加說明..."
+    "descriptionPlaceholder": "為此規則添加說明...",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "dragHandle": "拖曳以重新排序"
   },
   "sourceField": {
     "placeholder": "選擇來源欄位",

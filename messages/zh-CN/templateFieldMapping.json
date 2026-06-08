@@ -134,7 +134,10 @@
     "required": "必填",
     "markRequired": "标记为必填",
     "description": "说明（选填）",
-    "descriptionPlaceholder": "为此规则添加说明..."
+    "descriptionPlaceholder": "为此规则添加说明...",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "dragHandle": "拖动以重新排序"
   },
   "sourceField": {
     "placeholder": "选择源字段",

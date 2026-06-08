@@ -2,17 +2,28 @@
  * @fileoverview 映射規則項目組件
  * @description
  *   顯示單一映射規則，支援展開/收起詳細配置
+ *   以及排序操作（↑↓ 按鈕 + @dnd-kit 拖放手柄，CHANGE-075）
  *
  * @module src/components/features/template-field-mapping
  * @since Epic 19 - Story 19.4
- * @lastModified 2026-02-11
+ * @lastModified 2026-06-03
  */
 
 'use client';
 
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
-import { ChevronDown, ChevronUp, GripVertical, Trash2, ArrowRight } from 'lucide-react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  Trash2,
+} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -43,8 +54,16 @@ import { TRANSFORM_TYPE_OPTIONS } from '@/types/template-field-mapping';
 interface MappingRuleItemProps {
   rule: Partial<TemplateFieldMappingRule>;
   index: number;
+  /** 規則總數（用於判斷下移按鈕是否到底） */
+  total: number;
+  /** 拖放排序用的穩定 client id */
+  sortableId: string;
   onChange: (rule: Partial<TemplateFieldMappingRule>) => void;
   onDelete: () => void;
+  /** 上移此規則 */
+  onMoveUp: () => void;
+  /** 下移此規則 */
+  onMoveDown: () => void;
   templateFields: TemplateField[];
   usedSourceFields: string[];
   usedTargetFields: string[];
@@ -70,8 +89,12 @@ interface MappingRuleItemProps {
 export function MappingRuleItem({
   rule,
   index,
+  total,
+  sortableId,
   onChange,
   onDelete,
+  onMoveUp,
+  onMoveDown,
   templateFields,
   usedSourceFields,
   usedTargetFields,
@@ -84,6 +107,24 @@ export function MappingRuleItem({
   className,
 }: MappingRuleItemProps) {
   const t = useTranslations('templateFieldMapping');
+
+  // --- Sortable (drag-and-drop) Setup ---
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sortableId, disabled });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : undefined,
+  };
 
   // Use ref to track latest rule to avoid stale closure when
   // TransformConfigEditor calls onTransformTypeChange + onTransformParamsChange sequentially
@@ -160,9 +201,12 @@ export function MappingRuleItem({
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className={cn(
         'rounded-lg border bg-card transition-shadow',
         isExpanded && 'shadow-sm',
+        isDragging && 'shadow-lg',
         errors && Object.keys(errors).length > 0 && 'border-destructive',
         className
       )}
@@ -170,9 +214,22 @@ export function MappingRuleItem({
       {/* Header / Summary Row */}
       <div className="flex items-center gap-2 p-3">
         {/* Drag Handle */}
-        <div className="cursor-move text-muted-foreground">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          className={cn(
+            'cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted',
+            'focus:outline-none focus:ring-2 focus:ring-ring',
+            isDragging && 'cursor-grabbing',
+            disabled && 'cursor-not-allowed opacity-50'
+          )}
+          disabled={disabled}
+          aria-label={t('rule.dragHandle')}
+          {...attributes}
+          {...listeners}
+        >
           <GripVertical className="h-4 w-4" />
-        </div>
+        </button>
 
         {/* Index */}
         <Badge variant="outline" className="w-8 justify-center">
@@ -239,6 +296,29 @@ export function MappingRuleItem({
 
         {/* Actions */}
         <div className="flex items-center gap-1">
+          {/* Move Up / Down */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onMoveUp}
+            disabled={disabled || index === 0}
+            aria-label={t('rule.moveUp')}
+          >
+            <ArrowUp className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onMoveDown}
+            disabled={disabled || index === total - 1}
+            aria-label={t('rule.moveDown')}
+          >
+            <ArrowDown className="h-4 w-4" />
+          </Button>
           <Button
             type="button"
             variant="ghost"

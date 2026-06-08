@@ -134,7 +134,10 @@
     "required": "Required",
     "markRequired": "Mark as required",
     "description": "Description (optional)",
-    "descriptionPlaceholder": "Add a note about this rule..."
+    "descriptionPlaceholder": "Add a note about this rule...",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "dragHandle": "Drag to reorder"
   },
   "sourceField": {
     "placeholder": "Select source field",
