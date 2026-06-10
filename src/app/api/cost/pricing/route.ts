@@ -24,6 +24,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { auth } from '@/lib/auth'
+import { hasPermission } from '@/lib/auth/city-permission'
+import { PERMISSIONS } from '@/types/permissions'
 import { cityCostService } from '@/services/city-cost.service'
 import type { CityCostApiResponse, PricingConfigListResponse, ApiPricingConfig } from '@/types/city-cost'
 
@@ -74,6 +77,35 @@ const createPricingSchema = z.object({
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    // 驗證認證
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+          },
+        },
+        { status: 401 }
+      )
+    }
+
+    // 檢查權限（計價配置屬高敏感資料）
+    if (!hasPermission(session.user, PERMISSIONS.ADMIN_MANAGE)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Forbidden',
+          },
+        },
+        { status: 403 }
+      )
+    }
+
     // 解析查詢參數
     const searchParams = Object.fromEntries(request.nextUrl.searchParams)
     const validation = listQuerySchema.safeParse(searchParams)
@@ -142,6 +174,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    // 驗證認證
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+          },
+        },
+        { status: 401 }
+      )
+    }
+
+    // 檢查權限（僅系統管理員可創建計價配置）
+    if (!hasPermission(session.user, PERMISSIONS.ADMIN_MANAGE)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Forbidden',
+          },
+        },
+        { status: 403 }
+      )
+    }
+
     // 解析請求體
     const body = await request.json()
     const validation = createPricingSchema.safeParse(body)

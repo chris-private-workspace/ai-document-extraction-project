@@ -24,6 +24,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { auth } from '@/lib/auth'
+import { hasPermission } from '@/lib/auth/city-permission'
+import { PERMISSIONS } from '@/types/permissions'
 import { cityCostService } from '@/services/city-cost.service'
 import type { CityCostApiResponse, PricingConfigDetailResponse, ApiPricingConfig } from '@/types/city-cost'
 
@@ -62,6 +65,35 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
+    // 驗證認證
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+          },
+        },
+        { status: 401 }
+      )
+    }
+
+    // 檢查權限（計價配置含內部用戶 ID 變更歷史，屬高敏感資料）
+    if (!hasPermission(session.user, PERMISSIONS.ADMIN_MANAGE)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Forbidden',
+          },
+        },
+        { status: 403 }
+      )
+    }
+
     const { id } = await params
 
     // 獲取計價配置詳情
@@ -127,6 +159,35 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
+    // 驗證認證
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+          },
+        },
+        { status: 401 }
+      )
+    }
+
+    // 檢查權限（僅系統管理員可更新計價配置）
+    if (!hasPermission(session.user, PERMISSIONS.ADMIN_MANAGE)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Forbidden',
+          },
+        },
+        { status: 403 }
+      )
+    }
+
     const { id } = await params
 
     // 解析請求體
@@ -147,9 +208,8 @@ export async function PATCH(
       )
     }
 
-    // 更新計價配置
-    // TODO: 從認證 context 獲取當前用戶 ID
-    const changedBy = 'system-admin' // 暫時使用固定值
+    // 更新計價配置（變更歸屬於當前認證用戶）
+    const changedBy = session.user.id
     const config = await cityCostService.updatePricingConfig(id, validation.data, changedBy)
 
     if (!config) {
