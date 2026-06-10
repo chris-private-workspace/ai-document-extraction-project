@@ -13,6 +13,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { hasPermission } from '@/lib/auth/city-permission';
+import { PERMISSIONS } from '@/types/permissions';
 import {
   mapDocumentFields,
   getMappingRules,
@@ -49,6 +52,33 @@ const getMappingRulesSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // 認證檢查
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/unauthorized',
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'Authentication required',
+        },
+        { status: 401 }
+      );
+    }
+
+    // 權限檢查：觸發映射處理需要 RULE_MANAGE
+    if (!hasPermission(session.user, PERMISSIONS.RULE_MANAGE)) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/forbidden',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'You do not have permission to perform field mapping',
+        },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const validatedData = mapFieldsSchema.parse(body);
 
@@ -110,6 +140,33 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    // 認證檢查
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/unauthorized',
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'Authentication required',
+        },
+        { status: 401 }
+      );
+    }
+
+    // 權限檢查：查看映射規則需要 RULE_VIEW
+    if (!hasPermission(session.user, PERMISSIONS.RULE_VIEW)) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/forbidden',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'You do not have permission to view mapping rules',
+        },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
 
     // REFACTOR-001: 原 forwarderId 改為 companyId

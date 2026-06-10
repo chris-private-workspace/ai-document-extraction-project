@@ -11,6 +11,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { auth } from '@/lib/auth';
+import { hasPermission } from '@/lib/auth/city-permission';
+import { PERMISSIONS } from '@/types/permissions';
 import { getExtractionResult } from '@/services/mapping.service';
 
 // ============================================================
@@ -30,6 +33,33 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 認證檢查
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/unauthorized',
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'Authentication required',
+        },
+        { status: 401 }
+      );
+    }
+
+    // 權限檢查：查看提取結果需要 RULE_VIEW
+    if (!hasPermission(session.user, PERMISSIONS.RULE_VIEW)) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/forbidden',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'You do not have permission to view extraction results',
+        },
+        { status: 403 }
+      );
+    }
+
     const resolvedParams = await params;
     const { id } = paramsSchema.parse(resolvedParams);
 
