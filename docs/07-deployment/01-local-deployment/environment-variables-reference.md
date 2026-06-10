@@ -117,7 +117,8 @@
 |------|------|
 | **用途** | Node.js 標準環境識別 |
 | **可選值** | `"development"` / `"production"` / `"test"` |
-| **影響** | Next.js build 優化、錯誤訊息詳略、`auth.config.ts` 的 dev mode bypass |
+| **影響** | Next.js build 優化、錯誤訊息詳略、`auth.ts` / `auth.config.ts` 的 dev mode bypass |
+| **🔴 生產檢查（CHANGE-077）** | 生產環境**必須**設為 `"production"`。若誤用 `"development"`，將啟用 `X-Dev-Bypass-Auth` header 後門與「Azure AD 未配置時免密碼登入」。**部署前務必驗證 `NODE_ENV=production`。** |
 
 ---
 
@@ -125,7 +126,7 @@
 
 ### Azure AD SSO（3 個）
 - `AZURE_AD_CLIENT_ID` / `AZURE_AD_CLIENT_SECRET` / `AZURE_AD_TENANT_ID`
-- **缺少影響**：系統自動進入 **dev mode**（接受任何含 `@` 的 email 登入，不需密碼）
+- **缺少影響**：**僅當 `NODE_ENV=development`** 時進入 dev mode（接受任何含 `@` 的 email 登入，不需密碼）。生產環境（`NODE_ENV=production`）即使未配置仍走真實密碼驗證（CHANGE-077）
 - **來源**：Azure Portal → App Registrations
 - **代碼**：`src/lib/auth.config.ts`
 
