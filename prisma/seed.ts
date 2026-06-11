@@ -498,6 +498,8 @@ async function main() {
       status: 'ACTIVE',
       isGlobalAdmin: true,
       emailVerified: new Date(),
+      // FIX-074: 預設管理員首次登入強制改密（接續 FIX-070 隨機一次性密碼）
+      mustChangePassword: true,
       roles: {
         create: {
           roleId: systemAdminRole.id,

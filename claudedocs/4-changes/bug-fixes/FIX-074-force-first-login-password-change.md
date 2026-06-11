@@ -4,7 +4,7 @@
 > **來源**: FIX-070 INFRA-01 第 4 點移交（強制改密觸發 H1，依用戶 2026-06-11 決策另開獨立 FIX 處理）
 > **影響範圍**: `prisma/schema.prisma`（User 模型）、認證流程（`src/lib/auth.ts` / `src/middleware.ts`）、改密 UI 與端點、i18n
 > **優先級**: 中（P2，安全強化；P1 核心「移除硬編碼明文」已由 FIX-070 完成）
-> **狀態**: 📋 規劃中（🔴 待 H1 approve 後實作 — 涉及新增 Prisma 欄位 + 認證流程改動）
+> **狀態**: ✅ 已完成（2026-06-11，H1/H5 已 approve）
 > **相依**: FIX-070（已實作隨機一次性密碼，作為本 FIX 落地前的緩解）、CHANGE-077（dev-bypass NODE_ENV gate）
 
 ---
@@ -91,13 +91,18 @@ mustChangePassword Boolean @default(false) @map("must_change_password")
 
 ## 測試驗證 checklist（實作後）
 
-- [ ] migration dry-run：純加欄位、既有資料不受影響
-- [ ] seed admin 具 `mustChangePassword = true`
+**程式碼 / Schema 層面**
+- [x] migration dry-run：純加欄位（`ALTER TABLE "users" ADD COLUMN "must_change_password" BOOLEAN NOT NULL DEFAULT false`）、既有資料自動填 false 不受影響
+- [x] seed admin `create` 設 `mustChangePassword = true`
+- [x] 改密 API 成功一併 `mustChangePassword = false`（程式碼已實作）
+- [x] middleware 強制改密頁面攔截已實作（已登入 + 旗標 + 非 `/profile` → redirect `/profile`）
+- [x] `npm run i18n:check` 通過（3 語言同步 `forceChange`）
+- [x] `npm run type-check` 本批檔案零錯誤 / `npm run lint` 無新增 warning/error
+
+**執行期（待 staging 驗證）**
 - [ ] 持一次性密碼登入 → 被強制導向改密頁，無法存取其他頁面
-- [ ] 改密成功後 `mustChangePassword = false`，恢復正常存取
-- [ ] 無法繞過（直接打 API / 改 URL 皆被攔）
-- [ ] `npm run i18n:check` 通過（3 語言同步）
-- [ ] `npm run type-check` / `npm run lint` 無新增錯誤
+- [ ] 改密成功後重新登入 → 恢復正常存取
+- [ ] 無法繞過（改 URL 導航皆被攔）
 
 ---
 
@@ -105,7 +110,7 @@ mustChangePassword Boolean @default(false) @map("must_change_password")
 
 | 約束 | 是否觸發 | 說明 |
 |------|----------|------|
-| H1（架構 / Prisma 結構） | ✅ 是 | 新 Prisma 欄位 + 認證流程改動 → **待 approve** |
+| H1（架構 / Prisma 結構） | ✅ 是 | 新 Prisma 欄位 + 認證流程改動 → **已 approve（2026-06-11）** |
 | H2（依賴 / vendor） | 否 | 無新依賴 |
 | H3（task scope） | 否 | 範圍限「強制首次改密」；`passwordChangedAt` / 密碼到期策略明確排除 |
 | H4（安全 / secrets） | ➖ 本 FIX 屬安全強化，不輸出 secret |
@@ -114,5 +119,46 @@ mustChangePassword Boolean @default(false) @map("must_change_password")
 
 ---
 
+## 實作筆記（2026-06-11）
+
+### 採用方案：A（重用 profile + banner + 重登），用戶 2026-06-11 拍板
+
+### Migration 策略（重要）
+- migration 歷史在 `20251219` 後斷裂（後續 schema 全靠 `db push`，CHANGE-056 baseline 重建未完成），故改用專案既有標準 `prisma db push` 套用，而非 `migrate dev`（後者會偵測巨大 drift 要求 reset DB → 清資料）。
+- dry-run（`prisma migrate diff --from-config-datasource --to-schema`）確認變更僅單一 `ALTER TABLE "users" ADD COLUMN "must_change_password" BOOLEAN NOT NULL DEFAULT false`，既有列自動填 false，零資料破壞。
+- 正式 migration 待 CHANGE-056 baseline 完成後統一補（用戶 2026-06-11 知情同意此策略）。
+
+### 旗標流轉鏈
+1. **DB**：`User.mustChangePassword Boolean @default(false)`（db push + generate）。
+2. **seed**：admin `create` 設 `mustChangePassword: true`（接續 FIX-070 隨機一次性密碼）。
+3. **auth.ts jwt callback**：DB select 加 `mustChangePassword` → `token.mustChangePassword`（dev-user-1 分支設 false）。
+4. **auth.ts session callback**：`token` → `session.user.mustChangePassword`（API / Server Component 用）。
+5. **auth.config.ts session callback（新增）**：`token` → `session.user.mustChangePassword`（Edge / middleware 用；不查 DB，只搬 token 欄位）。
+6. **middleware.ts**：已登入 + `mustChangePassword` 且非 `/profile` → redirect `/profile`（登出走 `/api/auth` 已於 API 閘放行）。
+7. **改密 API**：成功 update 一併 `mustChangePassword: false`。
+8. **前端 profile**：banner（讀 `session.user.mustChangePassword`）；改密成功若強制模式 → `signOut` 重新登入（避開 JWT edge token 即時刷新不可靠）。
+9. **i18n**：`profile.json` 加 `forceChange.{title,description}`（en / zh-TW / zh-CN）。
+
+### 修改檔案
+| 檔案 | 改動 |
+|------|------|
+| `prisma/schema.prisma` | User 加 `mustChangePassword`（db push） |
+| `prisma/seed.ts` | admin create 設 `true` |
+| `src/types/next-auth.d.ts` | Session.user + JWT 加型別 |
+| `src/lib/auth.ts` | jwt callback（select + 賦值 + dev 分支）、session callback |
+| `src/lib/auth.config.ts` | 新增 Edge session callback（middleware 用） |
+| `src/middleware.ts` | 強制改密頁面攔截 |
+| `src/app/api/v1/users/me/password/route.ts` | 清旗標 |
+| `src/app/[locale]/(dashboard)/profile/client.tsx` | banner + 重登 |
+| `messages/{en,zh-TW,zh-CN}/profile.json` | `forceChange` 文案 |
+
+### 殘留風險 / 相依
+- middleware 攔截為**頁面層**；API 不在攔截範圍（避免 profile 頁自身 API 失效）。僅限制頁面導航即足以強制使用者停留改密頁。
+- `session.user.mustChangePassword` 可信前提同 FIX-072：依賴 CHANGE-077/078 上線後 session 可信。
+- Azure AD 使用者無密碼（改密 API 既有邏輯已擋）；強制改密僅對本地帳號有效，seed admin 為本地帳號。
+- 執行期（一次性密碼登入被攔、改密後重登恢復、無法繞過）待 staging 驗證（專案無單元測試框架）。
+
+---
+
 *文件建立日期: 2026-06-11*
-*最後更新: 2026-06-11（建立規劃，狀態：📋 規劃中，待 H1 approve）*
+*最後更新: 2026-06-11（方案 A 實作完成，狀態：✅ 已完成）*

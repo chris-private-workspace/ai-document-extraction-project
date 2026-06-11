@@ -217,7 +217,8 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await hashPassword(newPassword)
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { password: hashedPassword },
+      // FIX-074: 改密成功一併清除強制改密旗標
+      data: { password: hashedPassword, mustChangePassword: false },
     })
 
     // 8. 返回成功

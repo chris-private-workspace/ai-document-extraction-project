@@ -250,6 +250,16 @@ export default async function middleware(request: NextRequest) {
     }
   }
 
+  // FIX-074: 強制首次改密 — 已登入但 mustChangePassword 者，限制只能停留改密頁（profile）
+  // 改密頁本身放行（避免循環）；其餘頁面一律導向 profile。登出走 /api/auth（已於 API 閘放行）。
+  if (isLoggedIn && session?.user?.mustChangePassword) {
+    const { restPath } = extractLocaleFromPath(pathname)
+    if (!restPath.startsWith('/profile')) {
+      const profileUrl = new URL(`/${locale}/profile`, request.url)
+      return NextResponse.redirect(profileUrl)
+    }
+  }
+
   // 檢查是否為認證路由（已登入用戶）
   if (isAuthRoute(pathname) && isLoggedIn) {
     // 已登入，重定向到儀表板

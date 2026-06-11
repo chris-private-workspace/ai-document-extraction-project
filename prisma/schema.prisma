@@ -25,6 +25,7 @@ model User {
   lastActiveAt               DateTime?                 @map("last_active_at")
   passwordResetExpires       DateTime?                 @map("password_reset_expires")
   passwordResetToken         String?                   @unique @map("password_reset_token")
+  mustChangePassword         Boolean                   @default(false) @map("must_change_password")
   preferredLocale            String?                   @default("en") @map("preferred_locale")
   accounts                   Account[]
   alertRulesCreated          AlertRule[]               @relation("AlertRuleCreator")

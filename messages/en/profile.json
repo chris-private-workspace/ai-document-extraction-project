@@ -46,5 +46,9 @@
     "error": "Failed to change password",
     "mismatch": "Passwords do not match",
     "requirements": "Password must be at least 8 characters with uppercase, lowercase, and numbers"
+  },
+  "forceChange": {
+    "title": "Password change required",
+    "description": "For security, you must change your password before continuing. After a successful change you will be signed out and asked to log in again."
   }
 }

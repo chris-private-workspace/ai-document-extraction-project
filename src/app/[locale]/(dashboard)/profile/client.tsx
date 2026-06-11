@@ -18,6 +18,7 @@
 
 import * as React from 'react'
 import { useTranslations, useLocale } from 'next-intl'
+import { useSession, signOut } from 'next-auth/react'
 import {
   User,
   Mail,
@@ -54,6 +55,9 @@ export function ProfileClient() {
   const t = useTranslations('profile')
   const locale = useLocale() as Locale
   const { toast } = useToast()
+  const { data: session } = useSession()
+  // FIX-074: 強制首次改密模式（admin seed / 重設密碼後）
+  const mustChangePassword = session?.user?.mustChangePassword ?? false
 
   // --- Data ---
   const { data: profile, isLoading, error } = useProfile()
@@ -121,6 +125,10 @@ export function ProfileClient() {
             title: t('password.success'),
             variant: 'default',
           })
+          // FIX-074: 強制改密成功後登出並重新登入（確保 JWT 旗標刷新後恢復正常存取）
+          if (mustChangePassword) {
+            void signOut({ callbackUrl: `/${locale}/auth/login` })
+          }
         },
         onError: (err) => {
           toast({
@@ -155,6 +163,23 @@ export function ProfileClient() {
   // --- Render ---
   return (
     <div className="space-y-6 max-w-3xl">
+      {/* FIX-074: 強制首次改密提示 */}
+      {mustChangePassword && (
+        <Card className="border-amber-400 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20">
+          <CardContent className="flex items-start gap-3 py-4">
+            <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-medium text-amber-800 dark:text-amber-200">
+                {t('forceChange.title')}
+              </div>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                {t('forceChange.description')}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Basic Information */}
       <Card>
         <CardHeader>

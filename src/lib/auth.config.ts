@@ -305,6 +305,21 @@ export const authConfig: NextAuthConfig = {
 
       return true
     },
+
+    /**
+     * Session callback (Edge / Middleware 用) - FIX-074
+     *
+     * @description
+     *   將 token 的 mustChangePassword 旗標傳遞到 session，供 middleware 的強制改密攔截使用。
+     *   完整配置（auth.ts）有自己的 session callback 會覆蓋此處；本 callback 僅供 middleware 的
+     *   NextAuth(authConfig) 實例使用。Edge runtime 不查 DB，只搬移 token 既有欄位。
+     */
+    session({ session, token }) {
+      if (session.user) {
+        session.user.mustChangePassword = token.mustChangePassword ?? false
+      }
+      return session
+    },
   },
 
   // 開發模式下啟用調試日誌

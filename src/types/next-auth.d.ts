@@ -57,6 +57,8 @@ declare module 'next-auth' {
       regionCodes?: string[]
       /** 用戶語言偏好 (Story 17-5) */
       preferredLocale?: string
+      /** 是否必須先修改密碼才能使用系統 (FIX-074) */
+      mustChangePassword?: boolean
     } & DefaultSession['user']
   }
 
@@ -110,5 +112,7 @@ declare module 'next-auth/jwt' {
     preferredLocale?: string
     /** 登入提供者 (Story 18-2) */
     provider?: string
+    /** 是否必須先修改密碼 (FIX-074) */
+    mustChangePassword?: boolean
   }
 }

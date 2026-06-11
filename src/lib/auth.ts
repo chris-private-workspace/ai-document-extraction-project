@@ -181,6 +181,7 @@ export const {
         token.primaryCityCode = 'HKG'
         token.isGlobalAdmin = true
         token.isRegionalManager = false
+        token.mustChangePassword = false
         return token
       }
 
@@ -194,6 +195,7 @@ export const {
             isGlobalAdmin: true,
             isRegionalManager: true,
             preferredLocale: true, // Story 17-5: 語言偏好
+            mustChangePassword: true, // FIX-074: 強制首次改密
           },
         })
 
@@ -211,6 +213,9 @@ export const {
 
           // Story 17-5: 語言偏好
           token.preferredLocale = dbUser.preferredLocale ?? undefined
+
+          // FIX-074: 強制首次改密旗標
+          token.mustChangePassword = dbUser.mustChangePassword
         }
 
         // 獲取用戶角色和權限
@@ -256,6 +261,9 @@ export const {
 
         // Story 17-5: 語言偏好
         session.user.preferredLocale = token.preferredLocale
+
+        // FIX-074: 強制首次改密旗標
+        session.user.mustChangePassword = token.mustChangePassword ?? false
       }
       return session
     },
