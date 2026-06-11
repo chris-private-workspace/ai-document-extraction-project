@@ -64,11 +64,17 @@ import type {
 /** 加密演算法 */
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm'
 
-/** 加密金鑰（從環境變數讀取） */
-const ENCRYPTION_KEY = process.env.CONFIG_ENCRYPTION_KEY || 'default-key-for-development-only'
+/**
+ * 舊版靜態鹽值（FIX-070 前的固定派生鹽）
+ *
+ * 僅用於「向後相容解密」既有以舊格式（IV:AuthTag:Data，3 段）儲存的密文。
+ * 新加密一律改用每次隨機產生的鹽並隨密文儲存（見 encryptValue），
+ * 不再使用此靜態鹽進行新的金鑰派生。
+ */
+const LEGACY_ENCRYPTION_SALT = 'config-salt'
 
-/** 加密鹽值 */
-const ENCRYPTION_SALT = 'config-salt'
+/** 隨機鹽位元組長度（隨密文儲存，FIX-070） */
+const SALT_LENGTH = 16
 
 /** 快取 TTL（毫秒） */
 const CACHE_TTL = 60000 // 60 秒
@@ -300,19 +306,53 @@ const configCache = new ConfigCache()
 // ============================================================
 
 /**
- * 使用 scrypt 衍生加密金鑰
+ * 取得系統配置加密金鑰（FIX-070）
+ *
+ * @description
+ *   對齊 repo 既有 encryption 基線（`src/lib/encryption.ts`、
+ *   `src/services/encryption.service.ts`）：缺金鑰或長度不足即 fail-closed，
+ *   絕不使用不安全的硬編碼預設 fallback。
+ *
+ *   未設定時不再靜默以公開已知金鑰加密（等同無加密），而是明確拋錯，
+ *   使「嘗試寫入敏感配置但未配置金鑰」的情況立即失敗而非靜默降級。
+ *
+ * @returns 環境變數 CONFIG_ENCRYPTION_KEY 的值
+ * @throws SystemConfigError 當金鑰未設定（MISSING_ENCRYPTION_KEY）或長度不足（INVALID_ENCRYPTION_KEY）
  */
-function deriveKey(): Buffer {
-  return scryptSync(ENCRYPTION_KEY, ENCRYPTION_SALT, 32)
+function getConfigEncryptionKey(): string {
+  const key = process.env.CONFIG_ENCRYPTION_KEY
+  if (!key) {
+    throw new SystemConfigError(
+      'CONFIG_ENCRYPTION_KEY environment variable is not set. Configure it before storing or reading encrypted system configuration values.',
+      'MISSING_ENCRYPTION_KEY'
+    )
+  }
+  if (key.length < 32) {
+    throw new SystemConfigError(
+      'CONFIG_ENCRYPTION_KEY must be at least 32 characters long.',
+      'INVALID_ENCRYPTION_KEY'
+    )
+  }
+  return key
+}
+
+/**
+ * 使用 scrypt 衍生加密金鑰
+ * @param salt 派生鹽（新密文使用隨機鹽；舊密文相容路徑使用 LEGACY_ENCRYPTION_SALT）
+ */
+function deriveKey(salt: string | Buffer): Buffer {
+  return scryptSync(getConfigEncryptionKey(), salt, 32)
 }
 
 /**
  * 加密值
  * @param value 原始值
- * @returns 加密後的字串（格式：IV:AuthTag:EncryptedData）
+ * @returns 加密後的字串（格式：Salt:IV:AuthTag:EncryptedData，皆為 hex）
+ * @remarks FIX-070：每次加密產生隨機鹽並隨密文儲存，取代既往的全域靜態鹽。
  */
 function encryptValue(value: string): string {
-  const key = deriveKey()
+  const salt = randomBytes(SALT_LENGTH)
+  const key = deriveKey(salt)
   const iv = randomBytes(16)
   const cipher = createCipheriv(ENCRYPTION_ALGORITHM, key, iv)
 
@@ -320,22 +360,44 @@ function encryptValue(value: string): string {
   encrypted += cipher.final('hex')
   const authTag = cipher.getAuthTag()
 
-  return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`
+  return `${salt.toString('hex')}:${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`
 }
 
 /**
  * 解密值
  * @param encrypted 加密的字串
  * @returns 解密後的原始值
+ * @remarks
+ *   FIX-070 向後相容：同時支援兩種密文格式
+ *   - 新格式 Salt:IV:AuthTag:Data（4 段）— 以隨密文儲存的隨機鹽派生金鑰
+ *   - 舊格式 IV:AuthTag:Data（3 段）— 以 LEGACY_ENCRYPTION_SALT 派生金鑰
+ *   舊密文一旦經由更新流程重新寫入，即自動升級為新隨機鹽格式。
  */
 function decryptValue(encrypted: string): string {
-  const [ivHex, authTagHex, data] = encrypted.split(':')
+  const parts = encrypted.split(':')
+
+  let saltForKey: string | Buffer
+  let ivHex: string
+  let authTagHex: string
+  let data: string
+
+  if (parts.length === 4) {
+    // 新格式：Salt:IV:AuthTag:Data
+    ;[, ivHex, authTagHex, data] = parts
+    saltForKey = Buffer.from(parts[0], 'hex')
+  } else if (parts.length === 3) {
+    // 舊格式：IV:AuthTag:Data（FIX-070 前，固定靜態鹽）
+    ;[ivHex, authTagHex, data] = parts
+    saltForKey = LEGACY_ENCRYPTION_SALT
+  } else {
+    throw new Error('Invalid encrypted value format')
+  }
 
   if (!ivHex || !authTagHex || !data) {
     throw new Error('Invalid encrypted value format')
   }
 
-  const key = deriveKey()
+  const key = deriveKey(saltForKey)
   const iv = Buffer.from(ivHex, 'hex')
   const authTag = Buffer.from(authTagHex, 'hex')
 

@@ -45,6 +45,7 @@
 import 'dotenv/config'
 import * as fs from 'fs'
 import * as path from 'path'
+import { randomBytes } from 'crypto'
 import { Prisma, PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
@@ -61,6 +62,24 @@ import { FIELD_MAPPING_CONFIG_SEEDS } from './seed-data/field-mapping-configs'
 import { ALERT_RULE_SEEDS } from './seed-data/alert-rules'
 import { EXCHANGE_RATE_SEEDS } from './seed-data/exchange-rates'
 import { hashPassword } from '../src/lib/password'
+
+/**
+ * 解析種子管理員密碼（FIX-070）
+ *
+ * @description
+ *   不再於原始碼中硬編碼明文預設密碼。優先讀取環境變數 `SEED_ADMIN_PASSWORD`；
+ *   若未設定，則產生一次性隨機強密碼（約 144 bits 熵），由呼叫端僅印出一次，
+ *   供首次登入後立即修改。隨機密碼不寫入原始碼，亦不可重複取得。
+ *
+ * @returns 明文密碼與「是否為隨機產生」旗標（供呼叫端決定日誌輸出方式）
+ */
+function resolveSeedAdminPassword(): { password: string; generated: boolean } {
+  const fromEnv = process.env.SEED_ADMIN_PASSWORD
+  if (fromEnv && fromEnv.length > 0) {
+    return { password: fromEnv, generated: false }
+  }
+  return { password: randomBytes(18).toString('base64url'), generated: true }
+}
 
 /**
  * 讀取導出的資料（如存在）
@@ -425,31 +444,37 @@ async function main() {
   // ===========================================
   // Create Development User (for dev mode auth)
   // ===========================================
-  console.log('\n👤 Creating development user...\n')
+  // FIX-070 (INFRA-02): dev-user-1 為無密碼的全域管理員，僅供開發環境的 dev-bypass 登入流程使用。
+  // 生產環境不建立此帳號，避免弱認證面被誤帶入（其登入本身另由 CHANGE-077 的 NODE_ENV gate 阻擋）。
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('\n👤 Creating development user...\n')
 
-  const devUser = await prisma.user.upsert({
-    where: { id: 'dev-user-1' },
-    update: {
-      name: 'Development User',
-      status: 'ACTIVE',
-      isGlobalAdmin: true,
-    },
-    create: {
-      id: 'dev-user-1',
-      email: 'dev@example.com',
-      name: 'Development User',
-      status: 'ACTIVE',
-      isGlobalAdmin: true,
-      isRegionalManager: false,
-      roles: {
-        create: {
-          roleId: systemAdminRole.id,
+    const devUser = await prisma.user.upsert({
+      where: { id: 'dev-user-1' },
+      update: {
+        name: 'Development User',
+        status: 'ACTIVE',
+        isGlobalAdmin: true,
+      },
+      create: {
+        id: 'dev-user-1',
+        email: 'dev@example.com',
+        name: 'Development User',
+        status: 'ACTIVE',
+        isGlobalAdmin: true,
+        isRegionalManager: false,
+        roles: {
+          create: {
+            roleId: systemAdminRole.id,
+          },
         },
       },
-    },
-  })
+    })
 
-  console.log(`  ✅ Development user ready: ${devUser.email} (${devUser.id})`)
+    console.log(`  ✅ Development user ready: ${devUser.email} (${devUser.id})`)
+  } else {
+    console.log('\n👤 Skipping development user creation (NODE_ENV=production)\n')
+  }
 
   // ===========================================
   // Create Production Admin User (CHANGE-039)
@@ -457,7 +482,10 @@ async function main() {
   // ===========================================
   console.log('\n👤 Creating production admin user...\n')
 
-  const adminPassword = await hashPassword('ChangeMe@2026!')
+  // FIX-070: 不再硬編碼明文密碼。優先讀 SEED_ADMIN_PASSWORD，否則隨機產生並僅印一次。
+  const { password: adminPlainPassword, generated: adminPasswordGenerated } =
+    resolveSeedAdminPassword()
+  const adminPassword = await hashPassword(adminPlainPassword)
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@ai-document-extraction.com' },
     update: {
@@ -479,8 +507,15 @@ async function main() {
   })
 
   console.log(`  ✅ Admin user ready: ${adminUser.email}`)
-  console.warn('  ⚠️  WARNING: Change the default password immediately in production!')
-  console.warn('  ⚠️  Default credentials: admin@ai-document-extraction.com / ChangeMe@2026!')
+  console.warn('  ⚠️  WARNING: Change the admin password immediately after first login!')
+  if (adminPasswordGenerated) {
+    // 隨機一次性密碼：僅於本次 seed 輸出，且不寫入原始碼／不可重複取得
+    console.warn(
+      `  🔑 Generated one-time admin password (set SEED_ADMIN_PASSWORD to override): ${adminPlainPassword}`
+    )
+  } else {
+    console.warn('  🔑 Admin password sourced from SEED_ADMIN_PASSWORD environment variable.')
+  }
 
   // ===========================================
   // Seed Companies (Forwarder Type)

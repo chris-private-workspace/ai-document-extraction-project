@@ -4,7 +4,7 @@
 > **發現方式**: 代碼審查（2026-06-10 全面安全審查，安全修復工作包 WP-7）
 > **影響範圍**: `prisma/seed.ts`（新環境部署）、`src/services/system-config.service.ts`（系統配置敏感值加密）
 > **優先級**: 高（P1）
-> **狀態**: 🚧 待修復
+> **狀態**: ✅ 核心已完成（2026-06-11）｜「強制首次改密」依用戶決策移交 [FIX-074](./FIX-074-force-first-login-password-change.md) 獨立處理
 > **H4 approval**: 用戶於 2026-06-10 明確 approve 此安全改動（seed 密碼改注入 + 移除弱加密 fallback）
 > **來源**: SECURITY-ASSESSMENT.md §5 主題 G（硬編碼憑證 / 弱加密）、REMEDIATION-ROADMAP.md WP-7
 > **相依**: seed 改動影響新環境部署流程（`docs/07-deployment` 需同步說明，列為後續）
@@ -197,17 +197,17 @@ constructor(config?: EncryptionServiceConfig) {
 ## 測試驗證 checklist
 
 **程式碼層面（實作後驗證）**
-- [ ] `prisma/seed.ts` 已無 `'ChangeMe@2026!'` 明文（grep 計數 = 0）
-- [ ] seed 日誌不再印出任何明文密碼（移除 `:483` 明文 `console.warn`）
-- [ ] `SEED_ADMIN_PASSWORD` 注入路徑正確；未設定時依定案行為（隨機產生並印一次 / 報錯中止）
-- [ ] admin user 具備「強制首次改密」狀態（利用既有欄位，未新增 Prisma 欄位）
-- [ ] `dev-user-1` 僅在非生產環境建立
-- [ ] `src/services/system-config.service.ts` 已無 `'default-key-for-development-only'` 與 `'config-salt'`（grep 計數 = 0）
-- [ ] 缺 `CONFIG_ENCRYPTION_KEY` 時加解密路徑 throw `SystemConfigError`（對齊 `encryption.service.ts` 行為）
-- [ ] 鹽值改為隨機產生並隨密文儲存；`decryptValue` 可正確解析新格式
-- [ ] `.env.example` 已含 `SEED_ADMIN_PASSWORD`、`CONFIG_ENCRYPTION_KEY` 說明
-- [ ] `npm run type-check`：`src/` 零新增錯誤
-- [ ] `npm run lint`：本批檔案無新增 error
+- [x] `prisma/seed.ts` 已無 `'ChangeMe@2026!'` 明文（改 `resolveSeedAdminPassword()` 讀 env / 隨機產生）
+- [x] seed 日誌不再印出任何硬編碼明文密碼（移除原 `:483` 公開明文 `console.warn`；隨機產生時僅印一次性密碼）
+- [x] `SEED_ADMIN_PASSWORD` 注入路徑正確；未設定時採定案行為 (a)：隨機產生並印一次
+- [➡️] admin user「強制首次改密」狀態 — **移交 [FIX-074](./FIX-074-force-first-login-password-change.md)**（User 模型無可用欄位，屬 H1，依用戶 2026-06-11 決策獨立處理）
+- [x] `dev-user-1` 僅在非生產環境建立（`NODE_ENV !== 'production'` 包裹）
+- [x] `src/services/system-config.service.ts` 已無 `'default-key-for-development-only'` fallback；`'config-salt'` 僅保留為 `LEGACY_ENCRYPTION_SALT`（舊密文向後相容解密用，新加密不再使用）
+- [x] 缺 `CONFIG_ENCRYPTION_KEY` 時 `getConfigEncryptionKey()` throw `SystemConfigError`（MISSING/INVALID，對齊 `encryption.service.ts`）
+- [x] 鹽值改為隨機產生並隨密文儲存（格式 `Salt:IV:AuthTag:Data`）；`decryptValue` 向後相容解析新（4 段）/舊（3 段）格式
+- [x] `.env.example` 已含 `SEED_ADMIN_PASSWORD`、`CONFIG_ENCRYPTION_KEY` 說明
+- [x] `npm run type-check`：`src/` + `prisma/` 零新增錯誤（僅 `tests/` 既有 jest/vitest 型別缺失，無關）
+- [x] `npm run lint`：`system-config.service.ts` 零輸出；`seed.ts` 僅既有 `no-console` warning（CLI 腳本慣例）
 
 **資料相容性（實作前必做）**
 - [ ] 盤點既有環境是否存在以舊 fallback 金鑰 + 靜態鹽加密的 `SystemConfig` 敏感值
@@ -224,7 +224,7 @@ constructor(config?: EncryptionServiceConfig) {
 
 | 約束 | 是否觸發 | 說明 |
 |------|----------|------|
-| H1（架構 / Prisma 結構） | ⚠️ 可能（實作時） | 若「強制首次改密」需新增 Prisma 欄位 → STOP and ask；優先用既有欄位 |
+| H1（架構 / Prisma 結構） | ⚠️ 已觸發（部分子項） | 「強制首次改密」需新 Prisma 欄位（User 模型 `schema.prisma:9-83` 確認無 `mustChangePassword` 等可用欄位）→ 已 STOP，待用戶決策；其餘子項（密碼注入、弱加密移除）皆不觸發 H1 |
 | H2（依賴 / vendor） | 否 | 沿用 Node.js `crypto`，無新依賴 |
 | H3（task scope） | 否 | 範圍限於 WP-7 兩個 High + 兩個相關 Medium |
 | H4（安全 / secrets） | ✅ 本 FIX 的核心 | 已獲用戶 2026-06-10 approve；不輸出真實 secret |
@@ -233,5 +233,43 @@ constructor(config?: EncryptionServiceConfig) {
 
 ---
 
+## Implementation Notes（2026-06-11）
+
+### 已實作（H4 已 approve 範圍內）
+
+| 子項 | 檔案 | 說明 |
+|------|------|------|
+| INFRA-01 密碼注入 | `prisma/seed.ts` | 新增 `resolveSeedAdminPassword()`：優先讀 `SEED_ADMIN_PASSWORD`，未設則 `randomBytes(18).toString('base64url')` 產生一次性隨機強密碼（約 144 bits 熵）。移除硬編碼 `'ChangeMe@2026!'` 與印出公開明文的 `console.warn`。隨機產生時僅印一次性密碼供首次登入。 |
+| INFRA-02 dev 帳號收斂 | `prisma/seed.ts` | `dev-user-1` 建立以 `if (process.env.NODE_ENV !== 'production')` 包裹；生產環境輸出 skip 訊息、不建立。 |
+| D-01 弱金鑰移除 | `src/services/system-config.service.ts` | 移除 `'default-key-for-development-only'` fallback，新增 `getConfigEncryptionKey()` fail-closed（缺金鑰 → `SystemConfigError('MISSING_ENCRYPTION_KEY')`；長度 <32 → `INVALID_ENCRYPTION_KEY`），對齊 `encryption.service.ts` 基線。 |
+| D-01 靜態鹽移除 | `src/services/system-config.service.ts` | `encryptValue` 改每次 `randomBytes(16)` 隨機鹽，密文格式 `Salt:IV:AuthTag:Data`（4 段）。 |
+| 環境變數說明 | `.env.example` | 補 `CONFIG_ENCRYPTION_KEY`（fail-closed 警告）與 `SEED_ADMIN_PASSWORD`（注入/隨機產生說明）。 |
+
+### ➡️ 已移交 FIX-074（H1 Triggered）— 強制首次改密
+
+- **問題**：INFRA-01 第 4 點「強制首次登入改密碼」需要持久化「需改密」狀態，但 `User` 模型（`schema.prisma:9-83`）**無**任何可用欄位（`mustChangePassword` / `passwordChangedAt` / `forceChangePassword` 皆不存在）。
+- **依立案文件 §解決方案 INFRA-01 第 4 點 + H1**：不擅自新增 Prisma 欄位，已 STOP and ask。
+- **用戶決策（2026-06-11）**：另開 [FIX-074](./FIX-074-force-first-login-password-change.md) 獨立處理（新 Prisma 欄位 + migration + 認證流程跳轉 + 改密 UI + i18n），不混入本 FIX。
+- **現況風險緩解（本 FIX 落地，FIX-074 前有效）**：「隨機一次性密碼（每次不同、非公開）+ `.env` 提示立即改密」已大幅降低風險；公開已知密碼的原始風險已消除。
+
+### ⚙️ 工程決策：D-01 鹽值遷移採「向後相容解密」（零遷移）
+
+- **背景**：移除靜態鹽改隨機鹽會變更密文格式，立案文件 §When in Doubt 提示「Migration 不確定相容性 → STOP dry-run」。
+- **採用方案**：`decryptValue` 以「分割段數」區分格式 — 4 段=新（隨密文儲存的隨機鹽）、3 段=舊（`LEGACY_ENCRYPTION_SALT='config-salt'`）。舊密文可繼續解，且任何後續 `updateConfig` 寫回即自動升級為隨機鹽格式。**消除了不相容性，無需停機 dry-run 或清空重設。**
+- **取捨**：`'config-salt'` 字串以 `LEGACY_ENCRYPTION_SALT` 形式保留於**解密相容路徑**（非新加密），達成「不再作為固定派生鹽」目標。
+
+### ⚠️ 殘留相容性風險（部署前須知）
+
+- **金鑰變更導致的舊密文不可解**：若某既有環境**曾以舊 fallback 金鑰 `'default-key-for-development-only'` 加密過真實 secret**（屬原始 misconfiguration），移除 fallback 後設定新 `CONFIG_ENCRYPTION_KEY` 將使該批舊密文無法解密（`decryptIfNeeded` catch 後回傳密文、不 crash），需於 `/admin` 系統設定**重新輸入**該些 secret。
+- **盤點結論**：`config-seeds.ts` 的 5 個 `isEncrypted` SECRET 預設值全為空字串（空值不加密、不受影響）；真實密文僅存在於「曾透過 UI 寫入」的環境。**本地 dev 多為空、Azure DEV/UAT 未知**。
+- **部署前建議**（執行期，待 staging 驗證）：設定 `CONFIG_ENCRYPTION_KEY` 前先確認 `SystemConfig` 是否有非空 `isEncrypted` 值（一句 SQL：`SELECT key FROM system_configs WHERE is_encrypted = true AND value <> '';`）。
+
+### 未動項（H3 不擴大）
+
+- `decryptIfNeeded`（靜默吞錯回傳原值）：立案文件列為「附帶加固、範圍以不擴大為原則」。保留既有 try/catch 結構，避免 `getValue`/`listConfigs` 連鎖 throw；未設金鑰 + 全空 secret 的本地環境因空值短路而不受影響。
+- 部署文件（`docs/07-deployment`、SITUATION-7）：屬下游相依，修復完成後另行同步。
+
+---
+
 *文件建立日期: 2026-06-10*
-*最後更新: 2026-06-10（建立規劃，狀態：🚧 待修復）*
+*最後更新: 2026-06-11（核心已實作：密碼注入 + 弱加密移除 + dev 帳號收斂；強制改密待 H1 決策）*
