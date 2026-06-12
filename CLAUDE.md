@@ -339,6 +339,26 @@ npm run test
 
 > 📋 服務啟動完整流程 + 端口處理 + 問題排解：`.claude/CLAUDE.md`
 
+### 工作單元完成後的提交確認（🔴 必須主動提示）
+
+> **核心規則**：完成一個明確的工作單元後，AI **必須主動詢問**用戶是否提交，**不可擅自**執行 git 操作。
+
+**觸發時機**：完成一個 phase / sprint / story / CHANGE-XXX / FIX-XXX / 用戶交辦的 task，且其 verifiable goal 已達成（`type-check` / `lint` / `test` 通過，或用戶明示告一段落）。
+
+**必須詢問的三件事**：
+
+| 步驟 | 詢問內容 | 一併提供 |
+|------|----------|----------|
+| 1. Commit | 是否提交本次改動 | 改動檔案清單 + 建議的 Conventional Commits message |
+| 2. Push | 是否推送到遠端分支 | 目標分支名稱 |
+| 3. 建 PR | 是否建立 Pull Request | 建議的 PR 標題 + 摘要 + base 分支 |
+
+**規則**：
+- 🔴 AI **絕不擅自** commit / push / 建 PR — 除非用戶在當前對話已 explicit 授權
+- 用戶可選擇全部、部分或都不做（例如只 commit 不 push）
+- 提示需精簡：一段話列出三個選項 + 建議的 commit message，等用戶回應
+- 此規則與 §Self-Verification Checklist 互補：先跑完自驗證，通過後才提示提交
+
 ---
 
 ## 🤖 AI 開發輔助
