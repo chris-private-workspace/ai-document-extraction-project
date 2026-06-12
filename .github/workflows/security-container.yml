@@ -24,7 +24,7 @@ jobs:
   trivy-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build Docker image
         run: docker build -t local/aidocextract:scan .
         continue-on-error: true # advisory 階段；build 失敗不阻擋（Week 3 檢討）
