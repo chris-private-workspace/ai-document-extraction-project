@@ -10,7 +10,7 @@ pydantic>=2.5.0
 pydantic-settings>=2.1.0
 
 # Logging
-structlog>=24.1.0
+structlog>=26.1.0
 
 # Database (for loading forwarder patterns)
 psycopg2-binary>=2.9.9
