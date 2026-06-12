@@ -14,7 +14,7 @@ aiohttp==3.11.11
 
 # Validation
 pydantic==2.10.4
-pydantic-settings==2.7.0
+pydantic-settings==2.14.1
 
 # Utilities
 python-dotenv==1.0.1
