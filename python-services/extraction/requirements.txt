@@ -5,7 +5,7 @@ python-multipart==0.0.20
 
 # Azure Document Intelligence
 azure-ai-documentintelligence==1.0.2
-azure-core==1.32.0
+azure-core==1.41.0
 azure-identity==1.19.0
 
 # HTTP Client
