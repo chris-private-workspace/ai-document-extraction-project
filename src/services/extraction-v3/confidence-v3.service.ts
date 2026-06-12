@@ -197,7 +197,7 @@ export class ConfidenceV3Service {
     options: ConfidenceCalculationOptionsV3
   ): SimplifiedConfidenceInput {
     // 計算欄位完整性
-    let requiredFieldsCount = REQUIRED_FIELDS.length;
+    const requiredFieldsCount = REQUIRED_FIELDS.length;
     let filledRequiredFieldsCount = 0;
 
     for (const fieldKey of REQUIRED_FIELDS) {

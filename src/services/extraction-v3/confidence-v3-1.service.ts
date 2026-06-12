@@ -308,7 +308,7 @@ export class ConfidenceV3_1Service {
   private static calculateFieldCompleteness(
     standardFields: StandardFieldsV3
   ): number {
-    let requiredFieldsCount = REQUIRED_FIELDS.length;
+    const requiredFieldsCount = REQUIRED_FIELDS.length;
     let filledRequiredFieldsCount = 0;
 
     for (const fieldKey of REQUIRED_FIELDS) {

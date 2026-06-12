@@ -81,8 +81,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
   // 載入所有命名空間的翻譯檔案
   const messagesPromises = namespaces.map(async (ns) => {
     try {
-      const module = await import(`../../messages/${locale}/${ns}.json`)
-      return { [ns]: module.default }
+      const mod = await import(`../../messages/${locale}/${ns}.json`)
+      return { [ns]: mod.default }
     } catch {
       // 如果找不到檔案，嘗試從預設語言載入
       try {

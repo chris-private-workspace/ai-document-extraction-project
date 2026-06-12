@@ -1,0 +1,11 @@
+{
+  "//": "FIX-076: 供 ts-node 在 CI（Linux node 20）以 CommonJS 執行 scripts/ 的 .ts，避免根 tsconfig module:esnext 觸發 ESM loader 的 ERR_UNKNOWN_FILE_EXTENSION。透過 --project 指定，避免 --compiler-options 的 JSON 在 shell 被去引號。",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node"
+  },
+  "ts-node": {
+    "transpileOnly": true
+  }
+}
