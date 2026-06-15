@@ -1,7 +1,7 @@
 # Azure DEV 部署 Runbook — 實戰問題與解法
 
 > **建立日期**: 2026-06-15
-> **狀態**: ✅ DEV 環境已成功上線(首次)
+> **狀態**: ✅ DEV 環境已成功上線(首次)+ 機密已正規化到 Key Vault(2026-06-15)
 > **適用**: Azure DEV 環境(App Service for Containers,**非**規劃文件假設的 Container Apps)
 > **相關**: [`CHANGE-055`](../../../claudedocs/4-changes/feature-changes/CHANGE-055-azure-deployment-foundation.md)、[`local-vs-azure-differences.md`](../local-vs-azure-differences.md)、[`11-troubleshooting.md`](./uat-deployment/11-troubleshooting.md)(後者為規劃架構,部分不適用)
 
@@ -9,7 +9,7 @@
 
 ## 0. 一句話總結
 
-DEV 首次部署時,容器啟動**無限重啟、對外回 HTTP 503**。根因是 **VNet 自訂 DNS 連不到,導致容器解析不到私有 PostgreSQL**;以 App Service 設定 `WEBSITE_DNS_SERVER=168.63.129.16`(改用 Azure 平台 DNS)**暫時繞過**後成功上線。另有「公司內網 DNS 解析不到公開網址」「登入錯誤訊息誤導」兩個獨立議題。
+DEV 首次部署時,容器啟動**無限重啟、對外回 HTTP 503**。根因是 **VNet 自訂 DNS 連不到,導致容器解析不到私有 PostgreSQL**;以 App Service 設定 `WEBSITE_DNS_SERVER=168.63.129.16`(改用 Azure 平台 DNS)**暫時繞過**後成功上線。另有「公司內網 DNS 解析不到公開網址」「登入錯誤訊息誤導」兩個獨立議題。**同日 infra 開通 Key Vault 權限後,機密已從明文設定正規化為 Key Vault + Managed Identity(見 §7)。**
 
 ---
 
@@ -118,7 +118,40 @@ WEBSITE_DNS_SERVER = 168.63.129.16
 
 ---
 
-## 7. 診斷技巧(本次用到,可重複使用)
+## 7. 機密已正規化到 Key Vault(2026-06-15 完成)
+
+> 首次上線時機密是「直接放 App Service 應用程式設定」(因部署身分僅 Contributor、讀不到 RBAC 模式的 KV)。同日 infra 開通 KV `kvscmdocprocessingdev` 權限後,已改用正規的 **Key Vault + Managed Identity** 模式。
+
+### infra 開通的權限(KV 為 RBAC 模式)
+| 身分 | 角色 | 用途 |
+|------|------|------|
+| 部署 SP(objectId `e2824cf9…`) | `Key Vault Secrets Officer` | 寫入/讀取機密 |
+| WebApp System-Assigned MI(`b3940bc7…`) | `Key Vault Secrets User` | **執行期讀取機密(KV 參考靠此)** |
+
+### 搬遷做法
+1. 逐一把機密寫進 KV:`az keyvault secret set --vault-name kvscmdocprocessingdev --name <KV名> --value <原值>`(**原值複製**;`ENCRYPTION_KEY` 等「一旦設定不可變更」者**絕不重產**;KV 名以 `-` 取代 `_`)。
+2. App Service 設定改成參考:`<ENV>=@Microsoft.KeyVault(SecretUri=https://kvscmdocprocessingdev.vault.azure.net/secrets/<KV名>)`(明文即從設定移除)。
+3. 重啟驗證。
+
+### 已搬遷的 9 個機密
+`DATABASE_URL`、`AUTH_SECRET`、`JWT_SECRET`、`SESSION_SECRET`、`ENCRYPTION_KEY`、`AZURE_OPENAI_API_KEY`、`AZURE_DI_KEY`、`AZURE_STORAGE_CONNECTION_STRING`、`SEED_ADMIN_PASSWORD`。
+(非機密如各 `*_ENDPOINT`、模型部署名、`WEBSITES_PORT`、feature flags **留在 App Service 設定**,不進 KV。)
+
+### 驗證方式
+- KV 參考解析狀態(預期全部 `Resolved`):
+  ```bash
+  az rest --method get --url ".../providers/Microsoft.Web/sites/<app>/config/configreferences/appsettings?api-version=2022-09-01"
+  ```
+- 強制重啟後,新程序 `/api/health` 的 `uptime` 歸零且 `services.database=connected` → 證明 KV 來源的值端對端可用。
+
+### ⚠️ 注意事項
+- **把 appsetting 改成 KV 參考不一定觸發容器重啟**(實測沒重啟,舊程序續用舊值)。要 `az webapp restart` 強制切換並驗證,別停在「改了但沒生效」的狀態。
+- `CONFIG_ENCRYPTION_KEY` 目前**未設定**(FIX-070 為 fail-closed:寫入加密系統設定會失敗);建議產一把、一併放 KV(同屬「不可變更」)。
+- KV 連通同樣依賴 §3 的 DNS 繞法(容器需能解析 `*.vault.azure.net`;實測 DNS+TCP 皆通)。
+
+---
+
+## 8. 診斷技巧(本次用到,可重複使用)
 
 對外封閉 / 私網後 / 本機 DNS 又攔截解析時:
 
@@ -133,17 +166,20 @@ WEBSITE_DNS_SERVER = 168.63.129.16
 
 ---
 
-## 8. 待 infra 的正解 vs 目前的暫時繞法(交接清單)
+## 9. 待 infra 的正解 vs 目前的暫時繞法(交接清單)
 
-| # | 議題 | 目前暫時繞法 | 正解(infra) |
+| # | 議題 | 目前狀態 / 暫時繞法 | 正解(infra) |
 |---|------|------------|--------------|
-| 1 | 容器連不到私有 PG(VNet DNS) | App Service 設 `WEBSITE_DNS_SERVER=168.63.129.16` | 修好自訂 DNS `10.160.65.4` 從 WebApp 子網路的可達性,或正式確認改用 Azure DNS |
-| 2 | 公司內網解析不到 app 網址 | hosts / 手機行動網路 | 內網 DNS `10.160.50.4` 能解析此網址(公開 IP 或私有端點 + 內部紀錄) |
-| 3 | 對外存取暫時開啟 | infra 已暫時把 `publicNetworkAccess` 設 `Enabled` | 決定最終是否關回 `Disabled`,並約定驗收訪問路徑 |
+| 1 | 容器連不到私有 PG(VNet DNS) | 🟡 App Service 設 `WEBSITE_DNS_SERVER=168.63.129.16` | 修好自訂 DNS `10.160.65.4` 從 WebApp 子網路的可達性,或正式確認改用 Azure DNS |
+| 2 | 公司內網解析不到 app 網址 | 🔴 hosts / 手機行動網路 | 內網 DNS `10.160.50.4` 能解析此網址(公開 IP 或私有端點 + 內部紀錄) |
+| 3 | 對外存取暫時開啟 | 🟡 infra 已暫時把 `publicNetworkAccess` 設 `Enabled` | 決定最終是否關回 `Disabled`,並約定驗收訪問路徑 |
+| 4 | 機密管理(Key Vault) | ✅ **已完成** | infra 已授權部署 SP(`Secrets Officer`)+ WebApp MI(`Secrets User`);9 個機密已搬入 KV 並改用 KV 參考(見 §7)。UAT/PROD 沿用同模式即可 |
+
+> 備註:本次 infra 願意為我們做**特定 role assignment**(KV 角色),代表 UAT/PROD **不必把部署身分提權成 Owner**,沿用「請 infra 做 MI→KV 接線」的乾淨模式即可。
 
 ---
 
-## 9. 非阻塞問題(後續 FIX 候選)
+## 10. 非阻塞問題(後續 FIX 候選)
 
 容器日誌出現(不影響啟動):
 ```
