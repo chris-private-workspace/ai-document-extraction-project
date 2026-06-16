@@ -13,11 +13,16 @@
  *
  * @module src/services/extraction-v3/stages/stage-1-company.service
  * @since CHANGE-024 - Three-Stage Extraction Architecture
- * @lastModified 2026-05-31
+ * @lastModified 2026-06-16
  *
  *   FIX-057：強化公司配對（resolveCompanyId）
  *   - 後備配對加入 nameVariants 精確比對 + 公司名正規化比對（移除 LTD./標點）
  *   - 解決「DB 存短名 vs 發票印法定全名」無法配對、每份文件 JIT 增生重複公司的問題
+ *
+ *   FIX-077：公司識別飄移 / JIT 增生重複公司（FIX-057 後續強化）
+ *   - 強化 normalizeCompanyName：移除括號地區詞 (HK)/(Hong Kong)、取「/ 別名」前主名、移除業務描述詞 OPERATIONS
+ *   - resolveCompanyId 在 JIT 前加入 findDuplicateCompany 重複防護（查所有狀態 + 保守相似度）
+ *   - 解決同一張發票多次上傳因 GPT 輸出寫法飄移而每次新建重複公司的問題
  *
  * @features
  *   - 公司識別方法：LOGO / HEADER / ADDRESS / TAX_ID / LLM_INFERRED
@@ -52,6 +57,20 @@ import {
   buildStage1VariableContext,
   type VariableContext,
 } from '../utils/variable-replacer';
+// FIX-077: 公司名相似度（沿用既有 similarity 工具，避免新增依賴）
+import { levenshteinSimilarity } from '@/services/similarity';
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/**
+ * FIX-077: 公司名正規化後的相似度配對門檻
+ * @description
+ *   用於 JIT 前重複防護的保守門檻；值越高越嚴格（避免誤併不同公司）。
+ *   0.85 表示正規化字串需高度相近才視為同一公司。
+ */
+const COMPANY_NAME_SIMILARITY_THRESHOLD = 0.85;
 
 // ============================================================================
 // Types
@@ -460,6 +479,20 @@ Response format (JSON):
 
     // 3. 如果允許自動創建，則 JIT 創建公司
     if (options?.autoCreateCompany !== false && parsed.companyName) {
+      // FIX-077: JIT 前重複防護 — 以正規化/相似度檢查「所有狀態」的既有公司，
+      //          避免公司識別飄移（GPT 對同公司每次輸出不同寫法）時重複增生公司主檔
+      const duplicate = await this.findDuplicateCompany(parsed.companyName);
+      if (duplicate) {
+        console.log(
+          `[Stage1] FIX-077 防重複：配對到既有公司 "${duplicate.name}" ← GPT 輸出 "${parsed.companyName}"，略過 JIT 建立`
+        );
+        return {
+          companyId: duplicate.id,
+          companyName: duplicate.name,
+          isNewCompany: false,
+        };
+      }
+
       const newCompany = await this.jitCreateCompany(
         parsed.companyName,
         options?.cityCode
@@ -479,25 +512,89 @@ Response format (JSON):
   }
 
   /**
-   * FIX-057：公司名稱正規化（用於配對比對）
+   * FIX-057 / FIX-077：公司名稱正規化（用於配對比對）
    * @description
-   *   移除常見公司後綴（LTD / LIMITED / CO / COMPANY / INC / CORP / LLC / PTE / GMBH / SA / BV 等）
-   *   與標點符號，並統一為小寫、壓縮空白，使「Fairate Express」與「FAIRATE EXPRESS LTD.」
-   *   正規化後相等而可互相配對。
+   *   將公司名統一為可比對的正規化字串，使同公司的不同寫法正規化後相等。處理步驟：
+   *   1. 轉小寫。
+   *   2. FIX-077：取「/ 別名」前的主名（例：「... Limited / DHL Express」→「... Limited」）。
+   *   3. FIX-077：移除括號及其內容（例：「(HK)」「(Hong Kong)」等地區詞）。
+   *   4. 移除常見公司後綴（LTD / LIMITED / CO / COMPANY / INC / CORP / LLC / PTE / GMBH / SA / BV / AG / NV）
+   *      及 FIX-077 新增的業務描述詞 OPERATIONS。
+   *   5. 非字母數字轉空格、壓縮空白。
+   *
+   *   例：「DHL Express」「DHL EXPRESS (HK) LIMITED」「DHL Express (Hong Kong) Limited / DHL Express」
+   *   「DHL EXPRESS (HK) OPERATIONS LTD.」四種寫法皆正規化為「dhl express」。
    * @param name 原始公司名稱
    * @returns 正規化後的字串（可能為空字串）
    */
   private normalizeCompanyName(name: string): string {
     if (!name) return '';
-    return name
-      .toLowerCase()
+
+    let normalized = name.toLowerCase();
+
+    // FIX-077: 取「/ 別名」前的主名
+    if (normalized.includes('/')) {
+      normalized = normalized.split('/')[0];
+    }
+
+    // FIX-077: 移除括號及其內容（地區詞 (HK)/(Hong Kong) 等）
+    normalized = normalized.replace(/\([^)]*\)/g, ' ');
+
+    return normalized
       .replace(
-        /\b(ltd|limited|co|company|inc|incorporated|corp|corporation|llc|pte|gmbh|sa|bv|ag|nv)\b\.?/g,
+        // FIX-077: 後綴清單加入業務描述詞 operations
+        /\b(ltd|limited|co|company|inc|incorporated|corp|corporation|llc|pte|gmbh|sa|bv|ag|nv|operations)\b\.?/g,
         ' '
       )
       .replace(/[^a-z0-9]+/g, ' ')
       .trim()
       .replace(/\s+/g, ' ');
+  }
+
+  /**
+   * FIX-077：JIT 前重複公司偵測
+   * @description
+   *   在 JIT 建立新公司前，以強化後的正規化名稱對「所有狀態」的既有公司做比對，補足
+   *   resolveCompanyId Step 2b 僅查 ACTIVE 的缺口，並 catch GPT 對同公司輸出的細微寫法差異：
+   *   1. 正規化後精確相等（含 PENDING / INACTIVE 的既有公司）。
+   *   2. 正規化字串的保守相似度（沿用既有 levenshteinSimilarity，門檻
+   *      COMPANY_NAME_SIMILARITY_THRESHOLD）。
+   *   找到既有公司即回傳，避免公司主檔被重複記錄污染。
+   * @param candidate GPT 輸出的公司名稱
+   * @returns 既有公司 { id, name }，或 null（確為新公司）
+   */
+  private async findDuplicateCompany(
+    candidate: string
+  ): Promise<{ id: string; name: string } | null> {
+    const normCandidate = this.normalizeCompanyName(candidate);
+    if (!normCandidate) return null;
+
+    const companies = await this.prisma.company.findMany({
+      select: { id: true, name: true, nameVariants: true },
+    });
+
+    for (const company of companies) {
+      const normNames = [company.name, ...(company.nameVariants ?? [])]
+        .map((n) => this.normalizeCompanyName(n))
+        .filter(Boolean);
+
+      // 1. 正規化精確相等
+      if (normNames.includes(normCandidate)) {
+        return { id: company.id, name: company.name };
+      }
+
+      // 2. 保守相似度配對
+      if (
+        normNames.some(
+          (n) =>
+            levenshteinSimilarity(n, normCandidate) >= COMPANY_NAME_SIMILARITY_THRESHOLD
+        )
+      ) {
+        return { id: company.id, name: company.name };
+      }
+    }
+
+    return null;
   }
 
   /**
