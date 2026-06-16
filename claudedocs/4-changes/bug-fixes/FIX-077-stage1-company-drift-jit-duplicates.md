@@ -4,7 +4,7 @@
 > **發現方式**: Playwright/API 端到端測試（驗證 Stage 2 COMPANY scope 模板選用時）
 > **影響頁面/功能**: Stage 1 公司識別（`resolveCompanyId` / `normalizeCompanyName` / `jitCreateCompany`）、所有 COMPANY/FORMAT scope 配置（Stage 2/3 `PromptConfig`、`FieldDefinitionSet`、`pipeline-config` override、`FieldMappingConfig`、Tier 2 `MappingRule`）、公司主檔、公司維度統計 / 成本 / 規則學習
 > **優先級**: 高
-> **狀態**: 🚧 修復中（BUG-1 / BUG-2 程式碼已實作並通過驗證；BUG-3 既有重複公司清理待用戶確認）
+> **狀態**: ✅ 已修復（BUG-1 / BUG-2 程式碼已實作並通過驗證；BUG-3 既有重複公司已合併清理）
 > **最後更新**: 2026-06-16
 
 ---
@@ -104,9 +104,16 @@ private normalizeCompanyName(name: string): string {
 3. 再以**保守相似度**（沿用既有 `levenshteinSimilarity`，門檻 `COMPANY_NAME_SIMILARITY_THRESHOLD = 0.85`）catch GPT 對同公司輸出的細微寫法差異。
 4. 命中時輸出 `[Stage1] FIX-077 防重複` 診斷 log，便於追蹤。
 
-### BUG-3：清理既有重複公司 ⏸️ 待用戶確認
+### BUG-3：清理既有重複公司 ✅ 已執行（2026-06-16，用戶核准）
 
-屬破壞性資料操作（合併/停用 AUTO_CREATED 重複公司、改指其文件至正規公司），且與本 session 先前「保留測試資料」指示衝突。依 CLAUDE.md「Migration 不確定資料相容性 → 先寫 dry-run 驗證 script」，將先提供 dry-run 盤點，經用戶確認後才執行合併。
+依 CLAUDE.md「Migration 不確定資料相容性 → 先寫 dry-run 驗證 script」，先以 `scripts/check-duplicate-companies.mjs`（dry-run 預設、`--execute` 實際合併）盤點，經用戶核准後執行合併：
+
+- **合併策略**：每群組選正規公司（MANUAL 優先 → 文件多者 → 最早建立），將非正規公司的文件 / 提取結果 / PromptConfig 改指向正規公司，再把非正規公司狀態設為 `MERGED`（非刪除，可逆、避免 FK 連鎖）。每個非正規公司以一個交易包裹。
+- **PromptConfig 碰撞**：若與正規公司既有設定撞 `unique_prompt_config`（promptType, scope, companyId, documentFormatId），則停用該重複設定（`isActive=false`）而非改指，避免唯一約束衝突。
+- **執行結果**：1 個群組「dhl express」→ 保留 `DHL Express`（eedf4065，MANUAL），合併 3 筆 AUTO_CREATED；改指文件 3 / 提取結果 3 / PromptConfig 1（碰撞停用 1）；3 筆設為 MERGED。
+- **驗證**：重跑 dry-run 顯示 0 重複群組；正規公司現有 3 文件 / 3 提取結果 / 1 PromptConfig。
+
+> 註：MTL/RICON 類（`RICH KING HONG` / `MODERN LEASING` / `RICON HONG KONG`）為 OCR 誤讀的不同字串，正規化後不同組，未列入本次合併；需另以 Stage 1 prompt 強化根治。
 
 > ⚠️ 注意（H1/H2）：本 FIX 僅修「公司名正規化 / 相似度配對邏輯」與「JIT 重複防護」，**未改**三層映射架構、信心度路由、Prisma model 結構，亦**未新增** vendor / 依賴（相似度沿用既有 `similarity/`）。屬 bug fix 範疇。
 
@@ -118,7 +125,7 @@ private normalizeCompanyName(name: string): string {
 |------|----------|------|
 | `src/services/extraction-v3/stages/stage-1-company.service.ts` | (1) `normalizeCompanyName` 強化：取 `/` 前主名、移除括號內容、後綴清單加 `operations`；(2) 新增 `findDuplicateCompany`（查所有狀態 + 正規化精確相等 + `levenshteinSimilarity` 0.85 保守相似度）；(3) `resolveCompanyId` JIT 前呼叫防護；(4) 新增 `COMPANY_NAME_SIMILARITY_THRESHOLD` 常數 + import `levenshteinSimilarity` | ✅ 已實作 |
 | （沿用既有，未修改）`src/services/similarity/levenshtein.ts` | 重用 `levenshteinSimilarity`，未新增依賴（H2） | ✅ |
-| 清理腳本 / 資料操作 | 合併或停用既有 AUTO_CREATED 重複公司 | ⏸️ 待用戶確認 |
+| `scripts/check-duplicate-companies.mjs`（本地工具，`scripts/check-*` 依慣例被 gitignore，未進版控） | dry-run 盤點 + `--execute` 合併（改指文件/提取結果/PromptConfig、設 MERGED、處理唯一約束碰撞） | ✅ 已執行 |
 
 ---
 
@@ -129,9 +136,9 @@ private normalizeCompanyName(name: string): string {
 - [x] 涵蓋括號地區詞 `(HK)`/`(Hong Kong)`、業務後綴 `OPERATIONS`、`/ 別名` 等寫法變體 → 正規化後統一（DHL 四種寫法經 `normalizeCompanyName` 皆得 `dhl express`，確定性驗證通過）
 - [x] 不影響 FIX-057 既有案例（Fairate Express ↔ FAIRATE EXPRESS LTD. 正規化後仍相等）
 - [x] `npm run type-check` 通過 + `npx eslint`（0 errors，僅 3 個既有風格 `no-console` warning）
+- [x] 既有已增生的重複公司（DHL ×3）已合併清理（BUG-3 `--execute`：3 筆設 MERGED，文件/提取結果/PromptConfig 已改指正規公司；重跑 dry-run 0 重複群組）
 - [ ] 端到端：同一張 DHL 發票連續上傳多次 → 全部配對到**同一個** companyId，不再 JIT 增生（需 dev server + GPT，待執行）
 - [ ] 配對成功的公司，Stage 2/3 正確套用其 COMPANY/FORMAT scope 配置（PromptConfig / FieldDefinitionSet）
-- [ ] 既有已增生的重複公司（DHL ×3、MTL/RICON 等）已清理或合併（BUG-3，待用戶確認）
 
 > ⚠️ 說明：MTL 案例的 `RICH KING HONG` / `MODERN LEASING` / `RICON HONG KONG` 為 GPT/OCR 對不同字詞的誤讀（非同字串的寫法變體），無法靠正規化統一；需靠 Stage 1 prompt 強化（要求 GPT 優先回傳 `knownCompanies` 清單中的精確名稱）才能根治，本 FIX 未涵蓋該方向。
 
