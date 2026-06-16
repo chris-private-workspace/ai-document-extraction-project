@@ -1,7 +1,7 @@
 # 已知差異與關鍵發現
 
 > **本文件為 CLAUDE.md §當前 Open 差異 的完整展開**。CLAUDE.md 只列 5 條精簡 open items，本文件含完整歷史 + 已修復項目（FIX-XXX 引用）+ 安全審計記錄。
-> **最後更新**：2026-05-26 | **來源**：`docs/06-codebase-analyze/` 驗證報告 R1-R15（44 份）
+> **最後更新**：2026-06-16 | **來源**：`docs/06-codebase-analyze/` 驗證報告 R1-R15（44 份）
 
 ---
 
@@ -39,6 +39,12 @@
 | **FIX-053** | Smart Routing 衝突（單一路由 vs 統一 adapter 架構） | 2026-04-21 | 統一為 `applyRoutingStrategy` 為唯一策略核心 |
 | FIX-055 | 殘留 PII alert services | 2026-XX-XX | （詳見 changes/bug-fixes/FIX-055） |
 | FIX-056 | x-dev-bypass auth hardening | 2026-XX-XX | （詳見 changes/bug-fixes/FIX-056） |
+
+### 提取管線 / 資料品質修復
+
+| FIX # | 項目 | 修復日期 | 說明 |
+|-------|------|---------|------|
+| **FIX-077** | Stage 1 公司識別飄移 / JIT 增生重複公司（FIX-057 後續強化） | 2026-06-16 | 強化 `normalizeCompanyName`（取 `/` 前主名、移除括號地區詞 `(HK)`/`(Hong Kong)`、後綴加 `OPERATIONS`）+ `resolveCompanyId` JIT 前 `findDuplicateCompany` 重複防護（查所有狀態 + 正規化精確相等 + `levenshteinSimilarity` 0.85）；BUG-3 合併既有重複公司（DHL ×3 → MERGED）。PR #38；詳見 changes/bug-fixes/FIX-077 |
 
 ---
 
@@ -138,6 +144,7 @@
 
 ## 變更歷史
 
+- **2026-06-16**：FIX-077 修復（Stage 1 公司識別飄移 / JIT 重複公司 → 已修復，PR #38）
 - **2026-05-26**：初版（從 CLAUDE.md v3.4.1 §已知差異與關鍵發現 完整遷移）
 - **2026-04-21**：FIX-050/051/052/053 修復（4 個 HIGH 優先級 → 已修復）
 - **2026-04-09**：基於 `docs/06-codebase-analyze/` 全面掃瞄建立差異記錄
