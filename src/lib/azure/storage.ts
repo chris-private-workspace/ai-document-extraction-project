@@ -129,9 +129,11 @@ function getContainerClient(): ContainerClient {
  */
 export async function ensureContainer(): Promise<void> {
   const client = getContainerClient();
-  await client.createIfNotExists({
-    access: 'blob', // blob 級別的公開訪問
-  });
+  // 建立 private container（不要求匿名公開存取）。
+  // 文件一律透過伺服器端串流（/api/documents/[id]/blob → downloadBlob）服務，
+  // 不依賴公開 blob URL；且鎖定環境的 Storage 帳號已停用公開 blob 存取，
+  // 若帶 access:'blob' 會被回 PublicAccessNotPermitted 導致上傳失敗（FIX-078）。
+  await client.createIfNotExists();
 }
 
 /**

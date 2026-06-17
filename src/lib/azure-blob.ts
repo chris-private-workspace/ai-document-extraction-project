@@ -47,10 +47,10 @@ async function getContainerClient(): Promise<ContainerClient> {
     const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString)
     containerClient = blobServiceClient.getContainerClient(containerName)
 
-    // 確保 container 存在
-    await containerClient.createIfNotExists({
-      access: 'blob' // Public read access for blobs
-    })
+    // 確保 container 存在（private container，不要求匿名公開存取）。
+    // 鎖定環境的 Storage 帳號已停用公開 blob 存取，帶 access:'blob' 會被回
+    // PublicAccessNotPermitted；文件一律透過伺服器端串流服務（FIX-078）。
+    await containerClient.createIfNotExists()
   }
   return containerClient
 }
