@@ -4,7 +4,15 @@
 > **發現方式**: FIX-078 上傳修復後部署 Azure DEV（映像 `dev-fix078-20260617112757`），抓容器 log 時發現
 > **影響頁面/功能**: 所有用到 `safe-regex` 的正則功能（mapping rule test / preview，如 `/api/rules/test`、`/api/rules/[id]/preview`）
 > **優先級**: 中（不影響上傳/處理/健康檢查；影響規則正則相關功能）
-> **狀態**: 🚧 待修復（先記錄，之後處理）
+> **狀態**: ✅ 已解決（2026-06-17，映像 `dev-fix080d`，啟動段 re2.wasm ENOENT 歸零）
+
+---
+
+## ⚠️ 更新（2026-06-17）：「回歸」實為建錯 Dockerfile
+
+本 doc 原推測「main 上的 re2-wasm COPY 在、卻仍 ENOENT」。實際查明：`main` 的 `Dockerfile` 第 185 行 re2-wasm COPY **一直都在且正確**；之所以 ENOENT，是因為 [[FIX-080]] 過程中用 `az acr build --file Dockerfile <context>` 建映像時，`--file` 讀到的是**落後 main 的主 repo（docs 分支）舊 Dockerfile**（缺 re2-wasm COPY），而非 worktree 那份正確的 → **建錯 Dockerfile**（步驟總數 49 而非 52）。改成 `( cd <worktree> && az acr build --file Dockerfile . )`（CWD=context）用對 Dockerfile 重建後，新容器啟動段 **re2.wasm ENOENT = 0**（舊容器累計 1640 次）。
+
+→ 本問題**無需獨立程式碼修復**；隨 [[FIX-080]] 用對 Dockerfile 重建即解。教訓（standalone trace + az acr build 陷阱）詳見 [[FIX-080]] 更新節。
 
 ---
 

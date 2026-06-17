@@ -186,6 +186,9 @@ export class PdfConverter {
         warnings: warnings.length > 0 ? warnings : undefined,
       };
     } catch (error) {
+      // 之前此錯誤被靜默吞掉（只回傳 message），導致 Azure 上 PDF→圖片失敗時
+      // 容器 log 無任何線索。明確記錄完整錯誤（含 stack）以利診斷。
+      console.error('[pdf-converter] convertToBase64Images failed:', error);
       return {
         success: false,
         images: [],

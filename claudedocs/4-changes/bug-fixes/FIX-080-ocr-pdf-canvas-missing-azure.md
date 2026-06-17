@@ -4,7 +4,39 @@
 > **發現方式**: FIX-078 上傳修復後，用戶於 Azure DEV 實測：上傳成功，但處理中途回「OCR Failed / Processing Failed」；抓容器 log 定位
 > **影響頁面/功能**: 文件上傳後的 V3 提取管線（`/api/documents/upload` 後置 fire-and-forget 處理）；Azure DEV 下**所有 PDF 文件處理**
 > **優先級**: 高（核心上傳→處理流程在 Azure 不可用）
-> **狀態**: 🚧 待修復（已記錄根因與修法；**改 code/加依賴需用戶核准後才動** — H2）
+> **狀態**: ✅ 已修復並驗證（2026-06-17，映像 `dev-fix080d`，實測上傳→處理成功）
+
+---
+
+## ⚠️ 更新（2026-06-17）：實際根因比「canvas 缺失」更深一層
+
+> 下方「問題描述／根本原因」是初判（canvas 缺失）。實作驗證後發現 canvas 只是**前置條件**，真正卡住處理的是 **`pdf-to-img` 巢狀 `pdfjs-dist` 的 `package.json` 漏搬**。完整根因鏈與最終修復見此節。
+
+### 實際根因鏈（逐層剝開）
+
+1. **canvas 缺失（前置）**：補 `@napi-rs/canvas` + `@napi-rs/canvas-linux-x64-gnu` 的 Dockerfile COPY 後，`Cannot find module '@napi-rs/canvas'` 消失。
+2. **真兇**：補 canvas 後仍 OCR Failed。加診斷 `console.error` 後撈到真錯：
+   ```
+   [pdf-converter] convertToBase64Images failed: Error: Cannot find module 'pdfjs-dist/package.json'
+   Require stack: - /app/node_modules/pdf-to-img/dist/index.js   code: MODULE_NOT_FOUND
+   ```
+   `pdf-to-img/dist/index.js` 於 runtime 動態 `require('pdfjs-dist/package.json')`（讀版本），且用其**巢狀** `pdfjs-dist`。Next standalone trace 只搬靜態 import 的 `pdf.mjs`、**漏掉 `package.json`** → MODULE_NOT_FOUND → OCR Failed。
+3. **共通模式**：與 [[FIX-079]](re2.wasm)同一類——`output: 'standalone'` 只搬「靜態分析得到」的檔，**動態 import/require、巢狀 node_modules、native/.wasm、讀 package.json/資產** 一律漏 → 本地正常、Azure runtime 爆。
+
+### ⚠️ 部署工具陷阱（連帶踩到，害多繞數輪）
+
+`az acr build --file Dockerfile <context>` 的 `--file` 讀的是**當前工作目錄**的 Dockerfile，**非 context 目錄**。在落後 main 的主 repo 跑、context 指 worktree → 竟用了主 repo 的**舊 Dockerfile**（缺 re2/canvas/pdf-to-img COPY），靜默建錯。**判別**：build log `Step 1/N` 步驟總數（舊 49 / 正確 52~53）。**正解**：`( cd <worktree> && az acr build --file Dockerfile . )` 讓 CWD=context。
+
+### 最終修復（已套用、已驗證）
+
+| 檔案 | 修改 |
+|------|------|
+| `Dockerfile` | runner 階段加 COPY：`@napi-rs/canvas`、`@napi-rs/canvas-linux-x64-gnu`、**`pdf-to-img`（整包，含巢狀 pdfjs-dist）** |
+| `src/services/extraction-v3/utils/pdf-converter.ts` | `convertToBase64Images` 的 catch 加 `console.error`（原本靜默吞錯，導致 Azure 無從查；本身亦為改善） |
+
+驗證：映像 `dev-fix080d-20260617134833` 部署 Azure DEV，實測上傳 PDF → **處理成功**（非 OCR Failed），容器 log 無 `Cannot find module`。同一份正確 Dockerfile 也讓 re2.wasm ENOENT 歸零（連帶解 [[FIX-079]]）。
+
+> 📌 同類隱藏風險的全面審計見 [[FIX-081]]（pdfkit 字型、pdf-parse、openapi spec、CJK 字型等主動補強）。
 
 ---
 

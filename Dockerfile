@@ -184,6 +184,20 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_module
 # 執行期 ENOENT '/app/.next/server/chunks/re2.wasm'。
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/re2-wasm ./node_modules/re2-wasm
 
+# @napi-rs/canvas（FIX-080）：V3 pdf-converter 經 pdf-to-img/pdfjs-dist 渲染 PDF→圖片，
+# pdfjs-dist 在 Node 端動態 optional require @napi-rs/canvas；Next standalone trace 漏掉 →
+# runtime 'Cannot find module @napi-rs/canvas' → OCR Failed。複製套件本體 + Linux x64
+# prebuilt binary 子套件（含 .node）。NAPI 為 ABI 穩定，無需 install script。
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@napi-rs/canvas ./node_modules/@napi-rs/canvas
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@napi-rs/canvas-linux-x64-gnu ./node_modules/@napi-rs/canvas-linux-x64-gnu
+
+# pdf-to-img（FIX-080）：V3 pdf-converter 的 PDF→圖片轉換。pdf-to-img/dist/index.js 於
+# runtime 動態 require('pdfjs-dist/package.json')（讀版本），且使用其「巢狀」pdfjs-dist。
+# Next standalone trace 只搬到靜態 import 的 pdf.mjs、漏掉 package.json 等 → runtime
+# 'Cannot find module pdfjs-dist/package.json' → OCR Failed。完整複製整個套件（含
+# node_modules/pdf-to-img/node_modules/pdfjs-dist）。
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pdf-to-img ./node_modules/pdf-to-img
+
 # 啟動腳本（bootstrap schema → essential seed → 啟動 server）
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
