@@ -47,6 +47,7 @@
     "refMatchEnabled": "啟用參考編號比對",
     "refMatchTypes": "參考編號類型",
     "refMatchMaxResults": "最大結果數",
+    "refMatchScopeNotice": "參考編號比對是在公司識別之前執行的全域前置檢查，因此只在「全域」或「區域」範圍生效。此處的設定不會套用。",
     "fxSection": "匯率轉換",
     "fxDescription": "使用配置的匯率將提取的金額轉換為目標貨幣。",
     "fxConversionEnabled": "啟用匯率轉換",
