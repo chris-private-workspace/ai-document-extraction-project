@@ -47,6 +47,7 @@
     "refMatchEnabled": "Enable Reference Number Matching",
     "refMatchTypes": "Reference Number Types",
     "refMatchMaxResults": "Max Results",
+    "refMatchScopeNotice": "Reference Number Matching is a global pre-check that runs before company identification, so it only takes effect at GLOBAL or REGION scope. Settings here will not be applied.",
     "fxSection": "FX Conversion",
     "fxDescription": "Convert extracted monetary amounts to a target currency using configured exchange rates.",
     "fxConversionEnabled": "Enable FX Conversion",

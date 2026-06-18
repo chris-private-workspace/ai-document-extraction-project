@@ -35,6 +35,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { AlertCircle } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -202,6 +204,9 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
   const watchRefMatchEnabled = form.watch('refMatchEnabled')
   const watchFxEnabled = form.watch('fxConversionEnabled')
 
+  // FIX-077: ref match 在公司識別前執行，只讀 GLOBAL/REGION scope；COMPANY/FORMAT 設定無效
+  const refMatchScopeSupported = watchScope === 'GLOBAL' || watchScope === 'REGION'
+
   // --- Submit ---
   const onSubmit = React.useCallback(
     async (values: FormValues) => {
@@ -210,7 +215,11 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
           await updateMutation.mutateAsync({
             id: initialData.id,
             input: {
-              refMatchEnabled: values.refMatchEnabled,
+              // FIX-077: ref match 只在 GLOBAL/REGION scope 生效，其他 scope 強制 false
+              refMatchEnabled:
+                initialData.scope === 'GLOBAL' || initialData.scope === 'REGION'
+                  ? values.refMatchEnabled
+                  : false,
               refMatchTypes: values.refMatchTypes,
               refMatchMaxResults: values.refMatchMaxResults,
               fxConversionEnabled: values.fxConversionEnabled,
@@ -236,7 +245,11 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
             companyId: values.scope === 'COMPANY' ? values.companyId : null,
             documentFormatId:
               values.scope === 'FORMAT' ? values.documentFormatId : null,
-            refMatchEnabled: values.refMatchEnabled,
+            // FIX-077: ref match 只在 GLOBAL/REGION scope 生效，其他 scope 強制 false
+            refMatchEnabled:
+              values.scope === 'GLOBAL' || values.scope === 'REGION'
+                ? values.refMatchEnabled
+                : false,
             refMatchTypes: values.refMatchTypes,
             refMatchMaxResults: values.refMatchMaxResults,
             fxConversionEnabled: values.fxConversionEnabled,
@@ -460,6 +473,15 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
             </p>
           </div>
 
+          {!refMatchScopeSupported && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{t('form.refMatchScopeNotice')}</AlertDescription>
+            </Alert>
+          )}
+
+          {refMatchScopeSupported && (
+          <>
           <FormField
             control={form.control}
             name="refMatchEnabled"
@@ -519,6 +541,8 @@ export function PipelineConfigForm({ initialData }: PipelineConfigFormProps) {
                 )}
               />
             </>
+          )}
+          </>
           )}
         </div>
 

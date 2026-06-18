@@ -47,6 +47,7 @@
     "refMatchEnabled": "启用参考编号匹配",
     "refMatchTypes": "参考编号类型",
     "refMatchMaxResults": "最大结果数",
+    "refMatchScopeNotice": "参考编号匹配是在公司识别之前执行的全局前置检查，因此只在「全局」或「区域」范围生效。此处的设置不会应用。",
     "fxSection": "汇率转换",
     "fxDescription": "使用配置的汇率将提取的金额转换为目标货币。",
     "fxConversionEnabled": "启用汇率转换",
