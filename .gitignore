@@ -18,6 +18,9 @@ prisma/init.sql
 prisma/init.err
 prisma/dist/
 
+# 本地業務資料快照（開發/Azure 資料同步產物，每機不同，不入 git）
+prisma/dev-snapshot.json
+
 # IDE
 .idea/
 *.swp
