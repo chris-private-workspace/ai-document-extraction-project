@@ -1,12 +1,26 @@
-# Azure 部署文件（🚧 Phase 1 完成 → Phase 2 文件化階段）
+# Azure 部署文件（🟢 DEV 已上線 → UAT/PRD 進行中）
 
-> **狀態**: 📋 全 10 項決策已定案 + UAT 部署文件骨架完成（v0.3，2026-04-27）
-> **建立日期**: 2026-04-22
+> **狀態**: 🟢 **DEV 環境已上線**(2026-06-15,App Service for Containers)+ 機密已正規化到 Key Vault + 本地業務/設定資料已同步;UAT/PRD 文件化進行中
+> **建立日期**: 2026-04-22 ・ **最後更新**: 2026-06-16
 > **追蹤**: [CHANGE-055](../../../claudedocs/4-changes/feature-changes/CHANGE-055-azure-deployment-foundation.md) + [CHANGE-056](../../../claudedocs/4-changes/feature-changes/CHANGE-056-prisma-migration-baseline.md)
 > **主規劃文件**: [`azure-deployment-plan.md`](./azure-deployment-plan.md) v0.3
-> **UAT 部署流程**: [`uat-deployment/`](./uat-deployment/) — 12 份人 + AI 雙向可讀文件
+> **UAT 部署流程**: [`uat-deployment/`](./uat-deployment/) — 步驟文件
 
-本目錄存放 AI Document Extraction 項目部署到 Azure 生產環境的所有相關文件。
+本目錄存放 AI Document Extraction 項目部署到 Azure 各環境的所有相關文件。
+
+---
+
+## 🟢 現況與必讀(2026-06-16)
+
+> 規劃階段(下方 §「為何還沒實施」)已被 DEV 實際上線取代。**實際部署請以下列文件為準:**
+
+| 🔴 必讀 | 文件 | 內容 |
+|--------|------|------|
+| **1** | [`deployment-governance.md`](./deployment-governance.md) | **權限模型**:DEV/UAT 開發團隊用 Service Principal **自助部署**;**PRD 一律經 infra team**。app 最終轉 **private(僅內網)**。**KV 僅 DEV/UAT 由開發者建立管理**,PRD 由 infra 管理。 |
+| **2** | [`dev-deployment-runbook.md`](./dev-deployment-runbook.md) | DEV 實戰:**§A 標準部署流程(可重複)** + 13 個已遇到並解決的問題(DNS 繞法、KV 搬遷、資料同步 14 表、CRLF exit 127、re2-wasm 執行期等)。 |
+| 3 | [`uat-deployment/00-overview.md`](./uat-deployment/00-overview.md) | UAT 步驟文件(治理規則以文件 1 為準)。 |
+
+---
 
 ## 🎯 立即從這裡開始
 
