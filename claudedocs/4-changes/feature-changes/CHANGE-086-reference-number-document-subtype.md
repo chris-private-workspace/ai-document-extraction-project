@@ -304,3 +304,26 @@ model ReferenceNumber {
 - **H3**：頁面層串接屬 CHANGE-086 全鏈必要部分（規劃「前端表單/列表/篩選/導入導出」隱含），非順手擴張。
 - **H5**：三語言同步 + `npm run i18n:check` 通過。
 - **並行 Agent 紀律**：Agent 僅改前端 7 組件 + hook，未碰 service/routes/messages/type/schema（主 session 處理區），無檔案衝突；Agent 未執行 git。
+
+---
+
+## 實機驗證（2026-06-22，dev server localhost:3200）
+
+重啟 dev server 載入新 prisma client 後，以 Playwright 完整實機驗證：
+
+| 驗證項 | 結果 |
+|--------|------|
+| 列表「文件子類型」欄（Type 後） | ✅ 顯示；既有資料（NULL）顯示 `--` |
+| 篩選「文件子類型」下拉（All/Import/Export/Both/Unknown） | ✅ 選 IMPORT 收斂到「0 reference numbers」、無 500 |
+| 新增頁子類型 Select（預設 None 可清空） | ✅ |
+| 編輯頁子類型回填（`defaultValues`） | ✅ NULL → None 正確回填 |
+| 編輯設 Import → 列表顯示 Import Badge | ✅（修復 handleSubmit 後） |
+
+### 🐛 實機驗證抓到的 bug（type-check 抓不到）+ 修復
+
+- **問題**：`admin/reference-numbers/new/page.tsx` 與 `[id]/page.tsx` 的 `handleSubmit` 將 Form values 轉成 create/update API payload 時**遺漏 `documentSubType`**，導致 Form 選了子類型但提交後 DB 不寫（值維持 NULL）。
+- **為何 type-check 沒抓到**：API input 的 `documentSubType` 為 optional，payload 漏傳不構成型別錯誤。**唯有實機操作（選值→提交→列表回顯）才暴露**。
+- **修復**：兩頁 `handleSubmit` 的 payload 補上 `documentSubType: values.documentSubType ?? null`。修復後實機驗證：編輯設 Import → 列表正確顯示 Import Badge ✅。
+- **教訓**：optional 欄位的「頁面層 payload 串接」是 type-check 盲區，全鏈新增欄位時 create/update 兩端的 handleSubmit 都需逐一核對。
+
+> 此 bug 修復屬 CHANGE-086 全鏈收尾（頁面層 create/update 串接），與 06d1b3a 同 CHANGE。

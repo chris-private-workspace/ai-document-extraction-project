@@ -55,6 +55,7 @@ export default function EditReferenceNumberPage() {
           type: values.type,
           year: values.year,
           regionId: values.regionId,
+          documentSubType: values.documentSubType ?? null,
           description: values.description || null,
           validFrom: values.validFrom ? values.validFrom.toISOString() : null,
           validUntil: values.validUntil ? values.validUntil.toISOString() : null,
