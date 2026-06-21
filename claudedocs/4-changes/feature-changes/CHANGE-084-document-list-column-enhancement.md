@@ -1,7 +1,7 @@
 # CHANGE-084: documents 文件列表欄位增強（檔名完整／絕對時間／處理時間／信心度／上傳者）
 
 > **日期**: 2026-06-20
-> **狀態**: ⏳ 待實作
+> **狀態**: ✅ 已完成（2026-06-21）
 > **優先級**: High
 > **類型**: UI Enhancement
 > **影響範圍**: documents 列表頁顯示
@@ -182,3 +182,34 @@
 - **H4（Security/PII）**：上傳者欄顯示 name 優先、email fallback，且不得 log email。
 - **H5（i18n）**：新增 column header 需 en/zh-TW/zh-CN 三語言同步，完成後跑 `npm run i18n:check`。
 - **H3（Task Scope）**：序號欄明確劃出範圍（歸 CHANGE-087）；移除的 date-fns import 屬本次改動造成的 orphan，依規清理。
+
+---
+
+## 實作記錄（2026-06-21）
+
+於分支 `feature/change-084-087-phase1` 實作完成。
+
+### 實際修改檔案
+
+| 檔案 | 修改內容 |
+|------|----------|
+| `src/services/document.service.ts` | `getDocuments` select 加 `processingStartedAt/EndedAt/Duration` + `extractionResult: { select: { averageConfidence: true } }`；`DocumentSummary` 型別同步加欄位 |
+| `src/hooks/use-documents.ts` | `DocumentListItem` 加處理時間 3 欄 + `extractionResult` |
+| `src/components/features/document/DocumentListTable.tsx` | 移除 date-fns（`formatDistanceToNow`/`zhTW`/`enUS`）改用 `formatDateTime`；放寬檔名（`truncate max-w-[200px]` → `break-all`）；上傳時間改絕對時間；新增「處理時間 / 信心度 / 上傳者」3 欄（`ConfidenceBadge`、`formatDateTime`）；`useLocale() as Locale` |
+| `messages/{en,zh-TW,zh-CN}/documents.json` | `table.columns` 加 `processingTime`/`uploader`；`table.processing` 新增 `started`/`ended`/`duration`/`durationValue`（confidence 表頭原已存在） |
+
+### 與規劃的合理差異（非偏離設計意圖）
+
+- **信心度採巢狀 `extractionResult.averageConfidence` 而非扁平 `confidence`**：因 API route（`/api/documents/route.ts`）以 `...result` 原樣 spread、無白名單，service select 的巢狀形狀直達前端，hook 無 transform。採巢狀型別最少改動、資料原樣傳遞（Karpathy §1.2/§1.3），組件讀 `doc.extractionResult?.averageConfidence`。語意目標（顯示信心度）完全達成，未改 API 層。
+- **耗時格式化**：專案無現成 duration 工具，採 i18n `table.processing.durationValue`（`{seconds}` 插值，以秒呈現一位小數），單位走三語言（en `s` / 中文「秒」），不硬編碼。
+
+### 驗證結果
+
+- `npm run type-check`：通過（exit 0；`useLocale()` 補 `as Locale` 後解決 3 處型別錯）
+- `npm run lint`：通過（改動檔案無新 warning；`document.service.ts:627` console 為既有 warning，非本次引入）
+- `npm run i18n:check`：通過；三語言 `documents.json` JSON 解析有效
+- **未改 schema**：`prisma/schema.prisma` 無變更，無 migration
+
+### 後續
+
+- 本檔的 `DocumentListTable.tsx` 將由 **CHANGE-087 Phase 1**（documents 試點）在此 9 欄基礎上遷移為共用 DataTable 並加 No. 序號欄。

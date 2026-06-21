@@ -36,6 +36,8 @@
       "uploadTime": "上传时间",
       "processingPath": "处理路径",
       "confidence": "置信度",
+      "processingTime": "处理时间",
+      "uploader": "上传者",
       "company": "公司",
       "actions": "操作",
       "select": "选择"
@@ -45,7 +47,13 @@
     "emptyDescription": "上传新文件开始处理",
     "loading": "加载中...",
     "processingError": "处理过程中发生错误",
-    "processingFailed": "处理失败"
+    "processingFailed": "处理失败",
+    "processing": {
+      "started": "开始",
+      "ended": "结束",
+      "duration": "耗时",
+      "durationValue": "{seconds} 秒"
+    }
   },
   "processingPath": {
     "autoApprove": "自动通过",

@@ -97,6 +97,10 @@ export interface DocumentSummary {
   fileSize: number
   status: DocumentStatus
   processingPath: string | null
+  // CHANGE-084: 處理時間（開始 / 結束 / 耗時毫秒）
+  processingStartedAt: Date | null
+  processingEndedAt: Date | null
+  processingDuration: number | null
   cityCode: string | null
   createdAt: Date
   updatedAt: Date
@@ -105,6 +109,10 @@ export interface DocumentSummary {
     name: string | null
     email: string
   }
+  // CHANGE-084: 信心度（來自 1:1 關聯 extraction_results，0–100；無提取結果時為 null）
+  extractionResult: {
+    averageConfidence: number
+  } | null
 }
 
 /**
@@ -213,6 +221,10 @@ export async function getDocuments(
         fileSize: true,
         status: true,
         processingPath: true,
+        // CHANGE-084: 列表顯示處理時間（開始 / 結束 / 耗時）
+        processingStartedAt: true,
+        processingEndedAt: true,
+        processingDuration: true,
         cityCode: true,
         createdAt: true,
         updatedAt: true,
@@ -221,6 +233,12 @@ export async function getDocuments(
             id: true,
             name: true,
             email: true,
+          },
+        },
+        // CHANGE-084: 列表顯示信心度（權威來源為 1:1 關聯 extraction_results.average_confidence，0–100）
+        extractionResult: {
+          select: {
+            averageConfidence: true,
           },
         },
       },

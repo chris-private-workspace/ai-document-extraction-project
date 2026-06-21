@@ -60,6 +60,10 @@ export interface DocumentListItem {
   fileSize: number
   status: DocumentStatus
   processingPath: string | null
+  // CHANGE-084: 處理時間（JSON 序列化後日期為 ISO 字串；耗時為毫秒）
+  processingStartedAt: string | null
+  processingEndedAt: string | null
+  processingDuration: number | null
   cityCode: string | null
   createdAt: string
   updatedAt: string
@@ -68,6 +72,10 @@ export interface DocumentListItem {
     name: string | null
     email: string
   }
+  // CHANGE-084: 信心度（來自 1:1 關聯 extraction_results，0–100；無提取結果時為 null）
+  extractionResult: {
+    averageConfidence: number
+  } | null
 }
 
 /**

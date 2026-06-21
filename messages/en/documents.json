@@ -36,6 +36,8 @@
       "uploadTime": "Upload Time",
       "processingPath": "Processing Path",
       "confidence": "Confidence",
+      "processingTime": "Processing Time",
+      "uploader": "Uploader",
       "company": "Company",
       "actions": "Actions",
       "select": "Select"
@@ -45,7 +47,13 @@
     "emptyDescription": "Upload a new document to get started",
     "loading": "Loading...",
     "processingError": "An error occurred during processing",
-    "processingFailed": "Processing Failed"
+    "processingFailed": "Processing Failed",
+    "processing": {
+      "started": "Started",
+      "ended": "Ended",
+      "duration": "Duration",
+      "durationValue": "{seconds}s"
+    }
   },
   "processingPath": {
     "autoApprove": "Auto Approve",
