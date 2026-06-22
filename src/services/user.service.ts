@@ -573,7 +573,13 @@ export async function createUser(
         name,
         status: 'ACTIVE',
         // CHANGE-082: 僅在提供密碼時寫入
-        ...(hashedPassword ? { password: hashedPassword } : {}),
+        // FIX-090: admin 手動建立的本地帳號（有設密碼）視為可信，直接標記 email 已驗證。
+        // 否則登入時會被 auth.config.ts 的 EmailNotVerified 檢查擋住，而系統不會為 admin
+        // 建立的帳號發驗證郵件（createUser 不寄信），導致該帳號永遠無法登入。沒設密碼的
+        // 帳號走 Azure AD SSO，不經 credentials 的 emailVerified 檢查，不受影響。
+        ...(hashedPassword
+          ? { password: hashedPassword, emailVerified: new Date() }
+          : {}),
       },
     })
 
