@@ -323,5 +323,22 @@ failed to compile wasm module: RuntimeError: abort(...re2.wasm)
 
 ---
 
+## 14. Schema 漂移增量修補(`apply-schema-drift.js`,2026-06-23 新增)
+
+### 問題
+`bootstrap-db.js` 只在「空庫」才套 `init.sql`、**不遷移既有 DB**。當 `schema.prisma` 演進(加欄位 / enum / index)但 Azure DB 已有表時,既有 DB 拿不到新欄位 → 凡查該表的功能執行期 **P2022**(欄位不存在)。本機又無法直連私有 PG,任何 DDL 只能在容器啟動於 VNet 內跑。
+
+### 解法(增量、非破壞性、保留資料)
+- 新增 `prisma/apply-schema-drift.js`:只用 `pg`(同 bootstrap 風格),逐條跑**冪等 DDL**(enum 用 `DO ... EXCEPTION WHEN duplicate_object`、欄位用 `ADD COLUMN IF NOT EXISTS`、索引用 `CREATE INDEX IF NOT EXISTS`),單筆失敗不影響其他筆。
+- `scripts/docker-entrypoint.sh`:在 **bootstrap 之後、essential seed 之前**加 gated 步驟(`RUN_SCHEMA_DRIFT_FIX=true` 才跑,非致命),確保 seed 動到的表先補好 schema。
+- 維護:未來再有漂移 → 在 `MIGRATIONS` 陣列加一筆 `{ id, sql }`(依賴在前)。通案根治仍是 **CHANGE-056**(migration baseline);本 script 為過渡補丁。
+
+### 首例:CHANGE-086(`reference_numbers.document_sub_type`)
+2026-06-22 加 `documentSubType` nullable 欄位 + `ReferenceNumberSubType` enum + 索引;Azure DB(2026-06-16 `dev-datasync` 映像建)落後 → 以本機制補。部署時設 `RUN_SCHEMA_DRIFT_FIX=true`,log 應見三筆 `[schema-drift] OK ...` + `done — 3 applied, 0 failed`,驗證後設回 false。
+
+> **vs FORCE_SCHEMA_RESET**:後者 `DROP SCHEMA CASCADE` 會清空全部資料(含交易資料),僅在 schema 大改無法增量時才用;additive 變更(加欄位/enum/index)一律優先用本機制。
+
+---
+
 *維護者: AI 助手 + 開發團隊*
-*最後更新: 2026-06-16*
+*最後更新: 2026-06-23*

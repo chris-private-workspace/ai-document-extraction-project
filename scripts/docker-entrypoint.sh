@@ -14,6 +14,14 @@ set -e
 echo "[entrypoint] Step 1/3: bootstrap database schema (if needed)"
 node prisma/bootstrap-db.js
 
+# (選用)一次性 schema 漂移修補 —— 由 RUN_SCHEMA_DRIFT_FIX=true 觸發,非致命(失敗不擋啟動)。
+# 用途:bootstrap 只「空庫才建表」、不遷移既有 DB;schema 演進(如 CHANGE-086 加欄位)後,
+# 既有 DB 需以此補上增量 DDL(冪等、保留資料)。補完後把旗標設回 false。
+if [ "$RUN_SCHEMA_DRIFT_FIX" = "true" ]; then
+  echo "[entrypoint] (optional) applying schema drift fixes"
+  node prisma/apply-schema-drift.js || echo "[entrypoint] schema drift fix failed (non-fatal), continuing"
+fi
+
 echo "[entrypoint] Step 2/3: run essential seed (idempotent)"
 node prisma/dist/seed-prod-essential.js
 
