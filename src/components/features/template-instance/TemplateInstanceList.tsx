@@ -14,9 +14,12 @@ import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { FileStack, RefreshCw, AlertCircle } from 'lucide-react';
 import { TemplateInstanceCard } from './TemplateInstanceCard';
+import { TemplateInstanceTable } from './TemplateInstanceTable';
 import { TemplateInstanceFilters, type TemplateInstanceFiltersState } from './TemplateInstanceFilters';
 import { CreateInstanceDialog } from './CreateInstanceDialog';
+import { ViewToggle } from '@/components/features/common/ViewToggle';
 import { useTemplateInstances, useDeleteTemplateInstance } from '@/hooks/use-template-instances';
+import { useViewMode } from '@/hooks/use-view-mode';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/pagination';
@@ -148,6 +151,7 @@ export function TemplateInstanceList({ className }: TemplateInstanceListProps) {
   });
   const [page, setPage] = React.useState(1);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
+  const [viewMode, setViewMode] = useViewMode('templateInstances.viewMode');
 
   // --- Data fetching ---
   const {
@@ -238,24 +242,36 @@ export function TemplateInstanceList({ className }: TemplateInstanceListProps) {
       {/* Filters */}
       <TemplateInstanceFilters value={filters} onChange={handleFiltersChange} className="mb-4" />
 
-      {/* Stats and Create button */}
+      {/* Stats, View Toggle and Create button */}
       <div className="mb-4 flex items-center justify-between">
         <span className="text-sm text-muted-foreground">
           {t('list.totalInstances', { count: pagination?.total ?? 0 })}
         </span>
-        <CreateInstanceDialog onSuccess={() => refetch()} triggerVariant="outline" />
+        <div className="flex items-center gap-2">
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+          <CreateInstanceDialog onSuccess={() => refetch()} triggerVariant="outline" />
+        </div>
       </div>
 
-      {/* Instance cards grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {instances.map((instance) => (
-          <TemplateInstanceCard
-            key={instance.id}
-            instance={instance}
-            onDelete={handleDelete}
-          />
-        ))}
-      </div>
+      {/* Instance list */}
+      {viewMode === 'list' ? (
+        <TemplateInstanceTable
+          instances={instances}
+          onDelete={handleDelete}
+          page={page}
+          pageSize={12}
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {instances.map((instance) => (
+            <TemplateInstanceCard
+              key={instance.id}
+              instance={instance}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (

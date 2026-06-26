@@ -35,6 +35,10 @@
       "no": "序号"
     }
   },
+  "viewToggle": {
+    "card": "卡片视图",
+    "list": "列表视图"
+  },
   "errors": {
     "title": "错误",
     "generic": "发生错误，请重试",

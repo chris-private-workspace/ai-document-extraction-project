@@ -45,6 +45,16 @@
     "viewDetails": "View Details",
     "export": "Export"
   },
+  "table": {
+    "columns": {
+      "name": "Name",
+      "template": "Template",
+      "status": "Status",
+      "rows": "Rows",
+      "updatedAt": "Updated",
+      "actions": "Actions"
+    }
+  },
   "createDialog": {
     "title": "Create New Instance",
     "description": "Create a new template instance to store data",

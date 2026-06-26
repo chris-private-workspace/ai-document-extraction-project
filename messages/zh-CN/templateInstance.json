@@ -45,6 +45,16 @@
     "viewDetails": "查看详情",
     "export": "导出"
   },
+  "table": {
+    "columns": {
+      "name": "名称",
+      "template": "模板",
+      "status": "状态",
+      "rows": "行数",
+      "updatedAt": "更新时间",
+      "actions": "操作"
+    }
+  },
   "createDialog": {
     "title": "创建新实例",
     "description": "创建新的模板实例以存储数据",

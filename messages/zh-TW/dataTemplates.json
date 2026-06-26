@@ -51,6 +51,17 @@
     "usageCount": "{count} 個配置使用",
     "updatedAt": "更新於 {date}"
   },
+  "table": {
+    "columns": {
+      "name": "名稱",
+      "description": "描述",
+      "fieldCount": "欄位數",
+      "usageCount": "使用數",
+      "status": "狀態",
+      "updatedAt": "更新時間",
+      "actions": "操作"
+    }
+  },
   "list": {
     "loadFailed": "載入失敗",
     "loadFailedDesc": "無法載入模版列表",

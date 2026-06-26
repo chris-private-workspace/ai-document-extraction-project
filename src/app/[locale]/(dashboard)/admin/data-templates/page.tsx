@@ -36,10 +36,12 @@ import {
   DataTemplateList,
   DataTemplateFilters,
 } from '@/components/features/data-template';
+import { ViewToggle } from '@/components/features/common/ViewToggle';
 import {
   useDataTemplates,
   useDeleteDataTemplate,
 } from '@/hooks/use-data-templates';
+import { useViewMode } from '@/hooks/use-view-mode';
 import type { DataTemplateFilters as Filters } from '@/types/data-template';
 
 // ============================================================================
@@ -54,6 +56,7 @@ export default function DataTemplatesPage() {
   // --- State ---
   const [filters, setFilters] = React.useState<Filters>({});
   const [page, setPage] = React.useState(1);
+  const [viewMode, setViewMode] = useViewMode('dataTemplates.viewMode');
   const [deleteTarget, setDeleteTarget] = React.useState<{
     id: string;
     name: string;
@@ -171,9 +174,12 @@ export default function DataTemplatesPage() {
         </Alert>
       )}
 
-      {/* Summary */}
-      <div className="text-sm text-muted-foreground">
-        {t('page.templateCount', { count: totalCount })}
+      {/* Summary + View Toggle */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm text-muted-foreground">
+          {t('page.templateCount', { count: totalCount })}
+        </div>
+        <ViewToggle value={viewMode} onChange={setViewMode} />
       </div>
 
       {/* Template List */}
@@ -183,6 +189,7 @@ export default function DataTemplatesPage() {
         error={error ?? undefined}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
+        viewMode={viewMode}
       />
 
       {/* Delete Confirmation Dialog */}

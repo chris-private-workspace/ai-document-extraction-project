@@ -16,7 +16,9 @@ import { useTranslations } from 'next-intl';
 import { FileCode } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTemplateCard } from './DataTemplateCard';
+import { DataTemplateTable } from './DataTemplateTable';
 import type { DataTemplateSummary } from '@/types/data-template';
+import type { ViewMode } from '@/hooks/use-view-mode';
 
 // ============================================================================
 // Types
@@ -33,6 +35,8 @@ export interface DataTemplateListProps {
   onEdit?: (id: string) => void;
   /** 刪除回調 */
   onDelete?: (id: string, name: string) => void;
+  /** 檢視模式（卡片 / 列表，預設卡片） */
+  viewMode?: ViewMode;
 }
 
 // ============================================================================
@@ -45,6 +49,7 @@ export function DataTemplateList({
   error,
   onEdit,
   onDelete,
+  viewMode = 'card',
 }: DataTemplateListProps) {
   const t = useTranslations('dataTemplates');
 
@@ -85,7 +90,14 @@ export function DataTemplateList({
     );
   }
 
-  // --- Template List ---
+  // --- Template List (List View) ---
+  if (viewMode === 'list') {
+    return (
+      <DataTemplateTable templates={templates} onEdit={onEdit} onDelete={onDelete} />
+    );
+  }
+
+  // --- Template List (Card View) ---
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {templates.map((template) => (

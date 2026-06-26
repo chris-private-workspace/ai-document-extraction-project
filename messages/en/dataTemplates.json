@@ -51,6 +51,17 @@
     "usageCount": "{count, plural, =0 {No configs using} =1 {1 config using} other {# configs using}}",
     "updatedAt": "Updated on {date}"
   },
+  "table": {
+    "columns": {
+      "name": "Name",
+      "description": "Description",
+      "fieldCount": "Fields",
+      "usageCount": "Usage",
+      "status": "Status",
+      "updatedAt": "Updated",
+      "actions": "Actions"
+    }
+  },
   "list": {
     "loadFailed": "Load Failed",
     "loadFailedDesc": "Unable to load template list",

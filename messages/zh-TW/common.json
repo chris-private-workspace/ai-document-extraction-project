@@ -35,6 +35,10 @@
       "no": "序號"
     }
   },
+  "viewToggle": {
+    "card": "卡片檢視",
+    "list": "列表檢視"
+  },
   "errors": {
     "title": "錯誤",
     "generic": "發生錯誤，請重試",

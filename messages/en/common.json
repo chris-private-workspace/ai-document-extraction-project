@@ -35,6 +35,10 @@
       "no": "No."
     }
   },
+  "viewToggle": {
+    "card": "Card view",
+    "list": "List view"
+  },
   "errors": {
     "title": "Error",
     "generic": "Something went wrong. Please try again.",
