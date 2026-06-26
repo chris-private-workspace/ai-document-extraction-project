@@ -185,6 +185,19 @@ export function DocumentListTable({
       ),
     })
 
+    // CHANGE-092: 公司（識別出的公司名稱，未識別時顯示 --）
+    cols.push({
+      id: 'company',
+      header: t('table.columns.company'),
+      cellClassName: 'text-sm',
+      cell: (doc) =>
+        doc.company ? (
+          doc.company.name
+        ) : (
+          <span className="text-gray-400">--</span>
+        ),
+    })
+
     // 狀態
     cols.push({
       id: 'status',

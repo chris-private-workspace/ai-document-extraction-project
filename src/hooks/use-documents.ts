@@ -72,6 +72,11 @@ export interface DocumentListItem {
     name: string | null
     email: string
   }
+  // CHANGE-092: 識別出的公司（Stage 1 公司識別結果；未識別時為 null）
+  company: {
+    id: string
+    name: string
+  } | null
   // CHANGE-084: 信心度（來自 1:1 關聯 extraction_results，0–100；無提取結果時為 null）
   extractionResult: {
     averageConfidence: number

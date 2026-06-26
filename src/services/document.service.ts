@@ -109,6 +109,11 @@ export interface DocumentSummary {
     name: string | null
     email: string
   }
+  // CHANGE-092: 識別出的公司（Stage 1 公司識別結果；未識別時為 null）
+  company: {
+    id: string
+    name: string
+  } | null
   // CHANGE-084: 信心度（來自 1:1 關聯 extraction_results，0–100；無提取結果時為 null）
   extractionResult: {
     averageConfidence: number
@@ -233,6 +238,13 @@ export async function getDocuments(
             id: true,
             name: true,
             email: true,
+          },
+        },
+        // CHANGE-092: 列表顯示識別出的公司名稱（Stage 1 公司識別結果；未識別時為 null）
+        company: {
+          select: {
+            id: true,
+            name: true,
           },
         },
         // CHANGE-084: 列表顯示信心度（權威來源為 1:1 關聯 extraction_results.average_confidence，0–100）
