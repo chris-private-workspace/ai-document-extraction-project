@@ -19,7 +19,6 @@ prisma/init.err
 prisma/dist/
 
 # 本地業務資料快照（開發/Azure 資料同步產物，每機不同，不入 git）
-prisma/dev-snapshot.json
 
 # IDE
 .idea/
@@ -110,6 +109,3 @@ conversation-*.txt
 CLAUDE-Karpathy.md
 CLAUDE_reference_from_EKP.md
 claudedocs/CLAUDE.md.draft-v4.md
-
-# DEV 業務資料快照(由本地 DB 匯出,僅供部署時 bake 進映像;不入 git)
-prisma/dev-snapshot.json

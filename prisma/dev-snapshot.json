@@ -1,0 +1,5002 @@
+{
+ "companies": [
+  {
+   "id": "dfa90c5d-df79-401f-9995-cfa49f0e8e79",
+   "name": "Hapag-Lloyd",
+   "code": "HLAG",
+   "display_name": "Hapag-Lloyd",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"Hapag-Lloyd\",\"Hapag Lloyd\",\"HAPAG\"],\"keywords\":[\"hapag lloyd tracking\",\"container booking\",\"ocean transport\",\"shipping line\"],\"formats\":[\"HLCU\\\\d{7}\",\"HLXU\\\\d{7}\"],\"logoText\":[\"hapag-lloyd\",\"quality pays\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 88,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.803",
+   "updated_at": "2026-04-22T05:39:39.8",
+   "default_template_id": null
+  },
+  {
+   "id": "be691f33-ad63-42b4-8902-4dc26a38905a",
+   "name": "Maersk",
+   "code": "MAERSK",
+   "display_name": "Maersk Line",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"Maersk\",\"Maersk Line\",\"A.P. Moller-Maersk\",\"Maersk Container Industry\",\"Maersk Logistics\",\"Sealand\",\"Safmarine\"],\"keywords\":[\"bill of lading\",\"container number\",\"booking number\",\"vessel name\",\"port of loading\",\"port of discharge\",\"ocean freight\"],\"formats\":[\"MSKU\\\\d{7}\",\"MRKU\\\\d{7}\",\"SEAL\\\\d{7}\",\"SFAU\\\\d{7}\"],\"logoText\":[\"maersk\",\"constant care\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 90,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.649",
+   "updated_at": "2026-04-22T05:39:41.525",
+   "default_template_id": "erp-standard-import"
+  },
+  {
+   "id": "abeda5fd-ea89-46d1-a659-78f43581caa7",
+   "name": "MSC",
+   "code": "MSC",
+   "display_name": "Mediterranean Shipping Company",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"MSC\",\"Mediterranean Shipping Company\",\"MSC Mediterranean\",\"MSC Cargo\"],\"keywords\":[\"msc tracking\",\"bill of lading\",\"container tracking\",\"ocean shipment\",\"vessel schedule\"],\"formats\":[\"MSCU\\\\d{7}\",\"MEDU\\\\d{7}\"],\"logoText\":[\"msc\",\"mediterranean shipping\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 90,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.683",
+   "updated_at": "2026-04-22T05:39:39.719",
+   "default_template_id": null
+  },
+  {
+   "id": "1ee2d6e3-0405-44bd-8d42-d1b116e2c97d",
+   "name": "CARGO LINK LOGISTICS HK COMPANY LIMITED",
+   "code": null,
+   "display_name": "CARGO LINK LOGISTICS HK COMPANY LIMITED",
+   "type": "UNKNOWN",
+   "status": "ACTIVE",
+   "source": "AUTO_CREATED",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-04-16T09:06:54.552",
+   "updated_at": "2026-04-16T09:06:54.552",
+   "default_template_id": null
+  },
+  {
+   "id": "20907a6d-dd27-4444-804e-442464e0d341",
+   "name": "Evergreen",
+   "code": "EVRG",
+   "display_name": "Evergreen Marine",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"Evergreen\",\"Evergreen Marine\",\"Evergreen Line\",\"EVA Airways Cargo\"],\"keywords\":[\"evergreen tracking\",\"container booking\",\"ocean freight\",\"shipping schedule\"],\"formats\":[\"EGHU\\\\d{7}\",\"EISU\\\\d{7}\",\"EMCU\\\\d{7}\"],\"logoText\":[\"evergreen\",\"evergreen marine\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 85,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.818",
+   "updated_at": "2026-04-22T05:39:39.849",
+   "default_template_id": null
+  },
+  {
+   "id": "51abdb63-f31f-4022-8170-b49e94b97292",
+   "name": "COSCO",
+   "code": "COSCO",
+   "display_name": "COSCO Shipping",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"COSCO\",\"COSCO Shipping\",\"COSCO Container Lines\",\"OOCL\"],\"keywords\":[\"cosco tracking\",\"container shipment\",\"ocean carrier\",\"shipping booking\"],\"formats\":[\"COSU\\\\d{7}\",\"CBHU\\\\d{7}\",\"OOLU\\\\d{7}\"],\"logoText\":[\"cosco\",\"cosco shipping\",\"oocl\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 85,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.863",
+   "updated_at": "2026-04-22T05:39:39.902",
+   "default_template_id": null
+  },
+  {
+   "id": "0fd9f770-3709-4f50-b756-86ea8c0727ee",
+   "name": "ONE",
+   "code": "ONE",
+   "display_name": "Ocean Network Express",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"ONE\",\"Ocean Network Express\",\"ONE Line\"],\"keywords\":[\"one tracking\",\"container booking\",\"ocean network\",\"vessel schedule\"],\"formats\":[\"ONEY\\\\d{7}\",\"ONEU\\\\d{7}\"],\"logoText\":[\"one\",\"ocean network express\",\"as one we can\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 85,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.88",
+   "updated_at": "2026-04-22T05:39:39.953",
+   "default_template_id": null
+  },
+  {
+   "id": "c38f4ec8-b44a-4e61-9fac-2aac59111218",
+   "name": "Yang Ming",
+   "code": "YML",
+   "display_name": "Yang Ming Marine",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"Yang Ming\",\"Yang Ming Marine\",\"Yang Ming Line\",\"YM Line\"],\"keywords\":[\"yang ming tracking\",\"container shipment\",\"ocean freight\",\"booking reference\"],\"formats\":[\"YMLU\\\\d{7}\",\"YMMU\\\\d{7}\"],\"logoText\":[\"yang ming\",\"ym line\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 83,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.919",
+   "updated_at": "2026-04-22T05:39:40.003",
+   "default_template_id": null
+  },
+  {
+   "id": "6c304f80-5931-4a3e-bcbb-a0621c90d706",
+   "name": "SF Express",
+   "code": "SF",
+   "display_name": "SF Express (順豐)",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"SF Express\",\"S.F. Express\",\"順豐\",\"順豐速運\",\"SF International\"],\"keywords\":[\"sf tracking\",\"順豐單號\",\"express delivery\",\"快遞單\",\"waybill number\"],\"formats\":[\"SF\\\\d{12}\",\"\\\\d{12}\"],\"logoText\":[\"sf express\",\"順豐\",\"sf\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 80,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.934",
+   "updated_at": "2026-04-22T05:39:40.041",
+   "default_template_id": null
+  },
+  {
+   "id": "1f715fa9-8623-4482-b8da-f7803ec5a5d3",
+   "name": "Kerry Logistics",
+   "code": "KERRY",
+   "display_name": "Kerry Logistics",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"Kerry Logistics\",\"Kerry TJ Logistics\",\"Kerry Express\",\"Kerry EAS\",\"嘉里物流\",\"嘉里大榮\"],\"keywords\":[\"kerry tracking\",\"logistics services\",\"freight forwarding\",\"物流追蹤\"],\"formats\":[\"KL\\\\d{10}\",\"\\\\d{10}\"],\"logoText\":[\"kerry\",\"kerry logistics\",\"嘉里\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 78,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.954",
+   "updated_at": "2026-04-22T05:39:40.078",
+   "default_template_id": null
+  },
+  {
+   "id": "495c3d4f-e25b-4530-b050-c8cb3892e1fe",
+   "name": "Unknown",
+   "code": "UNKNOWN",
+   "display_name": "Unknown Forwarder",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[],\"keywords\":[],\"formats\":[],\"logoText\":[]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.983",
+   "updated_at": "2026-04-22T05:39:40.113",
+   "default_template_id": null
+  },
+  {
+   "id": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+   "name": "DHL Express",
+   "code": "DHL",
+   "display_name": "DHL Express",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"DHL\",\"DHL Express\",\"DHL Global\",\"DHL International\",\"DHL Supply Chain\",\"DHL Freight\",\"DHL eCommerce\",\"Deutsche Post DHL\"],\"keywords\":[\"waybill\",\"awb number\",\"dhl tracking\",\"express worldwide\",\"global forwarding\",\"shipment tracking\",\"delivery notice\"],\"formats\":[\"\\\\d{10}\",\"[A-Z]{3}\\\\d{7}\"],\"logoText\":[\"dhl\",\"simply delivered\",\"express\",\"excellence. simply delivered.\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 100,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.508",
+   "updated_at": "2026-04-22T05:39:41.514",
+   "default_template_id": "erp-standard-import"
+  },
+  {
+   "id": "3d50712d-5ec4-4f2f-a057-b092eefedd05",
+   "name": "FedEx",
+   "code": "FDX",
+   "display_name": "FedEx",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"FedEx\",\"Federal Express\",\"FedEx Express\",\"FedEx Ground\",\"FedEx Freight\",\"FedEx International\",\"FedEx Trade Networks\",\"FedEx Logistics\"],\"keywords\":[\"fedex tracking\",\"door tag\",\"express saver\",\"international priority\",\"ground shipping\",\"freight services\",\"ship manager\"],\"formats\":[\"\\\\d{12}\",\"\\\\d{15}\",\"\\\\d{20,22}\"],\"logoText\":[\"fedex\",\"federal express\",\"the world on time\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 100,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.556",
+   "updated_at": "2026-04-22T05:39:39.573",
+   "default_template_id": null
+  },
+  {
+   "id": "934eb15e-245a-48d1-9ef3-492a0c56eaa5",
+   "name": "UPS",
+   "code": "UPS",
+   "display_name": "UPS (United Parcel Service)",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"UPS\",\"United Parcel Service\",\"UPS Express\",\"UPS Ground\",\"UPS Freight\",\"UPS Supply Chain\",\"UPS International\"],\"keywords\":[\"ups tracking\",\"worldship\",\"ground shipping\",\"express critical\",\"freight shipping\",\"ups my choice\",\"package tracking\"],\"formats\":[\"1Z[A-Z0-9]{16}\",\"\\\\d{9}\",\"\\\\d{18}\"],\"logoText\":[\"ups\",\"united parcel service\",\"what can brown do for you\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 100,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.593",
+   "updated_at": "2026-04-22T05:39:39.604",
+   "default_template_id": null
+  },
+  {
+   "id": "3f52ee09-8661-4e68-91c0-7f7bc30f9a86",
+   "name": "TNT Express",
+   "code": "TNT",
+   "display_name": "TNT Express",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"TNT\",\"TNT Express\",\"TNT International\",\"TNT FedEx\"],\"keywords\":[\"tnt tracking\",\"consignment note\",\"express delivery\",\"international express\"],\"formats\":[\"[A-Z]{2}\\\\d{9}[A-Z]{2}\",\"\\\\d{9}\"],\"logoText\":[\"tnt\",\"tnt express\",\"sure we can\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 95,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.624",
+   "updated_at": "2026-04-22T05:39:39.626",
+   "default_template_id": null
+  },
+  {
+   "id": "85a71aef-4bbb-4041-b2ca-4a2313744439",
+   "name": "CMA CGM",
+   "code": "CMACGM",
+   "display_name": "CMA CGM Group",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": null,
+   "identification_patterns": [
+    "{\"names\":[\"CMA CGM\",\"CMA CGM Group\",\"APL\",\"ANL\",\"CNC\"],\"keywords\":[\"cma cgm tracking\",\"container shipment\",\"ocean freight\",\"vessel booking\"],\"formats\":[\"CMAU\\\\d{7}\",\"APLU\\\\d{7}\",\"ANLU\\\\d{7}\"],\"logoText\":[\"cma cgm\",\"apl\"]}"
+   ],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 88,
+   "default_confidence": 0.8,
+   "created_by_id": "cmkngdv0s0006skxg0voe9b3w",
+   "created_at": "2026-01-21T03:18:19.734",
+   "updated_at": "2026-04-22T05:39:39.771",
+   "default_template_id": null
+  },
+  {
+   "id": "87d611ab-d022-4c49-8cc4-6b83bbe1697d",
+   "name": "Cargo Partner",
+   "code": "CARGO_PARTNER",
+   "display_name": "Cargo Partner",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:14.028",
+   "updated_at": "2026-05-31T15:35:00.717",
+   "default_template_id": null
+  },
+  {
+   "id": "f645183d-cfef-45a2-9ff4-d4e7de5cbc67",
+   "name": "Redlines Shipping & Logistics",
+   "code": "REDLINE",
+   "display_name": "Redlines Shipping & Logistics",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:13.69",
+   "updated_at": "2026-05-31T15:35:00.894",
+   "default_template_id": null
+  },
+  {
+   "id": "369c787f-8429-4ebd-9bc4-67ca8974524e",
+   "name": "Fairate Express",
+   "code": "FAIRATE",
+   "display_name": "Fairate Express",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:13.901",
+   "updated_at": "2026-05-31T15:16:43.019",
+   "default_template_id": null
+  },
+  {
+   "id": "3e54867f-bf1a-4e0e-b682-64db51ae32f9",
+   "name": "Yamato Logistic Hong Kong",
+   "code": "YAMATO",
+   "display_name": "Yamato Logistic Hong Kong",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:15.771",
+   "updated_at": "2026-05-31T15:34:58.805",
+   "default_template_id": null
+  },
+  {
+   "id": "fd34394d-6879-4b4e-bd4b-2bdd227476ec",
+   "name": "Worldwide Partner Logistics CO. LTD",
+   "code": "WORLDWIDE",
+   "display_name": "Worldwide Partner Logistics CO. LTD",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:15.632",
+   "updated_at": "2026-05-31T15:34:58.927",
+   "default_template_id": null
+  },
+  {
+   "id": "99d4c2fb-a2eb-4039-95c2-1c67e919d747",
+   "name": "Wang Kay (1995) Limited",
+   "code": "WANG_KAY",
+   "display_name": "Wang Kay (1995) Limited",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:15.508",
+   "updated_at": "2026-05-31T15:34:59.063",
+   "default_template_id": null
+  },
+  {
+   "id": "99b21087-fff8-42f4-b6ed-2c0ef6c9043c",
+   "name": "Union Express Group CO. LTD",
+   "code": "UNION",
+   "display_name": "Union Express Group CO. LTD",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:15.387",
+   "updated_at": "2026-05-31T15:34:59.194",
+   "default_template_id": null
+  },
+  {
+   "id": "8f933f53-fae5-4c52-944c-3eac699e4ac4",
+   "name": "Toll Global Forwarder Limited",
+   "code": "TOLL",
+   "display_name": "Toll Global Forwarder Limited",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:15.273",
+   "updated_at": "2026-05-31T15:34:59.375",
+   "default_template_id": null
+  },
+  {
+   "id": "3589d37c-314c-4d58-a6a7-6e6d12dadc41",
+   "name": "SBS",
+   "code": "RIL",
+   "display_name": "SBS",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:15.138",
+   "updated_at": "2026-05-31T15:34:59.521",
+   "default_template_id": null
+  },
+  {
+   "id": "5d5d66c4-e6ca-420d-896b-3198ea443c3d",
+   "name": "Nippon Express Logistics",
+   "code": "NIPPON",
+   "display_name": "Nippon Express Logistics",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:14.908",
+   "updated_at": "2026-05-31T15:34:59.643",
+   "default_template_id": null
+  },
+  {
+   "id": "89a92910-a9cf-4883-85ef-166a2ea58e5d",
+   "name": "MAINFREIGHT",
+   "code": "MAINFREIGHT",
+   "display_name": "MAINFREIGHT",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:14.733",
+   "updated_at": "2026-05-31T15:34:59.803",
+   "default_template_id": null
+  },
+  {
+   "id": "83e7a1e4-c1c4-4a11-9f02-f64cab4ae549",
+   "name": "Kings Air Logistics Company",
+   "code": "KINGS",
+   "display_name": "Kings Air Logistics Company",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:14.623",
+   "updated_at": "2026-05-31T15:34:59.943",
+   "default_template_id": null
+  },
+  {
+   "id": "8d6bf010-88f4-44cc-b4ba-fbdd67824cb7",
+   "name": "DSV Air & Sea Ltd.",
+   "code": "DSV",
+   "display_name": "DSV Air & Sea Ltd.",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:14.488",
+   "updated_at": "2026-05-31T15:35:00.096",
+   "default_template_id": null
+  },
+  {
+   "id": "cbc8e540-dc35-4952-949b-c6c3b4080d85",
+   "name": "CYTS",
+   "code": "CYTS",
+   "display_name": "CYTS",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:14.374",
+   "updated_at": "2026-05-31T15:35:00.232",
+   "default_template_id": null
+  },
+  {
+   "id": "0d02b680-165b-4cfd-8c1b-7ebfa6da8424",
+   "name": "CEVA Logistics",
+   "code": "CEVA",
+   "display_name": "CEVA Logistics",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:14.262",
+   "updated_at": "2026-05-31T15:35:00.405",
+   "default_template_id": null
+  },
+  {
+   "id": "d701b1b5-d98a-4d67-8161-945dcfcba3aa",
+   "name": "Ningbo Constant International Logistics Company Limited",
+   "code": "CONSTANT_INTL",
+   "display_name": "Ningbo Constant International Logistics Company Limited",
+   "type": "FORWARDER",
+   "status": "ACTIVE",
+   "source": "MANUAL",
+   "name_variants": [],
+   "identification_patterns": [],
+   "merged_into_id": null,
+   "first_seen_document_id": null,
+   "logo_url": null,
+   "contact_email": null,
+   "description": null,
+   "priority": 0,
+   "default_confidence": 0.8,
+   "created_by_id": "dev-user-1",
+   "created_at": "2026-05-31T09:23:14.148",
+   "updated_at": "2026-05-31T15:35:00.562",
+   "default_template_id": null
+  }
+ ],
+ "document_formats": [
+  {
+   "id": "cmo197zxk001cnsxgvs6p80ar",
+   "company_id": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+   "document_type": "INVOICE",
+   "document_subtype": "OCEAN_FREIGHT",
+   "name": "DHL Express - Ocean FreightInvoice",
+   "features": {},
+   "identification_rules": {
+    "keywords": [],
+    "priority": 50,
+    "layoutHints": "",
+    "logoPatterns": []
+   },
+   "common_terms": [],
+   "file_count": 0,
+   "created_at": "2026-04-16T09:05:42.056",
+   "updated_at": "2026-04-16T09:05:42.056",
+   "default_template_id": null
+  },
+  {
+   "id": "cmo197zxx001dnsxgrqif8es3",
+   "company_id": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+   "document_type": "OTHER",
+   "document_subtype": "GENERAL",
+   "name": "General Other",
+   "features": {
+    "hasLineItems": false,
+    "hasHeaderLogo": false,
+    "layoutPattern": "PORTRAIT",
+    "typicalFields": []
+   },
+   "identification_rules": null,
+   "common_terms": [
+    "EXPRESS WORLDWIDE NONDOC",
+    "EXPRESS 1200 DOC",
+    "FUEL SURCHARGE",
+    "PREMIUM 1200",
+    "EXPRESS 1200 NONDOC"
+   ],
+   "file_count": 41,
+   "created_at": "2026-04-16T09:05:42.069",
+   "updated_at": "2026-04-16T09:05:42.069",
+   "default_template_id": null
+  },
+  {
+   "id": "cmo197zye001ensxg8h9she5a",
+   "company_id": "495c3d4f-e25b-4530-b050-c8cb3892e1fe",
+   "document_type": "INVOICE",
+   "document_subtype": "GENERAL",
+   "name": "Cargo-Partner Freight Logistics Invoice Template",
+   "features": {
+    "typicalFields": [],
+    "formatCharacteristics": [
+     "Header contains the cargo-partner logo/watermark and company information",
+     "Invoice header shows Invoice No, Service date, Due date, and related dates",
+     "Shipment information block with details like Consignor, Consignee, Origin, Destination, Final destination, Vessel, ETD/ETA",
+     "Charges section listing Service, Comment, Quantity, Unit price, Net amount",
+     "Currency shown (HKD) with subtotal and total amounts",
+     "Payment instructions section with bank details for payment",
+     "Electronic signature area and a note about the signature/date",
+     "Document spans multiple pages (page 1 of 2 shown) with page numbers",
+     "Footer and watermark branding related to cargo-partner"
+    ]
+   },
+   "identification_rules": {
+    "keywords": [
+     "Header contains the cargo-partner logo/watermark and company information",
+     "Invoice header shows Invoice No, Service date, Due date, and related dates",
+     "Shipment information block with details like Consignor, Consignee, Origin, Destination, Final destination, Vessel, ETD/ETA",
+     "Charges section listing Service, Comment, Quantity, Unit price, Net amount",
+     "Currency shown (HKD) with subtotal and total amounts",
+     "Payment instructions section with bank details for payment",
+     "Electronic signature area and a note about the signature/date",
+     "Document spans multiple pages (page 1 of 2 shown) with page numbers",
+     "Footer and watermark branding related to cargo-partner"
+    ]
+   },
+   "common_terms": [],
+   "file_count": 0,
+   "created_at": "2026-04-16T09:05:42.086",
+   "updated_at": "2026-04-16T09:05:42.086",
+   "default_template_id": null
+  },
+  {
+   "id": "cmo197zyp001fnsxg9s01ljvx",
+   "company_id": "1f715fa9-8623-4482-b8da-f7803ec5a5d3",
+   "document_type": "INVOICE",
+   "document_subtype": "GENERAL",
+   "name": "Kerry Logistics - GeneralInvoice",
+   "features": {},
+   "identification_rules": {
+    "keywords": [],
+    "priority": 50,
+    "layoutHints": "",
+    "logoPatterns": []
+   },
+   "common_terms": [],
+   "file_count": 0,
+   "created_at": "2026-04-16T09:05:42.097",
+   "updated_at": "2026-04-16T09:05:42.097",
+   "default_template_id": null
+  },
+  {
+   "id": "cmo197zz0001gnsxg03une0dg",
+   "company_id": "934eb15e-245a-48d1-9ef3-492a0c56eaa5",
+   "document_type": "OTHER",
+   "document_subtype": "GENERAL",
+   "name": "General Other",
+   "features": {
+    "hasLineItems": false,
+    "hasHeaderLogo": false,
+    "layoutPattern": "PORTRAIT",
+    "typicalFields": []
+   },
+   "identification_rules": null,
+   "common_terms": [],
+   "file_count": 3,
+   "created_at": "2026-04-16T09:05:42.108",
+   "updated_at": "2026-04-16T09:05:42.108",
+   "default_template_id": null
+  },
+  {
+   "id": "cmo199xlf0000dsxgsltrv3mx",
+   "company_id": "1ee2d6e3-0405-44bd-8d42-d1b116e2c97d",
+   "document_type": "INVOICE",
+   "document_subtype": "GENERAL",
+   "name": "Cargo Link Logistics HK Debit Note (Air Freight Charges)",
+   "features": {
+    "typicalFields": [],
+    "formatCharacteristics": [
+     "Header with company name 'CARGO LINK LOGISTICS HK COMPANY LIMITED' and red 'DEBIT NOTE' title",
+     "Right-aligned meta area showing Page, Date, Job No, Flight No, Departure and Destination, Flight Date",
+     "Air freight specific charges listed in a two-column description/amount table (Description vs Amount HKD)",
+     "Line items include freight/handling/freight charges, documentation, taxes, and additional charges",
+     "Total amount presented both numerically and in words ('SAY HKD DOLLARS...')",
+     "Footer contains bank information and an 'Authorized Signature' area",
+     "Currency is Hong Kong Dollars (HKD); date format appears as Sep 16, 2024; numbers use comma thousand separators",
+     "Document layout resembles a freight forwarder debit note/invoice rather than a standard sales invoice"
+    ]
+   },
+   "identification_rules": {
+    "keywords": [
+     "Header with company name 'CARGO LINK LOGISTICS HK COMPANY LIMITED' and red 'DEBIT NOTE' title",
+     "Right-aligned meta area showing Page, Date, Job No, Flight No, Departure and Destination, Flight Date",
+     "Air freight specific charges listed in a two-column description/amount table (Description vs Amount HKD)",
+     "Line items include freight/handling/freight charges, documentation, taxes, and additional charges",
+     "Total amount presented both numerically and in words ('SAY HKD DOLLARS...')",
+     "Footer contains bank information and an 'Authorized Signature' area",
+     "Currency is Hong Kong Dollars (HKD); date format appears as Sep 16, 2024; numbers use comma thousand separators",
+     "Document layout resembles a freight forwarder debit note/invoice rather than a standard sales invoice"
+    ]
+   },
+   "common_terms": [],
+   "file_count": 0,
+   "created_at": "2026-04-16T09:07:12.338",
+   "updated_at": "2026-04-16T09:07:12.338",
+   "default_template_id": null
+  },
+  {
+   "id": "cmptx2z0100006gxgseuqxwy1",
+   "company_id": "369c787f-8429-4ebd-9bc4-67ca8974524e",
+   "document_type": "INVOICE",
+   "document_subtype": "GENERAL",
+   "name": "Air Freight Charge Invoice / Freight Charge Summary",
+   "features": {
+    "typicalFields": [],
+    "formatCharacteristics": [
+     "Header/letterhead with company logos (FAIRATE EXPRESS LTD) and an IATA emblem",
+     "Original copy indicator and fields such as No., Date, and Page information in the header",
+     "Document reference number formatted as an alphanumeric code (e.g., HKGAED-2503186)",
+     "Itemized charges listed in a table-like block with separate charge descriptions (e.g., Airline Documentation Charge, Handling Charge, Terminal Charge, Customs Electronic Data Charge, X-Ray Screening Charge)",
+     "Charges appear in HKD with a grand total at the bottom",
+     "Two-column layout: descriptive text on the left, monetary figures on the right; possible weight-related fields (G. Wgt, C. Wgt)",
+     "Small print/fine print at the bottom including remittance/banking information"
+    ]
+   },
+   "identification_rules": {
+    "keywords": [
+     "Header/letterhead with company logos (FAIRATE EXPRESS LTD) and an IATA emblem",
+     "Original copy indicator and fields such as No., Date, and Page information in the header",
+     "Document reference number formatted as an alphanumeric code (e.g., HKGAED-2503186)",
+     "Itemized charges listed in a table-like block with separate charge descriptions (e.g., Airline Documentation Charge, Handling Charge, Terminal Charge, Customs Electronic Data Charge, X-Ray Screening Charge)",
+     "Charges appear in HKD with a grand total at the bottom",
+     "Two-column layout: descriptive text on the left, monetary figures on the right; possible weight-related fields (G. Wgt, C. Wgt)",
+     "Small print/fine print at the bottom including remittance/banking information"
+    ]
+   },
+   "common_terms": [],
+   "file_count": 0,
+   "created_at": "2026-05-31T15:10:53.617",
+   "updated_at": "2026-05-31T15:10:53.617",
+   "default_template_id": null
+  }
+ ],
+ "mapping_rules": [
+  {
+   "id": "b90cc832-d74e-4395-836b-c6a9bda219ea",
+   "forwarder_id": null,
+   "field_name": "invoice_number",
+   "field_label": "Invoice Number",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(?:Invoice|Inv|Bill)\\s*(?:No|Number|#)?[.:]?\\s*([A-Z0-9-]{5,30})",
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "basic",
+   "description": "發票編號 - 正則表達式備用",
+   "created_at": "2026-01-21T03:18:20.029",
+   "updated_at": "2026-04-22T05:39:40.202",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "3ca7b6f9-95e2-47ad-a4a7-9ea98283f239",
+   "forwarder_id": null,
+   "field_name": "invoice_date",
+   "field_label": "Invoice Date",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Invoice Date",
+     "Inv Date",
+     "Date",
+     "Bill Date"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 80,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+   "default_value": null,
+   "category": "basic",
+   "description": "發票日期 - 關鍵字備用",
+   "created_at": "2026-01-21T03:18:20.082",
+   "updated_at": "2026-04-22T05:39:40.237",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "20d49574-5e31-4914-b1d4-bd9aff55d894",
+   "forwarder_id": null,
+   "field_name": "total_amount",
+   "field_label": "Total Amount",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Total",
+     "Grand Total",
+     "Amount Due",
+     "Invoice Total",
+     "Total Amount"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "charges",
+   "description": "總金額 - 關鍵字備用",
+   "created_at": "2026-01-21T03:18:20.356",
+   "updated_at": "2026-04-22T05:39:40.602",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "bf481a35-fd6f-4ac4-b4fe-97b1b3b6d9fc",
+   "forwarder_id": null,
+   "field_name": "po_number",
+   "field_label": "Purchase Order Number",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "PO",
+     "Purchase Order",
+     "P.O.",
+     "PO Number",
+     "PO#"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "reference",
+   "description": "採購單號 - 關鍵字備用",
+   "created_at": "2026-01-21T03:18:20.402",
+   "updated_at": "2026-04-22T05:39:40.624",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "9e9d070a-0222-415b-b16e-88cc3f6a31cd",
+   "forwarder_id": null,
+   "field_name": "shipper_country",
+   "field_label": "Shipper Country",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Origin Country",
+     "Ship From Country",
+     "Shipper Country"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipper",
+   "description": "發貨人國家",
+   "created_at": "2026-01-21T03:18:20.163",
+   "updated_at": "2026-04-22T05:39:40.317",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "7b4fa4b3-ca64-4598-8138-bf757c5609f0",
+   "forwarder_id": null,
+   "field_name": "consignee_name",
+   "field_label": "Consignee Name",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Consignee",
+     "Receiver",
+     "To",
+     "Destination",
+     "Ship To"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "consignee",
+   "description": "收貨人名稱",
+   "created_at": "2026-01-21T03:18:20.178",
+   "updated_at": "2026-04-22T05:39:40.339",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "68bdd341-6078-4223-89af-f97b35cb623e",
+   "forwarder_id": null,
+   "field_name": "consignee_country",
+   "field_label": "Consignee Country",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Destination Country",
+     "Ship To Country",
+     "Consignee Country"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "consignee",
+   "description": "收貨人國家",
+   "created_at": "2026-01-21T03:18:20.193",
+   "updated_at": "2026-04-22T05:39:40.362",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "e658bc0f-5f15-4299-962e-f0d31753db8e",
+   "forwarder_id": null,
+   "field_name": "tracking_number",
+   "field_label": "Tracking Number",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Tracking",
+     "AWB",
+     "Airway Bill",
+     "Waybill",
+     "Pro Number",
+     "Tracking No"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "追蹤號碼",
+   "created_at": "2026-01-21T03:18:20.209",
+   "updated_at": "2026-04-22T05:39:40.382",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "a20a1a2e-4839-43c5-9b20-f6a78f045180",
+   "forwarder_id": null,
+   "field_name": "delivery_date",
+   "field_label": "Delivery Date",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Delivery Date",
+     "POD Date",
+     "Arrival Date",
+     "Delivered"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+   "default_value": null,
+   "category": "shipping",
+   "description": "交付日期",
+   "created_at": "2026-01-21T03:18:20.233",
+   "updated_at": "2026-04-22T05:39:40.428",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "b29c86af-f55d-4100-8154-9f4c1647e7eb",
+   "forwarder_id": null,
+   "field_name": "origin_code",
+   "field_label": "Origin Code",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Origin",
+     "From",
+     "Departure"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 80,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "起運地代碼",
+   "created_at": "2026-01-21T03:18:20.255",
+   "updated_at": "2026-04-22T05:39:40.456",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "33e5bc9b-60cc-4359-bfd1-cb20ad1856ab",
+   "forwarder_id": null,
+   "field_name": "destination_code",
+   "field_label": "Destination Code",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Destination",
+     "To",
+     "Arrival"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 80,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "目的地代碼",
+   "created_at": "2026-01-21T03:18:20.274",
+   "updated_at": "2026-04-22T05:39:40.479",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "3540c2eb-8d79-4cbf-bb9f-01007380e02d",
+   "forwarder_id": null,
+   "field_name": "total_pieces",
+   "field_label": "Total Pieces",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Pieces",
+     "Pcs",
+     "Qty",
+     "Quantity",
+     "No. of Pieces"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "package",
+   "description": "總件數",
+   "created_at": "2026-01-21T03:18:20.284",
+   "updated_at": "2026-04-22T05:39:40.5",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "ba40f3a5-f14c-478d-b0e7-782b47f81150",
+   "forwarder_id": null,
+   "field_name": "gross_weight",
+   "field_label": "Gross Weight",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Gross Weight",
+     "Actual Weight",
+     "Weight",
+     "Total Weight"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "package",
+   "description": "毛重",
+   "created_at": "2026-01-21T03:18:20.304",
+   "updated_at": "2026-04-22T05:39:40.511",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "6cdd9710-15af-43d7-b839-16e71ed1503e",
+   "forwarder_id": null,
+   "field_name": "chargeable_weight",
+   "field_label": "Chargeable Weight",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Chargeable Weight",
+     "Billable Weight",
+     "Charged Weight"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "package",
+   "description": "計費重量",
+   "created_at": "2026-01-21T03:18:20.322",
+   "updated_at": "2026-04-22T05:39:40.527",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "fe35bd1a-2fdc-4d39-b7ab-12baba3f6087",
+   "forwarder_id": null,
+   "field_name": "freight_charge",
+   "field_label": "Freight Charge",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Freight",
+     "Shipping Cost",
+     "Carriage",
+     "Transportation"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "charges",
+   "description": "運費",
+   "created_at": "2026-01-21T03:18:20.333",
+   "updated_at": "2026-04-22T05:39:40.556",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "251d9ca1-b4c8-4a6d-a358-1cf0377c0cf8",
+   "forwarder_id": null,
+   "field_name": "fuel_surcharge",
+   "field_label": "Fuel Surcharge",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Fuel Surcharge",
+     "Fuel",
+     "FSC",
+     "Fuel Charge"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "charges",
+   "description": "燃油附加費",
+   "created_at": "2026-01-21T03:18:20.342",
+   "updated_at": "2026-04-22T05:39:40.577",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "f7c18efd-5369-4924-a2cd-e86633a839f1",
+   "forwarder_id": null,
+   "field_name": "payment_terms",
+   "field_label": "Payment Terms",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Payment Terms",
+     "Terms",
+     "Payment Method"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 80,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "payment",
+   "description": "付款條件",
+   "created_at": "2026-01-21T03:18:20.439",
+   "updated_at": "2026-04-22T05:39:40.64",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "bc3cb788-c97b-41dc-b677-a11737a51a90",
+   "forwarder_id": null,
+   "field_name": "tracking_number",
+   "field_label": "Tracking Number",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(?:AWB|Waybill|Tracking)\\s*(?:No|Number)?[.:]?\\s*(\\d{10,11})",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "DHL AWB 格式: 10-11 位數字",
+   "created_at": "2026-01-21T03:18:20.456",
+   "updated_at": "2026-04-22T05:39:40.664",
+   "company_id": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "a56d4a51-1823-46b9-b042-9ec4e1c3e2b4",
+   "forwarder_id": null,
+   "field_name": "invoice_number",
+   "field_label": "Invoice Number",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "Invoice\\s*(?:No|Number)?[.:]?\\s*([A-Z]{2}\\d{9,12})",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "basic",
+   "description": "DHL Invoice 格式",
+   "created_at": "2026-01-21T03:18:20.464",
+   "updated_at": "2026-04-22T05:39:40.677",
+   "company_id": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "8b5f969c-e04e-4fcf-928d-34d75a8c6eea",
+   "forwarder_id": null,
+   "field_name": "service_type",
+   "field_label": "Service Type",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(EXPRESS WORLDWIDE|EXPRESS 9:00|EXPRESS 10:30|EXPRESS 12:00|ECONOMY SELECT)",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "basic",
+   "description": "DHL 服務類型",
+   "created_at": "2026-01-21T03:18:20.483",
+   "updated_at": "2026-04-22T05:39:40.689",
+   "company_id": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "3e28b8c8-5ce3-460b-95dd-f00ba294e15b",
+   "forwarder_id": null,
+   "field_name": "tracking_number",
+   "field_label": "Tracking Number",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(?:Tracking|Track)\\s*(?:No|Number)?[.:]?\\s*(\\d{12,22})",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "FedEx Tracking 格式: 12-22 位數字",
+   "created_at": "2026-01-21T03:18:20.503",
+   "updated_at": "2026-04-22T05:39:40.696",
+   "company_id": "3d50712d-5ec4-4f2f-a057-b092eefedd05",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "901be527-1a10-495e-91ae-4b72a161a952",
+   "forwarder_id": null,
+   "field_name": "due_date",
+   "field_label": "Due Date",
+   "extraction_pattern": {
+    "method": "azure_field",
+    "azureFieldName": "DueDate",
+    "confidenceBoost": 5
+   },
+   "priority": 100,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+   "default_value": null,
+   "category": "basic",
+   "description": "付款到期日",
+   "created_at": "2026-01-21T03:18:20.128",
+   "updated_at": "2026-04-22T05:39:40.259",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "334aebdd-4581-4727-8cf5-90bf3ad259cd",
+   "forwarder_id": null,
+   "field_name": "currency",
+   "field_label": "Currency",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "\\b(USD|EUR|GBP|JPY|CNY|HKD|TWD|SGD|AUD)\\b",
+    "confidenceBoost": 5
+   },
+   "priority": 100,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": "^[A-Z]{3}$",
+   "default_value": null,
+   "category": "basic",
+   "description": "幣別",
+   "created_at": "2026-01-21T03:18:20.143",
+   "updated_at": "2026-04-22T05:39:40.276",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "e80b612c-8223-40a4-b1b5-60fb351a2f5a",
+   "forwarder_id": null,
+   "field_name": "shipper_name",
+   "field_label": "Shipper Name",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Shipper",
+     "Sender",
+     "From",
+     "Origin",
+     "Ship From"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipper",
+   "description": "發貨人名稱",
+   "created_at": "2026-01-21T03:18:20.15",
+   "updated_at": "2026-04-22T05:39:40.298",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "9b1fb16f-d1b3-4ddd-aca2-e5ec12238682",
+   "forwarder_id": null,
+   "field_name": "ship_date",
+   "field_label": "Ship Date",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Ship Date",
+     "Shipment Date",
+     "Pickup Date",
+     "Dispatch Date"
+    ],
+    "confidenceBoost": 0
+   },
+   "priority": 90,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+   "default_value": null,
+   "category": "shipping",
+   "description": "發貨日期",
+   "created_at": "2026-01-21T03:18:20.22",
+   "updated_at": "2026-04-22T05:39:40.407",
+   "company_id": null,
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "ccf793df-885a-4ebf-8213-5d7bb503feca",
+   "forwarder_id": null,
+   "field_name": "service_type",
+   "field_label": "Service Type",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(INTERNATIONAL PRIORITY|INTERNATIONAL ECONOMY|GROUND|EXPRESS SAVER|FIRST OVERNIGHT)",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "basic",
+   "description": "FedEx 服務類型",
+   "created_at": "2026-01-21T03:18:20.519",
+   "updated_at": "2026-04-22T05:39:40.702",
+   "company_id": "3d50712d-5ec4-4f2f-a057-b092eefedd05",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "9cd3fe86-d6d6-42b0-9c28-d4cf3b27f7d4",
+   "forwarder_id": null,
+   "field_name": "tracking_number",
+   "field_label": "Tracking Number",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(?:Tracking|1Z)\\s*([1Z][A-Z0-9]{17,18})",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "UPS Tracking 格式: 1Z 開頭",
+   "created_at": "2026-01-21T03:18:20.526",
+   "updated_at": "2026-04-22T05:39:40.718",
+   "company_id": "934eb15e-245a-48d1-9ef3-492a0c56eaa5",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "5ddb49bb-9a4a-447a-8485-8d4bb095a34b",
+   "forwarder_id": null,
+   "field_name": "service_type",
+   "field_label": "Service Type",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(WORLDWIDE EXPRESS|WORLDWIDE EXPEDITED|WORLDWIDE SAVER|GROUND|NEXT DAY AIR)",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "basic",
+   "description": "UPS 服務類型",
+   "created_at": "2026-01-21T03:18:20.535",
+   "updated_at": "2026-04-22T05:39:40.739",
+   "company_id": "934eb15e-245a-48d1-9ef3-492a0c56eaa5",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "9e48a9b6-3bc4-45af-9139-833bf9a93119",
+   "forwarder_id": null,
+   "field_name": "tracking_number",
+   "field_label": "Bill of Lading Number",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(?:B/L|BOL|Bill of Lading)\\s*(?:No|Number)?[.:]?\\s*([A-Z]{4}\\d{10,14})",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": true,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "Maersk B/L 格式",
+   "created_at": "2026-01-21T03:18:20.542",
+   "updated_at": "2026-04-22T05:39:40.758",
+   "company_id": "be691f33-ad63-42b4-8902-4dc26a38905a",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "7e89b9fc-c42d-42c1-a23b-c6e4376f3ddb",
+   "forwarder_id": null,
+   "field_name": "container_number",
+   "field_label": "Container Number",
+   "extraction_pattern": {
+    "method": "regex",
+    "pattern": "(M[A-Z]{3}U\\d{7})",
+    "confidenceBoost": 10
+   },
+   "priority": 100,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "Maersk Container 格式: MSKU/MRKU",
+   "created_at": "2026-01-21T03:18:20.549",
+   "updated_at": "2026-04-22T05:39:40.77",
+   "company_id": "be691f33-ad63-42b4-8902-4dc26a38905a",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  },
+  {
+   "id": "f87fc2e9-e65b-4860-9735-8f3539358c44",
+   "forwarder_id": null,
+   "field_name": "vessel_name",
+   "field_label": "Vessel Name",
+   "extraction_pattern": {
+    "method": "keyword",
+    "keywords": [
+     "Vessel",
+     "Ship Name",
+     "M/V",
+     "MV"
+    ],
+    "confidenceBoost": 5
+   },
+   "priority": 100,
+   "is_required": false,
+   "is_active": true,
+   "validation_pattern": null,
+   "default_value": null,
+   "category": "shipping",
+   "description": "Maersk 船名",
+   "created_at": "2026-01-21T03:18:20.555",
+   "updated_at": "2026-04-22T05:39:40.778",
+   "company_id": "be691f33-ad63-42b4-8902-4dc26a38905a",
+   "confidence": 0.8,
+   "created_by": null,
+   "status": "ACTIVE",
+   "suggestion_id": null,
+   "version": 1
+  }
+ ],
+ "prompt_configs": [
+  {
+   "id": "cmo197zhf000ansxg69x6ppbs",
+   "prompt_type": "STAGE_1_COMPANY_IDENTIFICATION",
+   "scope": "GLOBAL",
+   "name": "V3.1 Stage 1 - Company Identification",
+   "description": "V3.1 提取管線階段一：從文件中識別發行公司名稱和識別方式",
+   "company_id": null,
+   "document_format_id": null,
+   "system_prompt": "你是一位專業的文件分析專家，專門識別貨運和物流發票的發行者。\n你的任務是從文件圖片中識別發行公司的名稱和識別方式。\n\n識別規則：\n1. 優先順序：LOGO > HEADER > LETTERHEAD > FOOTER > AI_INFERENCE\n2. 發行者是「開立」文件的公司（通常是物流公司/貨運代理），不是客戶/買方\n3. 尋找：公司 Logo、信頭、顯著的公司名稱\n4. 信心度評分：0-100（越高越確定）",
+   "user_prompt_template": "請分析這張文件圖片，識別文件發行者。\n\n輸出 JSON 格式：\n{\n  \"documentIssuer\": {\n    \"name\": \"發行公司名稱（從 Logo/標題識別）\",\n    \"identificationMethod\": \"LOGO\" | \"HEADER\" | \"LETTERHEAD\" | \"FOOTER\" | \"AI_INFERENCE\",\n    \"confidence\": 0-100,\n    \"rawText\": \"識別到的原始文字（可選）\"\n  }\n}\n\n只輸出有效的 JSON，不要有其他文字。",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 1,
+   "created_at": "2026-04-16T09:05:41.475",
+   "updated_at": "2026-04-22T05:39:41.552",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmo197zja000ensxguik6kb2c",
+   "prompt_type": "TERM_CLASSIFICATION",
+   "scope": "GLOBAL",
+   "name": "Term Classification - Global Default",
+   "description": "將提取的原始費用術語分類為標準費用類型，支援中英文術語",
+   "company_id": null,
+   "document_format_id": null,
+   "system_prompt": "你是一位專業的物流術語分類專家。\n你的任務是將發票中的費用項目術語分類到標準類別。\n\n標準類別：\n- FREIGHT: 運費相關（海運費、空運費、陸運費）\n- HANDLING: 處理費用（裝卸、理貨、打盤）\n- CUSTOMS: 報關相關（報關費、關稅、檢驗費）\n- DOCUMENTATION: 文件費用（提單費、文件費）\n- STORAGE: 倉儲相關（倉租、存放費）\n- SURCHARGE: 附加費（燃油附加費、旺季附加費）\n- INSURANCE: 保險費用\n- OTHER: 其他費用\n\n分類規則：\n1. 優先匹配最具體的類別\n2. 考慮術語的中英文變體\n3. 信心度評分：0-100",
+   "user_prompt_template": "請分類以下費用術語：\n\n{{terms}}\n\n輸出 JSON 格式：\n{\n  \"classifications\": [\n    {\n      \"term\": \"原始術語\",\n      \"normalizedTerm\": \"正規化術語\",\n      \"category\": \"標準類別\",\n      \"confidence\": 0-100\n    }\n  ]\n}\n\n只輸出有效的 JSON，不要有其他文字。",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 1,
+   "created_at": "2026-04-16T09:05:41.542",
+   "updated_at": "2026-04-22T05:39:41.611",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmo197zi9000cnsxgcjg5dh8v",
+   "prompt_type": "STAGE_3_FIELD_EXTRACTION",
+   "scope": "GLOBAL",
+   "name": "V3.1 Stage 3 - Field Extraction",
+   "description": "V3.1 提取管線階段三：提取所有費用欄位和結構化數據",
+   "company_id": null,
+   "document_format_id": null,
+   "system_prompt": "你是一位專業的發票數據提取專家。\n你的任務是從貨運和物流發票圖片中提取結構化數據。\n\n提取規則：\n1. 發票基本資訊：發票號碼、日期、到期日\n2. 供應商資訊：名稱、地址、稅號\n3. 買方資訊：名稱、地址\n4. 費用明細：項目描述、數量、單價、金額\n5. 金額彙總：小計、稅額、總額、幣別\n\n注意事項：\n- 日期格式：YYYY-MM-DD\n- 金額保留兩位小數\n- 如無法識別某欄位，設為 null\n- 信心度評分：0-100（越高越確定）",
+   "user_prompt_template": "請從這張發票圖片中提取以下資訊：\n\n輸出 JSON 格式：\n{\n  \"success\": true,\n  \"confidence\": 0-100,\n  \"invoiceData\": {\n    \"invoiceNumber\": \"發票號碼\",\n    \"invoiceDate\": \"YYYY-MM-DD\",\n    \"dueDate\": \"YYYY-MM-DD 或 null\",\n    \"vendor\": {\n      \"name\": \"供應商名稱\",\n      \"address\": \"供應商地址\",\n      \"taxId\": \"稅號\"\n    },\n    \"buyer\": {\n      \"name\": \"買方名稱\",\n      \"address\": \"買方地址\"\n    },\n    \"lineItems\": [\n      {\n        \"description\": \"項目描述\",\n        \"quantity\": 1,\n        \"unitPrice\": 0.00,\n        \"amount\": 0.00\n      }\n    ],\n    \"subtotal\": 0.00,\n    \"taxAmount\": 0.00,\n    \"totalAmount\": 0.00,\n    \"currency\": \"USD/TWD/CNY/etc\"\n  }\n}\n\n只輸出有效的 JSON，不要有其他文字。",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-04-16T09:05:41.505",
+   "updated_at": "2026-04-22T05:39:41.589",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmo197zzi001hnsxgqlc9pe12",
+   "prompt_type": "TERM_CLASSIFICATION",
+   "scope": "GLOBAL",
+   "name": "DHL prompt config",
+   "description": "DHL prompt config",
+   "company_id": null,
+   "document_format_id": null,
+   "system_prompt": "## DHL/Logistics Invoice Extraction – Prompt Config\n\n**System**\nYou are a document data-extraction engine. Extract structured data from logistics invoices. Output ONLY valid JSON that matches the provided schema. If a field is not present, use null. Do not guess.\n\n**User**\nExtract all available fields from this invoice image and return JSON in this schema:\n\n```json\n{\n  \"document_type\": \"invoice\",\n  \"invoice_number\": null,\n  \"invoice_date\": null,\n  \"due_date\": null,\n  \"currency\": null,\n  \"total_amount\": null,\n  \"subtotal_amount\": null,\n  \"balance_due\": null,\n\n  \"vendor\": {\n    \"name\": null,\n    \"address\": null,\n    \"phone\": null\n  },\n  \"bill_to\": {\n    \"name\": null,\n    \"address\": null\n  },\n  \"shipper\": { \"name\": null },\n  \"consignee\": { \"name\": null },\n\n  \"shipment\": {\n    \"shipment_id\": null,\n    \"customer_id\": null,\n    \"registration_no\": null,\n    \"consol_number\": null,\n    \"origin\": null,\n    \"destination\": null,\n    \"etd\": null,\n    \"eta\": null,\n    \"vessel_voyage\": null,\n    \"ocean_bill_of_lading\": null,\n    \"house_bill_of_lading\": null,\n    \"goods_description\": null,\n    \"weight_kg\": null,\n    \"volume_cbm\": null,\n    \"chargeable_cbm\": null,\n    \"packages\": null,\n    \"containers\": []\n  },\n\n  \"charges\": [\n    { \"description\": null, \"amount\": null, \"currency\": null }\n  ],\n\n  \"payment\": {\n    \"method\": null,\n    \"bank_name\": null,\n    \"bank_code\": null,\n    \"swift\": null,\n    \"account_no\": null,\n    \"pay_ref\": null,\n    \"remit_to_address\": null\n  },\n\n  \"notes\": null\n}\n```\n\nRules:\n- Parse dates as `YYYY-MM-DD` when possible.\n- Parse numbers as decimals (no commas).\n- Put container numbers into `shipment.containers` as strings.\n- If multiple totals appear, prefer “TOTAL” / “TOTAL DUE”.\n- Do not include any extra keys.\n```",
+   "user_prompt_template": "test",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-04-16T09:05:42.126",
+   "updated_at": "2026-04-16T09:05:42.126",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmo198001001insxgsxejytzu",
+   "prompt_type": "STAGE_1_COMPANY_IDENTIFICATION",
+   "scope": "GLOBAL",
+   "name": "Test Stage 1 Config",
+   "description": null,
+   "company_id": null,
+   "document_format_id": null,
+   "system_prompt": "You are an invoice issuer identification specialist.\nYour task is to identify the company that issued this invoice.\n\nKnown companies:\n${knownCompanies}\n\nCurrent date: ${currentDate}\nFile name: ${fileName}\n\nIdentification methods (in priority order):\n1. LOGO - Company logo on the document\n2. HEADER - Company name in header/letterhead\n3. ADDRESS - Company address information\n4. TAX_ID - Tax identification number\n\nResponse format (JSON):\n{\n  \"companyName\": \"string - identified company name\",\n  \"identificationMethod\": \"LOGO\" | \"HEADER\" | \"ADDRESS\" | \"TAX_ID\",\n  \"confidence\": number (0-100),\n  \"matchedKnownCompany\": \"string | null - if matched to known company\"\n}",
+   "user_prompt_template": "Identify the issuing company from this invoice image.",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 1,
+   "created_at": "2026-04-16T09:05:42.145",
+   "updated_at": "2026-04-16T09:05:42.145",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmo198008001jnsxgcujqwql3",
+   "prompt_type": "STAGE_3_FIELD_EXTRACTION",
+   "scope": "COMPANY",
+   "name": "Kintetsu Stage 3 Field Extraction Test",
+   "description": null,
+   "company_id": null,
+   "document_format_id": null,
+   "system_prompt": "You are an expert invoice data extraction specialist.\nExtract all requested fields accurately from the provided invoice image.\nbut please be careful that the data under [DESCRIPTION AND REMARKS] also need to fully capture.\nand from the top left corner, there will be a export type data on there, need to careful to capture, because it is place over the others text on the document.\n\nCompany: ${companyName}\nDocument Format: ${documentFormatName}\n\nStandard Fields to Extract:\n${standardFields}\n\nCustom Fields:\n${customFields}\n\nTerm Classification Rules:\nUniversal Mappings (Tier 1):\n${universalMappings}\n\nCompany-Specific Mappings (Tier 2 - override Tier 1):\n${companyMappings}\n\nOutput Schema:\n${fieldSchema}\n\nRespond in valid JSON format matching the provided schema.",
+   "user_prompt_template": "Please extract all invoice fields from the document.",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-04-16T09:05:42.152",
+   "updated_at": "2026-04-16T09:05:42.152",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmo197zi1000bnsxgkyfge7im",
+   "prompt_type": "STAGE_2_FORMAT_IDENTIFICATION",
+   "scope": "GLOBAL",
+   "name": "V3.1 Stage 2 - Format Identification",
+   "description": "V3.1 提取管線階段二：識別文件格式模板，用於匹配格式模板和載入對應配置",
+   "company_id": null,
+   "document_format_id": null,
+   "system_prompt": "你是一位專業的文件格式識別專家，專門分析貨運和物流發票的版面格式。\n你的任務是從文件圖片中識別文件格式/模板類型。\n\n識別要點：\n1. 觀察文件整體版面佈局（信頭位置、表格結構、頁尾資訊）\n2. 識別行項目/費用明細的排列方式（表格 vs 列表 vs 自由格式）\n3. 注意日期和金額的顯示格式（DD/MM/YYYY vs MM/DD/YYYY，千分位符號等）\n4. 觀察是否有特定的文件編號格式、浮水印、或標誌性元素\n5. 信心度評分：0-100（越高越確定）\n\n如果提供了已知格式列表，優先嘗試匹配已知格式。\n如果無法匹配已知格式，描述該文件的格式特徵以便日後識別。",
+   "user_prompt_template": "請分析這張文件圖片，識別其格式/模板類型。\n\n輸出 JSON 格式：\n{\n  \"formatName\": \"識別到的格式名稱（如 'DHL Standard Invoice', 'Maersk Freight Note'）\",\n  \"confidence\": 0-100,\n  \"matchedKnownFormat\": \"匹配的已知格式名稱，若無匹配則為 null\",\n  \"formatCharacteristics\": [\n    \"觀察到的格式特徵（如 '橫向表格佈局'、'右上角有公司 Logo'、'底部有銀行資訊'）\"\n  ]\n}\n\n只輸出有效的 JSON，不要有其他文字。",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-04-16T09:05:41.497",
+   "updated_at": "2026-04-22T05:39:41.579",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmo197zip000dnsxgfay5amcd",
+   "prompt_type": "FIELD_EXTRACTION",
+   "scope": "GLOBAL",
+   "name": "Field Extraction - Global Default",
+   "description": "V3 管線使用的通用欄位提取 Prompt，提取發票結構化數據",
+   "company_id": null,
+   "document_format_id": null,
+   "system_prompt": "你是一位專業的發票數據提取專家。\n你的任務是從貨運和物流發票圖片中提取結構化數據。\n\n提取規則：\n1. 發票基本資訊：發票號碼、日期、到期日\n2. 供應商資訊：名稱、地址、稅號\n3. 買方資訊：名稱、地址\n4. 費用明細：項目描述、數量、單價、金額\n5. 金額彙總：小計、稅額、總額、幣別\n\n注意事項：\n- 日期格式：YYYY-MM-DD\n- 金額保留兩位小數\n- 如無法識別某欄位，設為 null\n- 信心度評分：0-100（越高越確定）",
+   "user_prompt_template": "請從這張發票圖片中提取以下資訊：\n\n輸出 JSON 格式：\n{\n  \"success\": true,\n  \"confidence\": 0-100,\n  \"invoiceData\": {\n    \"invoiceNumber\": \"發票號碼\",\n    \"invoiceDate\": \"YYYY-MM-DD\",\n    \"dueDate\": \"YYYY-MM-DD 或 null\",\n    \"vendor\": {\n      \"name\": \"供應商名稱\",\n      \"address\": \"供應商地址\",\n      \"taxId\": \"稅號\"\n    },\n    \"buyer\": {\n      \"name\": \"買方名稱\",\n      \"address\": \"買方地址\"\n    },\n    \"lineItems\": [\n      {\n        \"description\": \"項目描述\",\n        \"quantity\": 1,\n        \"unitPrice\": 0.00,\n        \"amount\": 0.00\n      }\n    ],\n    \"subtotal\": 0.00,\n    \"taxAmount\": 0.00,\n    \"totalAmount\": 0.00,\n    \"currency\": \"USD/TWD/CNY/etc\"\n  }\n}\n\n只輸出有效的 JSON，不要有其他文字。",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-04-16T09:05:41.521",
+   "updated_at": "2026-04-22T05:39:41.598",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmptsrufp000018xgkf3oj6by",
+   "prompt_type": "STAGE_3_FIELD_EXTRACTION",
+   "scope": "COMPANY",
+   "name": "Fairate Express - Stage 3 conditional (HKG->KUL)",
+   "description": "Fairate Express HKG->KUL 路線專屬 Stage 3 提取規則：條件式僅提取指定費用欄位（測試用）。",
+   "company_id": "369c787f-8429-4ebd-9bc4-67ca8974524e",
+   "document_format_id": null,
+   "system_prompt": "You are a freight-invoice data-extraction specialist for the forwarder \"Fairate Express\".\n\nSTEP 1 - Identify the shipment route.\nFrom the document, read the origin and the destination of the shipment. They are usually shown as \"From / To\", \"POL / POD\", \"Port of Loading / Port of Discharge\", or \"Origin / Destination\". Normalise each to its 3-letter IATA/port code (for example: Hong Kong = HKG, Kuala Lumpur = KUL).\n\nSTEP 2 - Apply the route-specific extraction rule.\nThis configuration targets the route From = HKG (Hong Kong) to To = KUL (Kuala Lumpur).\nWhen the document matches this HKG -> KUL route:\n  - Extract ONLY the charge fields listed in the \"Field Extraction Requirements\" section below.\n  - Do NOT output any other charge, surcharge, tax, subtotal or grand total that is not in that list.\n  - For each listed charge, return its monetary amount exactly as printed; if a charge does not appear on the document, return null with confidence 0.\nWhen the document is NOT the HKG -> KUL route:\n  - Still restrict output to the listed charge fields; treat them as optional and leave any that do not appear as null.\n\nRules:\n  - Never invent or estimate an amount that is not printed on the document.\n  - Amounts are currency values: strip thousand separators and currency symbols, keep the numeric value.",
+   "user_prompt_template": "This is a Fairate Express freight invoice. First identify the From/To route, then extract the charge data following the HKG -> KUL route rule and the field requirements. Respond only with the required JSON structure containing the listed charge fields.",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 1,
+   "created_at": "2026-05-31T13:10:16.021",
+   "updated_at": "2026-05-31T13:10:16.021",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmpty7nv000026gxggdtfc6rn",
+   "prompt_type": "STAGE_3_FIELD_EXTRACTION",
+   "scope": "COMPANY",
+   "name": "Redlines Shipping & Logistics - Stage 3 conditional (POL Laem Chabang)",
+   "description": "Redlines POL=LAEM CHABANG, THAILAND 專屬 Stage 3 提取規則：條件式僅提取指定費用欄位。",
+   "company_id": "f645183d-cfef-45a2-9ff4-d4e7de5cbc67",
+   "document_format_id": null,
+   "system_prompt": "You are a freight-invoice data-extraction specialist for the forwarder \"Redlines Shipping & Logistics\".\n\nSTEP 1 - Identify the Port of Loading (POL).\nFrom the document, read the Port of Loading / origin (usually shown as \"POL\", \"Port of Loading\", \"From\", or \"Origin\"). Note its port and country.\n\nSTEP 2 - Apply the Port of Loading (POL)-specific extraction rule.\nThis configuration targets Port of Loading (POL) = LAEM CHABANG, THAILAND.\nWhen the document's Port of Loading (POL) matches LAEM CHABANG, THAILAND:\n  - Extract ONLY the charge fields listed in the \"Field Extraction Requirements\" section below.\n  - Do NOT output any other charge, surcharge, tax, subtotal or grand total that is not in that list.\n  - For each listed charge, return its monetary amount exactly as printed; if a charge does not appear on the document, return null with confidence 0.\nWhen the Port of Loading (POL) does NOT match LAEM CHABANG, THAILAND:\n  - Still restrict output to the listed charge fields; treat them as optional and leave any that do not appear as null.\n\nRules:\n  - Never invent or estimate an amount that is not printed on the document.\n  - Amounts are currency values: strip thousand separators and currency symbols, keep the numeric value.",
+   "user_prompt_template": "This is a Redlines Shipping & Logistics freight invoice. First identify the Port of Loading (POL), then extract the charge data following the POL = Laem Chabang, Thailand rule and the field requirements. Respond only with the required JSON structure containing the listed charge fields.",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 1,
+   "created_at": "2026-05-31T15:42:32.077",
+   "updated_at": "2026-05-31T15:42:32.077",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmpty7o1h00036gxgu1u7iuc3",
+   "prompt_type": "STAGE_3_FIELD_EXTRACTION",
+   "scope": "COMPANY",
+   "name": "Cargo Partner - Stage 3 conditional (Origin Hong Kong)",
+   "description": "Cargo Partner Origin port=Hong Kong 專屬 Stage 3 提取規則：條件式僅提取指定費用欄位。",
+   "company_id": "87d611ab-d022-4c49-8cc4-6b83bbe1697d",
+   "document_format_id": null,
+   "system_prompt": "You are a freight-invoice data-extraction specialist for the forwarder \"Cargo Partner\".\n\nSTEP 1 - Identify the Origin Port.\nFrom the document, read the origin port (usually shown as \"Origin Port\", \"POL\", \"Port of Loading\", \"From\", or \"Origin\"). Note its port and country.\n\nSTEP 2 - Apply the Origin Port-specific extraction rule.\nThis configuration targets Origin Port = HONG KONG.\nWhen the document's Origin Port matches HONG KONG:\n  - Extract ONLY the charge fields listed in the \"Field Extraction Requirements\" section below.\n  - Do NOT output any other charge, surcharge, tax, subtotal or grand total that is not in that list.\n  - For each listed charge, return its monetary amount exactly as printed; if a charge does not appear on the document, return null with confidence 0.\nWhen the Origin Port does NOT match HONG KONG:\n  - Still restrict output to the listed charge fields; treat them as optional and leave any that do not appear as null.\n\nRules:\n  - Never invent or estimate an amount that is not printed on the document.\n  - Amounts are currency values: strip thousand separators and currency symbols, keep the numeric value.",
+   "user_prompt_template": "This is a Cargo Partner freight invoice. First identify the origin port, then extract the charge data following the Origin Port = Hong Kong rule and the field requirements. Respond only with the required JSON structure containing the listed charge fields.",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 1,
+   "created_at": "2026-05-31T15:42:32.309",
+   "updated_at": "2026-05-31T15:42:32.309",
+   "created_by": null,
+   "updated_by": null
+  },
+  {
+   "id": "cmpty7o5q00046gxg0nv584eb",
+   "prompt_type": "STAGE_3_FIELD_EXTRACTION",
+   "scope": "COMPANY",
+   "name": "Ningbo Constant International Logistics - Stage 3 conditional (POL Hong Kong)",
+   "description": "Ningbo Constant P.O.L=HONG KONG 專屬 Stage 3 提取規則：條件式僅提取指定費用欄位。",
+   "company_id": "d701b1b5-d98a-4d67-8161-945dcfcba3aa",
+   "document_format_id": null,
+   "system_prompt": "You are a freight-invoice data-extraction specialist for the forwarder \"Ningbo Constant International Logistics\".\n\nSTEP 1 - Identify the Port of Loading (P.O.L).\nFrom the document, read the Port of Loading (usually shown as \"P.O.L\", \"POL\", \"Port of Loading\", \"From\", or \"Origin\"). Note its port and country.\n\nSTEP 2 - Apply the Port of Loading (P.O.L)-specific extraction rule.\nThis configuration targets Port of Loading (P.O.L) = HONG KONG.\nWhen the document's Port of Loading (P.O.L) matches HONG KONG:\n  - Extract ONLY the charge fields listed in the \"Field Extraction Requirements\" section below.\n  - Do NOT output any other charge, surcharge, tax, subtotal or grand total that is not in that list.\n  - For each listed charge, return its monetary amount exactly as printed; if a charge does not appear on the document, return null with confidence 0.\nWhen the Port of Loading (P.O.L) does NOT match HONG KONG:\n  - Still restrict output to the listed charge fields; treat them as optional and leave any that do not appear as null.\n\nRules:\n  - Never invent or estimate an amount that is not printed on the document.\n  - Amounts are currency values: strip thousand separators and currency symbols, keep the numeric value.",
+   "user_prompt_template": "This is a Ningbo Constant International Logistics freight invoice. First identify the Port of Loading (P.O.L), then extract the charge data following the P.O.L = Hong Kong rule and the field requirements. Respond only with the required JSON structure containing the listed charge fields.",
+   "merge_strategy": "OVERRIDE",
+   "variables": [],
+   "is_active": true,
+   "version": 1,
+   "created_at": "2026-05-31T15:42:32.462",
+   "updated_at": "2026-05-31T15:42:32.462",
+   "created_by": null,
+   "updated_by": null
+  }
+ ],
+ "exchange_rates": [
+  {
+   "id": "cmo197zqn000wnsxg550c7rm9",
+   "from_currency": "USD",
+   "to_currency": "TWD",
+   "rate": 32.5,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "MANUAL",
+   "inverse_of_id": null,
+   "description": "USD to TWD - 2026 reference rate",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.807",
+   "updated_at": "2026-04-16T09:05:41.807"
+  },
+  {
+   "id": "cmo197zrj000xnsxg0afyitux",
+   "from_currency": "TWD",
+   "to_currency": "USD",
+   "rate": 0.03076923,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "AUTO_INVERSE",
+   "inverse_of_id": null,
+   "description": "USD to TWD - 2026 reference rate (inverse)",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.839",
+   "updated_at": "2026-04-16T09:05:41.839"
+  },
+  {
+   "id": "cmo197zs0000ynsxgo6oqyicx",
+   "from_currency": "USD",
+   "to_currency": "HKD",
+   "rate": 7.82,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "MANUAL",
+   "inverse_of_id": null,
+   "description": "USD to HKD - 2026 reference rate",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.856",
+   "updated_at": "2026-04-16T09:05:41.856"
+  },
+  {
+   "id": "cmo197zsg000znsxgdgcbdzsb",
+   "from_currency": "HKD",
+   "to_currency": "USD",
+   "rate": 0.12787724,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "AUTO_INVERSE",
+   "inverse_of_id": null,
+   "description": "USD to HKD - 2026 reference rate (inverse)",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.872",
+   "updated_at": "2026-04-16T09:05:41.872"
+  },
+  {
+   "id": "cmo197zsp0010nsxgujlocq6h",
+   "from_currency": "USD",
+   "to_currency": "SGD",
+   "rate": 1.35,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "MANUAL",
+   "inverse_of_id": null,
+   "description": "USD to SGD - 2026 reference rate",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.881",
+   "updated_at": "2026-04-16T09:05:41.881"
+  },
+  {
+   "id": "cmo197zt60011nsxgfdn8arvx",
+   "from_currency": "SGD",
+   "to_currency": "USD",
+   "rate": 0.74074074,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "AUTO_INVERSE",
+   "inverse_of_id": null,
+   "description": "USD to SGD - 2026 reference rate (inverse)",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.898",
+   "updated_at": "2026-04-16T09:05:41.898"
+  },
+  {
+   "id": "cmo197ztp0012nsxgb4hqx1ur",
+   "from_currency": "USD",
+   "to_currency": "JPY",
+   "rate": 155,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "MANUAL",
+   "inverse_of_id": null,
+   "description": "USD to JPY - 2026 reference rate",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.917",
+   "updated_at": "2026-04-16T09:05:41.917"
+  },
+  {
+   "id": "cmo197zu20013nsxgzt6q9ep7",
+   "from_currency": "JPY",
+   "to_currency": "USD",
+   "rate": 0.00645161,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "AUTO_INVERSE",
+   "inverse_of_id": null,
+   "description": "USD to JPY - 2026 reference rate (inverse)",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.93",
+   "updated_at": "2026-04-16T09:05:41.93"
+  },
+  {
+   "id": "cmo197zuq0014nsxg7y33uuf4",
+   "from_currency": "USD",
+   "to_currency": "CNY",
+   "rate": 7.25,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "MANUAL",
+   "inverse_of_id": null,
+   "description": "USD to CNY - 2026 reference rate",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.954",
+   "updated_at": "2026-04-16T09:05:41.954"
+  },
+  {
+   "id": "cmo197zv30015nsxgpoh8z20a",
+   "from_currency": "CNY",
+   "to_currency": "USD",
+   "rate": 0.13793103,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "AUTO_INVERSE",
+   "inverse_of_id": null,
+   "description": "USD to CNY - 2026 reference rate (inverse)",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.967",
+   "updated_at": "2026-04-16T09:05:41.967"
+  },
+  {
+   "id": "cmo197zvc0016nsxgeoxbcenn",
+   "from_currency": "USD",
+   "to_currency": "EUR",
+   "rate": 0.92,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "MANUAL",
+   "inverse_of_id": null,
+   "description": "USD to EUR - 2026 reference rate",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.976",
+   "updated_at": "2026-04-16T09:05:41.976"
+  },
+  {
+   "id": "cmo197zvm0017nsxgmjgoj70a",
+   "from_currency": "EUR",
+   "to_currency": "USD",
+   "rate": 1.08695652,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "AUTO_INVERSE",
+   "inverse_of_id": null,
+   "description": "USD to EUR - 2026 reference rate (inverse)",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:41.986",
+   "updated_at": "2026-04-16T09:05:41.986"
+  },
+  {
+   "id": "cmo197zw50018nsxgk9l6ytyx",
+   "from_currency": "USD",
+   "to_currency": "GBP",
+   "rate": 0.79,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "MANUAL",
+   "inverse_of_id": null,
+   "description": "USD to GBP - 2026 reference rate",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:42.005",
+   "updated_at": "2026-04-16T09:05:42.005"
+  },
+  {
+   "id": "cmo197zwd0019nsxg03tzhqy1",
+   "from_currency": "GBP",
+   "to_currency": "USD",
+   "rate": 1.26582278,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "AUTO_INVERSE",
+   "inverse_of_id": null,
+   "description": "USD to GBP - 2026 reference rate (inverse)",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:42.013",
+   "updated_at": "2026-04-16T09:05:42.013"
+  },
+  {
+   "id": "cmo197zwm001ansxgf9dt4r33",
+   "from_currency": "USD",
+   "to_currency": "AUD",
+   "rate": 1.55,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "MANUAL",
+   "inverse_of_id": null,
+   "description": "USD to AUD - 2026 reference rate",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:42.021",
+   "updated_at": "2026-04-16T09:05:42.021"
+  },
+  {
+   "id": "cmo197zww001bnsxgxsjzrdfd",
+   "from_currency": "AUD",
+   "to_currency": "USD",
+   "rate": 0.64516129,
+   "effective_year": 2026,
+   "effective_from": null,
+   "effective_to": null,
+   "is_active": true,
+   "source": "AUTO_INVERSE",
+   "inverse_of_id": null,
+   "description": "USD to AUD - 2026 reference rate (inverse)",
+   "created_by_id": null,
+   "created_at": "2026-04-16T09:05:42.032",
+   "updated_at": "2026-04-16T09:05:42.032"
+  }
+ ],
+ "field_definition_sets": [
+  {
+   "id": "b3fb021c-82e3-47af-ab02-482eabd4b9d2",
+   "scope": "COMPANY",
+   "company_id": "d701b1b5-d98a-4d67-8161-945dcfcba3aa",
+   "document_format_id": null,
+   "name": "Ningbo Constant International Logistics - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:22:37.315",
+   "updated_at": "2026-05-31T10:48:33.525",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "clearance_fee",
+     "label": "Clearance Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "lss",
+     "label": "LSS",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vgm",
+     "label": "VGM",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "cfs",
+     "label": "CFS",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "doc_fee",
+     "label": "DOC Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_fee",
+     "label": "Handling Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "telex_release_fee",
+     "label": "Telex Release Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "754d113d-ece4-4ec0-8a2f-8ee0f46ad860",
+   "scope": "COMPANY",
+   "company_id": "369c787f-8429-4ebd-9bc4-67ca8974524e",
+   "document_format_id": null,
+   "name": "Fairate Express - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:22:37.059",
+   "updated_at": "2026-05-31T10:48:34.166",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "airline_document_charge",
+     "label": "Airline document charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "container_field_station_charge",
+     "label": "container field station charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_charge",
+     "label": "handling charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "terminal_charge",
+     "label": "terminal charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "customs_electronic_data_charge",
+     "label": "customs electronic data charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "x_ray_screening_charge",
+     "label": "x-ray screening charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "59b6c607-6670-4621-9709-54eabbc0ac57",
+   "scope": "COMPANY",
+   "company_id": "f645183d-cfef-45a2-9ff4-d4e7de5cbc67",
+   "document_format_id": null,
+   "name": "Redlines Shipping & Logistics - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:22:36.894",
+   "updated_at": "2026-05-31T10:48:34.428",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "thc_charge",
+     "label": "THC Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "cfs_charge",
+     "label": "CFS Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "low_sulpur_surcharge",
+     "label": "Low Sulpur Surcharge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "bl_charges",
+     "label": "B/L Charges",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "f13aaf3b-ec74-4750-8036-a27dbb554792",
+   "scope": "COMPANY",
+   "company_id": "0d02b680-165b-4cfd-8c1b-7ebfa6da8424",
+   "document_format_id": null,
+   "name": "CEVA Logistics - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 3,
+   "created_at": "2026-05-31T10:22:37.446",
+   "updated_at": "2026-06-03T10:06:03.975",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "basic_freight_charge",
+     "label": "Basic Freight Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "destination_handling",
+     "label": "Destination Handling",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "destination_document_processing_fee",
+     "label": "Destination Document Processing Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "other_destination_charge",
+     "label": "Other Destination Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "destination_thc_terminal_handling_charge",
+     "label": "Destination THC - Terminal Handling Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "delivery_order_fee",
+     "label": "Delivery Order Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "origin_document_processing_fee",
+     "label": "Origin Document Processing Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem",
+     "aliases": [
+      "Documentation at Origin",
+      "Documentation Fee"
+     ]
+    },
+    {
+     "key": "origin_thc_terminal_handling_charge",
+     "label": "Origin THC - Terminal Handling Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem",
+     "aliases": [
+      "Terminal Handling Charge at Origin",
+      "Terminal Handling Charge"
+     ]
+    },
+    {
+     "key": "sealing_charge",
+     "label": "Sealing Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem",
+     "aliases": [
+      "Seal Fee at Origin",
+      "Seal Fee"
+     ]
+    },
+    {
+     "key": "solas_vgm_management_fee",
+     "label": "Solas VGM Management Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem",
+     "aliases": [
+      "VGM Certificate Fee",
+      "Vgm Certificate Fee"
+     ]
+    },
+    {
+     "key": "ftl_freight_truck",
+     "label": "FTL Freight Truck",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "sadao_border",
+     "label": "SADAO border",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "apdc_fz_clearance",
+     "label": "APDC FZ Clearance",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "apdc_ior",
+     "label": "APDC IOR",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vat_7_percent",
+     "label": "VAT 7%",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "3c7569fb-57c0-4147-af2e-18d10f896685",
+   "scope": "COMPANY",
+   "company_id": "fd34394d-6879-4b4e-bd4b-2bdd227476ec",
+   "document_format_id": null,
+   "name": "Worldwide Partner Logistics CO. LTD - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:24.86",
+   "updated_at": "2026-05-31T10:48:30.657",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "fob_charge",
+     "label": "FOB Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "warehouse_charge",
+     "label": "Warehouse Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_charge",
+     "label": "Handling Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "x_ray_charge",
+     "label": "X-ray Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "pick_up_fee",
+     "label": "Pick-up Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "gate_charge",
+     "label": "Gate Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "b6df8e63-5350-40af-a48d-b452efa0d9b9",
+   "scope": "COMPANY",
+   "company_id": "99d4c2fb-a2eb-4039-95c2-1c67e919d747",
+   "document_format_id": null,
+   "name": "Wang Kay (1995) Limited - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:24.735",
+   "updated_at": "2026-05-31T10:48:31.009",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "devanning_charge",
+     "label": "Devanning Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vanning_charge",
+     "label": "Vanning Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "caa0a7d6-b89e-42ca-a49b-9c8058effd9b",
+   "scope": "COMPANY",
+   "company_id": "99b21087-fff8-42f4-b6ed-2c0ef6c9043c",
+   "document_format_id": null,
+   "name": "Union Express Group CO. LTD - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:24.609",
+   "updated_at": "2026-05-31T10:48:31.384",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "thc",
+     "label": "THC",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "doc",
+     "label": "DOC",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "seal_fee",
+     "label": "Seal Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vgm",
+     "label": "VGM",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_charge",
+     "label": "Handling Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "d08802c0-8893-4b8a-bae0-0ed0b160e767",
+   "scope": "COMPANY",
+   "company_id": "83e7a1e4-c1c4-4a11-9f02-f64cab4ae549",
+   "document_format_id": null,
+   "name": "Kings Air Logistics Company - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:24.218",
+   "updated_at": "2026-05-31T10:48:32.067",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "fob_charge",
+     "label": "FOB Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "x_ray_fee",
+     "label": "X Ray Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "pick_up_fee",
+     "label": "Pick Up Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "parking_fee",
+     "label": "Parking Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "ff515d95-780f-4a85-aa22-67911f0a23bc",
+   "scope": "COMPANY",
+   "company_id": "8d6bf010-88f4-44cc-b4ba-fbdd67824cb7",
+   "document_format_id": null,
+   "name": "DSV Air & Sea Ltd. - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:24.084",
+   "updated_at": "2026-05-31T10:48:32.351",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "cfs_charges",
+     "label": "CFS Charges",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "bl_bill_of_lading",
+     "label": "B/L (Bill of Lading )",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling",
+     "label": "Handling",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "solas_vgm_fee",
+     "label": "SOLAS / VGM Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "thc_terminal_handling_charge",
+     "label": "THC (Terminal Handling Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "enviromental_fee",
+     "label": "Enviromental Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vat",
+     "label": "VAT",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "aba35edd-fe26-4b46-bb18-01bd2594b157",
+   "scope": "COMPANY",
+   "company_id": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+   "document_format_id": null,
+   "name": "DHL Express - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:23.959",
+   "updated_at": "2026-05-31T10:48:32.636",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "express_worldwide_doc",
+     "label": "Express Worldwide Doc",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "express_worldwide_nondoc",
+     "label": "Express Worldwide nondoc",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "3d328e34-dab5-423e-925e-9cc7a29be5c8",
+   "scope": "COMPANY",
+   "company_id": "89a92910-a9cf-4883-85ef-166a2ea58e5d",
+   "document_format_id": null,
+   "name": "MAINFREIGHT - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:24.345",
+   "updated_at": "2026-05-31T10:48:31.72",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "express_bill_of_lading",
+     "label": "Express Bill of Lading",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "seal_fee",
+     "label": "Seal Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "terminal_handling_charge",
+     "label": "Terminal Handling Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_fees",
+     "label": "Handling Fees",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "cfs",
+     "label": "CFS",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "export_document_fee_bl_fee",
+     "label": "Export Document Fee / BL Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "verified_gross_mass_vgm",
+     "label": "Verified Gross Mass / VGM",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "agency_handling",
+     "label": "Agency / Handling",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "cargowise_technology_fee",
+     "label": "Cargowise Technology Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "16070efc-3173-4794-9e33-bbbb607886fc",
+   "scope": "COMPANY",
+   "company_id": "3589d37c-314c-4d58-a6a7-6e6d12dadc41",
+   "document_format_id": null,
+   "name": "SBS - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 4,
+   "created_at": "2026-05-31T10:40:10.145",
+   "updated_at": "2026-06-04T08:20:32.331",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "dryage_charge",
+     "label": "Drayage Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "port_security_charge",
+     "label": "Port Security Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "gate_charge",
+     "label": "Gate Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "parking_charge",
+     "label": "Parking Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "tunnel_fee",
+     "label": "Tunnel Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "sea_cfs",
+     "label": "(Sea) CFS",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "fuel_surcharge",
+     "label": "Fuel Surcharge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_fuel_surcharge",
+     "label": "(Air) Fuel Surcharge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_for_rlchk",
+     "label": "Handling (For RLCHK)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling",
+     "label": "Handling",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_freight",
+     "label": "(Air) Freight",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_security_surcharge",
+     "label": "(Air) Security Surcharge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_terminal_charge_dest",
+     "label": "(Air) Terminal Charge (Dest Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_cfs_charge_dest",
+     "label": "(Air) CFS Charge (Dest Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_airline_document_charge_dest",
+     "label": "(Air) Airline Document Charge (Dest Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_local_charge_usa_origin",
+     "label": "(Air) Local Charge in USA (Origin Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_delivery_charge_dest",
+     "label": "(Air) Delivery Charge (Dest Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_gate_charge_dest",
+     "label": "(Air) Gate Charge (Dest Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "sea_document_bl",
+     "label": "(Sea) Document (B/L)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "sea_thc_hongkong_asia",
+     "label": "(Sea) THC-HongKong-Asia",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "sea_emc_charge",
+     "label": "(Sea) EMC Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "sea_ocean_freight_non_nvocc",
+     "label": "(Sea) Ocean Freight (Non-NVOCC)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_delivery_order_dest",
+     "label": "(Air) Delivery Order (Dest Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_alfa_charge_dest",
+     "label": "(Air) ALFA Charge (Dest Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_import_service_fee_dest",
+     "label": "(Air) Import Service Fee (Dest Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "air_pick_up_charge_origin",
+     "label": "(Air) Pick Up Charge (Origin Charge)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "thc",
+     "label": "THC",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "sea_container_cleaning_charges",
+     "label": "(Sea) Container Cleaning Charges",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "do_fee",
+     "label": "D/O Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "status_charge",
+     "label": "Status Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "currency_adjustment_charge",
+     "label": "Currency Adjustment Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "rr_charge",
+     "label": "RR Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "pick_up_do_charge",
+     "label": "Pick Up D/O Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "baf_charge",
+     "label": "BAF Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "2fe1b52a-8e42-4b0f-b053-d81312904aa3",
+   "scope": "COMPANY",
+   "company_id": "3e54867f-bf1a-4e0e-b682-64db51ae32f9",
+   "document_format_id": null,
+   "name": "Yamato Logistic Hong Kong - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:25.049",
+   "updated_at": "2026-05-31T10:48:30.368",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "dryage_charge",
+     "label": "Dryage Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "port_security_charge",
+     "label": "Port Security Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "gate_charge",
+     "label": "Gate Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "cleaning_fee",
+     "label": "Cleaning Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "fuel_surcharge",
+     "label": "Fuel Surcharge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "095f26ce-61f7-48a7-bfd0-b430593e50c9",
+   "scope": "COMPANY",
+   "company_id": "87d611ab-d022-4c49-8cc4-6b83bbe1697d",
+   "document_format_id": null,
+   "name": "Cargo Partner - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:22:37.189",
+   "updated_at": "2026-05-31T10:48:33.874",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "origin_terminal_handling_charges",
+     "label": "Origin Terminal Handling Charges",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "origin_sealing_charge",
+     "label": "Origin Sealing Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vgm_fee",
+     "label": "VGM Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "documentation_fee",
+     "label": "Documentation Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "origin_handling_fee",
+     "label": "Origin Handling Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "courier_freight",
+     "label": "Courier Freight",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "7a124db2-e84f-4d19-8b74-12ca081c098d",
+   "scope": "COMPANY",
+   "company_id": "5d5d66c4-e6ca-420d-896b-3198ea443c3d",
+   "document_format_id": null,
+   "name": "Nippon Express Logistics - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 4,
+   "created_at": "2026-05-31T10:28:24.489",
+   "updated_at": "2026-06-03T10:06:17.212",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "bl_fee",
+     "label": "B/L fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "seal_charge",
+     "label": "Seal Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "thc",
+     "label": "THC",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_charge",
+     "label": "Handling Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "nehk_do_fee",
+     "label": "NEHK DO fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "nvo_freight",
+     "label": "NVO Freight",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "cfs_charge",
+     "label": "CFS Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "low_sulphur_surchg",
+     "label": "Low Sulphur Surchg",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "port_security_charge",
+     "label": "Port Security Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "o_local_truckage",
+     "label": "O. LOCAL TRUCKAGE",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "o_gate_io_or_parking_chg",
+     "label": "O. GATE I&O OR PARKING CHG",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "do_fee",
+     "label": "D/O Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "status_charge",
+     "label": "Status Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "facility_charge",
+     "label": "Facility Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "other_charge",
+     "label": "Other Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "cleaning_container",
+     "label": "Cleaning Container",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "empty_container_placement",
+     "label": "Empty Container Placement",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "ocean_freight",
+     "label": "Ocean Freight",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "t_h_c",
+     "label": "T.H.C",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "503bd6c9-4311-4b6a-8b01-63fc6f527a1a",
+   "scope": "COMPANY",
+   "company_id": "cbc8e540-dc35-4952-949b-c6c3b4080d85",
+   "document_format_id": null,
+   "name": "CYTS - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 2,
+   "created_at": "2026-05-31T10:28:23.814",
+   "updated_at": "2026-05-31T10:48:32.939",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "terminal_handling_charge",
+     "label": "Terminal Handling Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "doc",
+     "label": "Doc",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_charge",
+     "label": "Handling Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "telex_release_charge",
+     "label": "Telex Release Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vgm_surcharge",
+     "label": "VGM Surcharge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "seal_fee",
+     "label": "Seal Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "cfs_charge",
+     "label": "CFS Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "pick_up_fee",
+     "label": "Pick-up Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "registration_charge",
+     "label": "Registration Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "gate_charge",
+     "label": "Gate Charge",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "tunnel_fee",
+     "label": "Tunnel Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  },
+  {
+   "id": "14fc7955-3ce7-4350-8291-13a27d94b93d",
+   "scope": "COMPANY",
+   "company_id": "8f933f53-fae5-4c52-944c-3eac699e4ac4",
+   "document_format_id": null,
+   "name": "Toll Global Forwarder Limited - 自訂費用欄位集",
+   "description": null,
+   "is_active": true,
+   "version": 3,
+   "created_at": "2026-05-31T10:44:40.295",
+   "updated_at": "2026-06-04T08:20:12.674",
+   "created_by": null,
+   "fields": [
+    {
+     "key": "bill_of_lading_fee_origin",
+     "label": "Bill of Lading Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "container_seal_fee_origin",
+     "label": "Container Seal Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_fee_origin",
+     "label": "Handling Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_fee_destination",
+     "label": "Handling Fee - Destination",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "terminal_handling_charge_origin",
+     "label": "Terminal Handling Charge - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "terminal_handling_charge_destination",
+     "label": "Terminal Handling Charge - Destination",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "document_fee_origin",
+     "label": "Document Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "document_fee_destination",
+     "label": "Document Fee - Destination",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vat",
+     "label": "VAT",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "international_freight",
+     "label": "International Freight",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "telex_fees_origin",
+     "label": "Telex Fees - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "airport_terminal_fee_origin",
+     "label": "Airport Terminal Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "airway_bill_fee_origin",
+     "label": "Airway Bill Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "handling_fee_origin_incl_pu",
+     "label": "Handling Fee - Origin (INCL P/U)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "container_freight_station_charge_origin",
+     "label": "Container Freight Station Charge - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "documentation_fee_origin",
+     "label": "Documentation Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "port_service_charge_origin",
+     "label": "Port Service Charge - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "vgm_fee_origin",
+     "label": "VGM Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "origin_charge_incl_pick_up",
+     "label": "Origin Charge (incl. Pick up)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "food_grade",
+     "label": "Food Grade",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "pick_up_cartage_origin",
+     "label": "Pick Up (Cartage) - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "customs_export_clearance_fee",
+     "label": "Customs Export Clearance Fee",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "international_ship_port_facility_security_fee_isps",
+     "label": "International Ship & Port Facility Security Fee (ISPS)",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "agency_fee_origin",
+     "label": "Agency Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "eu_ics2_filling_fee_origin",
+     "label": "EU ICS2 Filling Fee - Origin",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "delivery_order_fee_destination",
+     "label": "Delivery Order Fee - Destination",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "special_equipment_fee_destination",
+     "label": "Special Equipment Fee - Destination",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    },
+    {
+     "key": "container_cleaning_destination",
+     "label": "Container Cleaning - Destination",
+     "category": "charges",
+     "dataType": "currency",
+     "required": false,
+     "fieldType": "lineItem"
+    }
+   ]
+  }
+ ],
+ "data_templates": [
+  {
+   "id": "erp-standard-import",
+   "name": "ERP 標準匯入格式",
+   "description": "適用於大多數 ERP 系統的標準發票匯入格式",
+   "scope": "GLOBAL",
+   "company_id": null,
+   "fields": [
+    {
+     "name": "invoice_number",
+     "label": "發票號碼",
+     "order": 1,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "invoice_date",
+     "label": "發票日期",
+     "order": 2,
+     "dataType": "date",
+     "isRequired": true
+    },
+    {
+     "name": "vendor_code",
+     "label": "供應商代碼",
+     "order": 3,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "vendor_name",
+     "label": "供應商名稱",
+     "order": 4,
+     "dataType": "string",
+     "isRequired": false
+    },
+    {
+     "name": "currency",
+     "label": "幣別",
+     "order": 5,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "subtotal",
+     "label": "小計",
+     "order": 6,
+     "dataType": "currency",
+     "isRequired": false
+    },
+    {
+     "name": "tax_amount",
+     "label": "稅額",
+     "order": 7,
+     "dataType": "currency",
+     "isRequired": false
+    },
+    {
+     "name": "total_amount",
+     "label": "總金額",
+     "order": 8,
+     "dataType": "currency",
+     "isRequired": true
+    },
+    {
+     "name": "due_date",
+     "label": "付款到期日",
+     "order": 9,
+     "dataType": "date",
+     "isRequired": false
+    },
+    {
+     "name": "po_number",
+     "label": "採購單號",
+     "order": 10,
+     "dataType": "string",
+     "isRequired": false
+    },
+    {
+     "name": "tracking_number",
+     "label": "追蹤號碼",
+     "order": 11,
+     "dataType": "string",
+     "isRequired": false
+    },
+    {
+     "name": "description",
+     "label": "說明",
+     "order": 12,
+     "dataType": "string",
+     "isRequired": false
+    }
+   ],
+   "is_active": true,
+   "is_system": true,
+   "created_at": "2026-01-21T03:18:21.207",
+   "updated_at": "2026-04-22T05:39:41.447",
+   "created_by": null
+  },
+  {
+   "id": "expense-report-format",
+   "name": "費用報表格式",
+   "description": "用於管理報表匯出的精簡格式",
+   "scope": "GLOBAL",
+   "company_id": null,
+   "fields": [
+    {
+     "name": "invoice_number",
+     "label": "發票號碼",
+     "order": 1,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "invoice_date",
+     "label": "發票日期",
+     "order": 2,
+     "dataType": "date",
+     "isRequired": true
+    },
+    {
+     "name": "vendor_name",
+     "label": "供應商",
+     "order": 3,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "category",
+     "label": "費用類別",
+     "order": 4,
+     "dataType": "string",
+     "isRequired": false
+    },
+    {
+     "name": "currency",
+     "label": "幣別",
+     "order": 5,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "amount",
+     "label": "金額",
+     "order": 6,
+     "dataType": "currency",
+     "isRequired": true
+    },
+    {
+     "name": "department",
+     "label": "部門",
+     "order": 7,
+     "dataType": "string",
+     "isRequired": false
+    },
+    {
+     "name": "cost_center",
+     "label": "成本中心",
+     "order": 8,
+     "dataType": "string",
+     "isRequired": false
+    }
+   ],
+   "is_active": true,
+   "is_system": true,
+   "created_at": "2026-01-21T03:18:21.216",
+   "updated_at": "2026-04-22T05:39:41.469",
+   "created_by": null
+  },
+  {
+   "id": "cmpwj13p70000awxglwglzrvf",
+   "name": "test-data-template-1",
+   "description": "test-data-template-1",
+   "scope": "GLOBAL",
+   "company_id": null,
+   "fields": [
+    {
+     "name": "field_1",
+     "label": "Shipment #",
+     "order": 1,
+     "dataType": "number",
+     "isRequired": false
+    },
+    {
+     "name": "field_2",
+     "label": "Field 2",
+     "order": 2,
+     "dataType": "number",
+     "isRequired": false
+    },
+    {
+     "name": "field_3",
+     "label": "Field 3",
+     "order": 3,
+     "dataType": "number",
+     "isRequired": false
+    },
+    {
+     "name": "field_4",
+     "label": "Field 4",
+     "order": 4,
+     "dataType": "number",
+     "isRequired": false
+    },
+    {
+     "name": "field_5",
+     "label": "Field 5",
+     "order": 5,
+     "dataType": "number",
+     "isRequired": false
+    },
+    {
+     "name": "field_6",
+     "label": "Field 6",
+     "order": 6,
+     "dataType": "number",
+     "isRequired": false
+    },
+    {
+     "name": "field_7",
+     "label": "Field 7",
+     "order": 7,
+     "dataType": "string",
+     "isRequired": false
+    }
+   ],
+   "is_active": true,
+   "is_system": false,
+   "created_at": "2026-06-02T11:00:50.299",
+   "updated_at": "2026-06-03T02:10:28.237",
+   "created_by": null
+  },
+  {
+   "id": "logistics-tracking-format",
+   "name": "物流追蹤格式",
+   "description": "專為物流發票設計的追蹤格式",
+   "scope": "GLOBAL",
+   "company_id": null,
+   "fields": [
+    {
+     "name": "tracking_number",
+     "label": "追蹤號碼",
+     "order": 1,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "invoice_number",
+     "label": "發票號碼",
+     "order": 2,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "ship_date",
+     "label": "發貨日期",
+     "order": 3,
+     "dataType": "date",
+     "isRequired": false
+    },
+    {
+     "name": "delivery_date",
+     "label": "交付日期",
+     "order": 4,
+     "dataType": "date",
+     "isRequired": false
+    },
+    {
+     "name": "origin",
+     "label": "起運地",
+     "order": 5,
+     "dataType": "string",
+     "isRequired": false
+    },
+    {
+     "name": "destination",
+     "label": "目的地",
+     "order": 6,
+     "dataType": "string",
+     "isRequired": false
+    },
+    {
+     "name": "carrier",
+     "label": "承運商",
+     "order": 7,
+     "dataType": "string",
+     "isRequired": true
+    },
+    {
+     "name": "service_type",
+     "label": "服務類型",
+     "order": 8,
+     "dataType": "string",
+     "isRequired": false
+    },
+    {
+     "name": "weight",
+     "label": "重量",
+     "order": 9,
+     "dataType": "number",
+     "isRequired": false
+    },
+    {
+     "name": "freight_charge",
+     "label": "運費",
+     "order": 10,
+     "dataType": "currency",
+     "isRequired": true
+    },
+    {
+     "name": "total_amount",
+     "label": "總金額",
+     "order": 11,
+     "dataType": "currency",
+     "isRequired": true
+    }
+   ],
+   "is_active": true,
+   "is_system": true,
+   "created_at": "2026-01-21T03:18:21.234",
+   "updated_at": "2026-04-22T05:39:41.48",
+   "created_by": null
+  }
+ ],
+ "field_mapping_configs": [
+  {
+   "id": "cmo197zjx000fnsxgw4xzcjsy",
+   "scope": "GLOBAL",
+   "company_id": null,
+   "document_format_id": null,
+   "name": "Default Global Mapping",
+   "description": "全局預設欄位映射配置，適用於所有公司和格式。將提取欄位直接映射到 ERP 標準匯入格式。",
+   "is_active": true,
+   "version": 1,
+   "created_at": "2026-04-16T09:05:41.565",
+   "updated_at": "2026-04-22T05:39:41.64",
+   "created_by": null,
+   "data_template_id": "erp-standard-import"
+  }
+ ],
+ "field_mapping_rules": [
+  {
+   "id": "cmo197zk3000gnsxgzz18jxll",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "invoice_number"
+   ],
+   "target_field": "invoice_number",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 1,
+   "is_active": true,
+   "description": "發票號碼直接映射",
+   "created_at": "2026-04-16T09:05:41.571",
+   "updated_at": "2026-04-16T09:05:41.571"
+  },
+  {
+   "id": "cmo197zkt000hnsxgeg1fkp4l",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "invoice_date"
+   ],
+   "target_field": "invoice_date",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 2,
+   "is_active": true,
+   "description": "發票日期直接映射",
+   "created_at": "2026-04-16T09:05:41.597",
+   "updated_at": "2026-04-16T09:05:41.597"
+  },
+  {
+   "id": "cmo197zl3000insxg4d6zbx2h",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "vendor_code",
+    "supplier_code"
+   ],
+   "target_field": "vendor_code",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 3,
+   "is_active": true,
+   "description": "供應商代碼映射（支援多來源欄位名稱）",
+   "created_at": "2026-04-16T09:05:41.607",
+   "updated_at": "2026-04-16T09:05:41.607"
+  },
+  {
+   "id": "cmo197zld000jnsxg25c3h5kv",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "vendor_name",
+    "supplier_name",
+    "company_name"
+   ],
+   "target_field": "vendor_name",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 4,
+   "is_active": true,
+   "description": "供應商名稱映射（支援多來源欄位名稱）",
+   "created_at": "2026-04-16T09:05:41.617",
+   "updated_at": "2026-04-16T09:05:41.617"
+  },
+  {
+   "id": "cmo197zlk000knsxgrklk0jbh",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "currency",
+    "currency_code"
+   ],
+   "target_field": "currency",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 5,
+   "is_active": true,
+   "description": "幣別映射",
+   "created_at": "2026-04-16T09:05:41.624",
+   "updated_at": "2026-04-16T09:05:41.624"
+  },
+  {
+   "id": "cmo197zlo000lnsxgv2txsyh4",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "subtotal",
+    "sub_total"
+   ],
+   "target_field": "subtotal",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 6,
+   "is_active": true,
+   "description": "小計映射",
+   "created_at": "2026-04-16T09:05:41.628",
+   "updated_at": "2026-04-16T09:05:41.628"
+  },
+  {
+   "id": "cmo197zlu000mnsxge8gcfmp1",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "tax_amount",
+    "tax",
+    "vat"
+   ],
+   "target_field": "tax_amount",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 7,
+   "is_active": true,
+   "description": "稅額映射",
+   "created_at": "2026-04-16T09:05:41.634",
+   "updated_at": "2026-04-16T09:05:41.634"
+  },
+  {
+   "id": "cmo197zlz000nnsxgmtvd1s7i",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "total_amount",
+    "total",
+    "grand_total"
+   ],
+   "target_field": "total_amount",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 8,
+   "is_active": true,
+   "description": "總金額映射（支援多來源欄位名稱）",
+   "created_at": "2026-04-16T09:05:41.639",
+   "updated_at": "2026-04-16T09:05:41.639"
+  },
+  {
+   "id": "cmo197zm5000onsxgz146sxut",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "due_date",
+    "payment_due_date"
+   ],
+   "target_field": "due_date",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 9,
+   "is_active": true,
+   "description": "付款到期日映射",
+   "created_at": "2026-04-16T09:05:41.645",
+   "updated_at": "2026-04-16T09:05:41.645"
+  },
+  {
+   "id": "cmo197zme000pnsxghj8fof44",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "po_number",
+    "purchase_order"
+   ],
+   "target_field": "po_number",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 10,
+   "is_active": true,
+   "description": "採購單號映射",
+   "created_at": "2026-04-16T09:05:41.654",
+   "updated_at": "2026-04-16T09:05:41.654"
+  },
+  {
+   "id": "cmo197zmv000qnsxg5mudlzlz",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "tracking_number",
+    "tracking_no",
+    "awb_number",
+    "bl_number"
+   ],
+   "target_field": "tracking_number",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 11,
+   "is_active": true,
+   "description": "追蹤號碼映射（支援空運提單號/海運提單號）",
+   "created_at": "2026-04-16T09:05:41.671",
+   "updated_at": "2026-04-16T09:05:41.671"
+  },
+  {
+   "id": "cmo197zna000rnsxgu1w5p1nb",
+   "config_id": "cmo197zjx000fnsxgw4xzcjsy",
+   "source_fields": [
+    "description",
+    "remarks",
+    "notes"
+   ],
+   "target_field": "description",
+   "transform_type": "DIRECT",
+   "transform_params": null,
+   "priority": 12,
+   "is_active": true,
+   "description": "說明映射",
+   "created_at": "2026-04-16T09:05:41.686",
+   "updated_at": "2026-04-16T09:05:41.686"
+  }
+ ],
+ "template_field_mappings": [
+  {
+   "id": "cmo197zfh0009nsxgdk39zuk0",
+   "data_template_id": "erp-standard-import",
+   "scope": "GLOBAL",
+   "company_id": null,
+   "document_format_id": null,
+   "name": "ERP 標準匯入 - 全域映射",
+   "description": "適用於所有公司的 ERP 標準匯入欄位映射規則",
+   "mappings": [
+    {
+     "id": "map-01",
+     "order": 1,
+     "isRequired": true,
+     "description": "發票號碼直接映射",
+     "sourceField": "invoice_number",
+     "targetField": "invoice_number",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-02",
+     "order": 2,
+     "isRequired": true,
+     "description": "發票日期直接映射",
+     "sourceField": "invoice_date",
+     "targetField": "invoice_date",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-03",
+     "order": 3,
+     "isRequired": false,
+     "description": "供應商代碼直接映射",
+     "sourceField": "vendor_code",
+     "targetField": "vendor_code",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-04",
+     "order": 4,
+     "isRequired": false,
+     "description": "供應商名稱直接映射",
+     "sourceField": "vendor_name",
+     "targetField": "vendor_name",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-05",
+     "order": 5,
+     "isRequired": true,
+     "description": "幣別直接映射",
+     "sourceField": "currency",
+     "targetField": "currency",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-06",
+     "order": 6,
+     "isRequired": false,
+     "description": "小計直接映射",
+     "sourceField": "subtotal",
+     "targetField": "subtotal",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-07",
+     "order": 7,
+     "isRequired": false,
+     "description": "稅額直接映射",
+     "sourceField": "tax_amount",
+     "targetField": "tax_amount",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-08",
+     "order": 8,
+     "isRequired": true,
+     "description": "總金額直接映射",
+     "sourceField": "total_amount",
+     "targetField": "total_amount",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-09",
+     "order": 9,
+     "isRequired": false,
+     "description": "付款到期日直接映射",
+     "sourceField": "due_date",
+     "targetField": "due_date",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-10",
+     "order": 10,
+     "isRequired": false,
+     "description": "採購單號直接映射",
+     "sourceField": "po_number",
+     "targetField": "po_number",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-11",
+     "order": 11,
+     "isRequired": false,
+     "description": "追蹤號碼直接映射",
+     "sourceField": "tracking_number",
+     "targetField": "tracking_number",
+     "transformType": "DIRECT"
+    },
+    {
+     "id": "map-12",
+     "order": 12,
+     "isRequired": false,
+     "description": "說明直接映射",
+     "sourceField": "description",
+     "targetField": "description",
+     "transformType": "DIRECT"
+    }
+   ],
+   "priority": 0,
+   "is_active": true,
+   "created_at": "2026-04-16T09:05:41.405",
+   "updated_at": "2026-04-22T05:39:41.501",
+   "created_by": null
+  },
+  {
+   "id": "cmpwj31260001awxgv82a5n17",
+   "data_template_id": "cmpwj13p70000awxglwglzrvf",
+   "scope": "GLOBAL",
+   "company_id": null,
+   "document_format_id": null,
+   "name": "Test data template mapping 1 - 20260602",
+   "description": "Test data template mapping 1 - 20260602",
+   "mappings": [
+    {
+     "id": "oyL4UzTstOUg26YOa8QPi",
+     "order": 0,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "li_OCEAN_FREIGHT_total",
+     "targetField": "field_1",
+     "transformType": "DIRECT",
+     "transformParams": null
+    },
+    {
+     "id": "wVBRUukS6MGk5p-TAEBns",
+     "order": 1,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "li_THC_total",
+     "targetField": "field_2",
+     "transformType": "DIRECT",
+     "transformParams": null
+    },
+    {
+     "id": "S2AjH9bLJIgapkynyJIp9",
+     "order": 2,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "li_HANDLING_FEE_total",
+     "targetField": "field_3",
+     "transformType": "DIRECT",
+     "transformParams": null
+    }
+   ],
+   "priority": 0,
+   "is_active": true,
+   "created_at": "2026-06-02T11:02:20.19",
+   "updated_at": "2026-06-02T11:02:20.19",
+   "created_by": null
+  },
+  {
+   "id": "cmpwjaakd0004awxg5fk6l14l",
+   "data_template_id": "cmpwj13p70000awxglwglzrvf",
+   "scope": "COMPANY",
+   "company_id": "369c787f-8429-4ebd-9bc4-67ca8974524e",
+   "document_format_id": null,
+   "name": "test mapping 1",
+   "description": "test mapping 1",
+   "mappings": [
+    {
+     "id": "cG7euNoDy3Zpj_7blfZB4",
+     "order": 0,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "airline_document_charge",
+     "targetField": "field_1",
+     "transformType": "DIRECT",
+     "transformParams": null
+    },
+    {
+     "id": "_9BXtK3E_v1iOBzFvwNLf",
+     "order": 1,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "container_field_station_charge",
+     "targetField": "field_2",
+     "transformType": "DIRECT",
+     "transformParams": null
+    },
+    {
+     "id": "An0wkP0_tW6LIPvCSlJff",
+     "order": 2,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "handling_charge",
+     "targetField": "field_3",
+     "transformType": "DIRECT",
+     "transformParams": null
+    },
+    {
+     "id": "wvzQdqYYDTys83MSSaCnh",
+     "order": 3,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "terminal_charge",
+     "targetField": "field_4",
+     "transformType": "DIRECT",
+     "transformParams": null
+    },
+    {
+     "id": "9OHRCIv69RD407JpY1xkS",
+     "order": 4,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "customs_electronic_data_charge",
+     "targetField": "field_5",
+     "transformType": "DIRECT",
+     "transformParams": null
+    },
+    {
+     "id": "-PrZxo5DGUdoY_eVZq0mo",
+     "order": 5,
+     "isRequired": false,
+     "description": "",
+     "sourceField": "x_ray_screening_charge",
+     "targetField": "field_6",
+     "transformType": "DIRECT",
+     "transformParams": null
+    }
+   ],
+   "priority": 0,
+   "is_active": true,
+   "created_at": "2026-06-02T11:07:59.101",
+   "updated_at": "2026-06-02T11:10:50.513",
+   "created_by": null
+  }
+ ],
+ "template_instances": [
+  {
+   "id": "cmpwj49w20002awxg82mne9fq",
+   "data_template_id": "cmpwj13p70000awxglwglzrvf",
+   "name": "Test instance 1",
+   "description": null,
+   "status": "COMPLETED",
+   "row_count": 1,
+   "valid_row_count": 1,
+   "error_row_count": 0,
+   "exported_at": null,
+   "exported_by": null,
+   "export_format": null,
+   "created_at": "2026-06-02T11:03:18.29",
+   "updated_at": "2026-06-02T11:08:35.696",
+   "created_by": null
+  },
+  {
+   "id": "cmpwjbe3x0005awxgclo3344s",
+   "data_template_id": "cmpwj13p70000awxglwglzrvf",
+   "name": "test instance 2",
+   "description": null,
+   "status": "DRAFT",
+   "row_count": 1,
+   "valid_row_count": 0,
+   "error_row_count": 1,
+   "exported_at": null,
+   "exported_by": null,
+   "export_format": null,
+   "created_at": "2026-06-02T11:08:50.349",
+   "updated_at": "2026-06-02T11:08:58.249",
+   "created_by": null
+  },
+  {
+   "id": "cmpwje7ln0007awxgh6wrma85",
+   "data_template_id": "cmpwj13p70000awxglwglzrvf",
+   "name": "test instance 3",
+   "description": null,
+   "status": "COMPLETED",
+   "row_count": 1,
+   "valid_row_count": 1,
+   "error_row_count": 0,
+   "exported_at": null,
+   "exported_by": null,
+   "export_format": null,
+   "created_at": "2026-06-02T11:11:01.883",
+   "updated_at": "2026-06-02T11:11:08.008",
+   "created_by": null
+  },
+  {
+   "id": "cmpwjewp30009awxgjeeaj7ea",
+   "data_template_id": "cmpwj13p70000awxglwglzrvf",
+   "name": "test instance 4",
+   "description": null,
+   "status": "EXPORTED",
+   "row_count": 3,
+   "valid_row_count": 3,
+   "error_row_count": 0,
+   "exported_at": "2026-06-02T11:11:57.34",
+   "exported_by": null,
+   "export_format": "xlsx",
+   "created_at": "2026-06-02T11:11:34.407",
+   "updated_at": "2026-06-02T11:11:57.342",
+   "created_by": null
+  }
+ ],
+ "template_instance_rows": [
+  {
+   "id": "cmpwj5jnw0003awxg5b18i8k1",
+   "template_instance_id": "cmpwj49w20002awxg82mne9fq",
+   "row_key": "auto_1780398257595_iikg4bx4l",
+   "row_index": 0,
+   "source_document_ids": [
+    "e8fc30c7-f78b-4f8d-a5c5-0d9de562425d"
+   ],
+   "field_values": {},
+   "validation_errors": null,
+   "status": "VALID",
+   "created_at": "2026-06-02T11:04:17.612",
+   "updated_at": "2026-06-02T11:08:35.682"
+  },
+  {
+   "id": "cmpwjbk4p0006awxgwxwqvfo0",
+   "template_instance_id": "cmpwjbe3x0005awxgclo3344s",
+   "row_key": "auto_1780398538134_yw61ipgc6",
+   "row_index": 0,
+   "source_document_ids": [
+    "e8fc30c7-f78b-4f8d-a5c5-0d9de562425d"
+   ],
+   "field_values": {
+    "field_1": 350,
+    "field_2": 288.2,
+    "field_3": 15
+   },
+   "validation_errors": {
+    "field_1": "值必須為字串",
+    "field_2": "值必須為字串",
+    "field_3": "值必須為字串"
+   },
+   "status": "INVALID",
+   "created_at": "2026-06-02T11:08:58.153",
+   "updated_at": "2026-06-02T11:08:58.235"
+  },
+  {
+   "id": "cmpwjec960008awxgsp480avt",
+   "template_instance_id": "cmpwje7ln0007awxgh6wrma85",
+   "row_key": "auto_1780398667899_xmaainaiu",
+   "row_index": 0,
+   "source_document_ids": [
+    "e8fc30c7-f78b-4f8d-a5c5-0d9de562425d"
+   ],
+   "field_values": {
+    "field_1": 15,
+    "field_2": 160,
+    "field_3": 350,
+    "field_4": 288.2,
+    "field_5": 40,
+    "field_6": 147
+   },
+   "validation_errors": null,
+   "status": "VALID",
+   "created_at": "2026-06-02T11:11:07.914",
+   "updated_at": "2026-06-02T11:11:07.983"
+  },
+  {
+   "id": "cmpwjf2fc000aawxgv2ng2fgd",
+   "template_instance_id": "cmpwjewp30009awxgjeeaj7ea",
+   "row_key": "auto_1780398701821_4grct7d2j",
+   "row_index": 0,
+   "source_document_ids": [
+    "ee9421b1-6bd5-42b6-a33e-e486abcc7bfe"
+   ],
+   "field_values": {
+    "field_1": 15,
+    "field_2": 160,
+    "field_3": 350,
+    "field_4": 288.2,
+    "field_5": 40,
+    "field_6": 147
+   },
+   "validation_errors": null,
+   "status": "VALID",
+   "created_at": "2026-06-02T11:11:41.832",
+   "updated_at": "2026-06-02T11:11:41.909"
+  },
+  {
+   "id": "cmpwjf2fp000bawxgty9wvlov",
+   "template_instance_id": "cmpwjewp30009awxgjeeaj7ea",
+   "row_key": "auto_1780398701836_kgmdeumwo",
+   "row_index": 1,
+   "source_document_ids": [
+    "e9ba60af-5d98-4889-8706-d6623dfd7d2b"
+   ],
+   "field_values": {
+    "field_1": 15,
+    "field_2": 160,
+    "field_3": 350,
+    "field_4": 288.2,
+    "field_5": 40,
+    "field_6": 147
+   },
+   "validation_errors": null,
+   "status": "VALID",
+   "created_at": "2026-06-02T11:11:41.845",
+   "updated_at": "2026-06-02T11:11:41.917"
+  },
+  {
+   "id": "cmpwjf2g4000cawxgkv7ikij2",
+   "template_instance_id": "cmpwjewp30009awxgjeeaj7ea",
+   "row_key": "auto_1780398701849_m79pnbnpa",
+   "row_index": 2,
+   "source_document_ids": [
+    "e8fc30c7-f78b-4f8d-a5c5-0d9de562425d"
+   ],
+   "field_values": {
+    "field_1": 15,
+    "field_2": 160,
+    "field_3": 350,
+    "field_4": 288.2,
+    "field_5": 40,
+    "field_6": 147
+   },
+   "validation_errors": null,
+   "status": "VALID",
+   "created_at": "2026-06-02T11:11:41.86",
+   "updated_at": "2026-06-02T11:11:41.924"
+  }
+ ],
+ "pipeline_configs": [
+  {
+   "id": "cmo19800h001knsxgdbfllenz",
+   "scope": "GLOBAL",
+   "region_id": null,
+   "company_id": null,
+   "ref_match_enabled": false,
+   "ref_match_types": [
+    "SHIPMENT",
+    "HAWB",
+    "MAWB",
+    "BL",
+    "CONTAINER"
+   ],
+   "ref_match_max_results": 10,
+   "fx_conversion_enabled": false,
+   "fx_target_currency": null,
+   "fx_convert_line_items": true,
+   "fx_convert_extra_charges": true,
+   "fx_rounding_precision": 2,
+   "fx_fallback_behavior": "skip",
+   "is_active": true,
+   "description": "Default global pipeline configuration",
+   "created_at": "2026-04-16T09:05:42.161",
+   "updated_at": "2026-04-16T09:05:42.161",
+   "document_format_id": null,
+   "fx_source_currencies": null,
+   "fx_source_currency": null
+  }
+ ],
+ "reference_numbers": [
+  {
+   "id": "cmptt1tmf000118xg4gsltqca",
+   "code": "REF-2026-APAC-IG4STQ",
+   "number": "HEX260200",
+   "type": "SHIPMENT",
+   "status": "ACTIVE",
+   "year": 2026,
+   "region_id": "fb2b5a8c-25af-406c-87a4-608ea0e58fcd",
+   "description": null,
+   "valid_from": "2025-12-31T16:00:00",
+   "valid_until": "2026-12-30T16:00:00",
+   "match_count": 0,
+   "last_matched_at": null,
+   "is_active": true,
+   "created_by_id": "system",
+   "created_at": "2026-05-31T13:18:01.527",
+   "updated_at": "2026-05-31T13:18:01.527"
+  }
+ ],
+ "_refs": {
+  "regions": [
+   {
+    "id": "be882844-e576-4651-a835-dceaaa2403ac",
+    "code": "GLOBAL"
+   },
+   {
+    "id": "fb2b5a8c-25af-406c-87a4-608ea0e58fcd",
+    "code": "APAC"
+   },
+   {
+    "id": "b06b535a-5e41-4370-b722-81c1b59266fb",
+    "code": "EMEA"
+   },
+   {
+    "id": "cf05d446-21f0-443a-95f9-896dec4c88b9",
+    "code": "AMER"
+   }
+  ]
+ }
+}
