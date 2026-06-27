@@ -31,7 +31,8 @@ import type {
   IdentificationRules,
 } from './document-format';
 // CHANGE-072: FX 換算結果（用於將原值/換算審計帶到持久化層）
-import type { ExchangeRateConversionResult } from './extraction-v3.types';
+// FIX-092: 參考編號匹配結果（同樣需帶到持久化層，供 Template 注入 _ref_*）
+import type { ExchangeRateConversionResult, ReferenceNumberMatchResult } from './extraction-v3.types';
 
 // 重新導出常用類型
 export type { MappedFieldValue } from './field-mapping';
@@ -570,6 +571,9 @@ export interface UnifiedProcessingResult {
 
   /** CHANGE-072: FX 換算結果（含原值/換算值/匯率，供持久化審計；覆蓋寫回後原值僅存於此） */
   exchangeRateConversion?: ExchangeRateConversionResult;
+
+  /** FIX-092: 參考編號匹配結果（檔名↔主檔匹配），供持久化 + Template 注入 _ref_* 合成欄位 */
+  referenceNumberMatch?: ReferenceNumberMatchResult;
 
   // ========== CHANGE-025: 智能路由標記 ==========
   /** 是否檢測到新公司（需要配置審核） */

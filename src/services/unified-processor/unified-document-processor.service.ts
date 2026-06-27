@@ -487,6 +487,9 @@ export class UnifiedDocumentProcessorService {
       // CHANGE-072: 帶上 FX 換算結果，使 persistProcessingResult 能持久化審計原值
       //（覆蓋寫回後，原始金額僅存於 fxConversionResult.conversions[]）
       exchangeRateConversion: v3Result.exchangeRateConversion,
+      // FIX-092: 帶上參考編號匹配結果，使 persistProcessingResult 能持久化 referenceNumberMatch
+      //（否則 ExtractionResult.referenceNumberMatch 永遠 NULL，Template 注入不到 _ref_*）
+      referenceNumberMatch: v3Result.referenceNumberMatch,
     };
   }
 

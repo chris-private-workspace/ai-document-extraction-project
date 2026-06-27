@@ -303,6 +303,10 @@ export async function persistProcessingResult(
         fxConversionResult: result.exchangeRateConversion
           ? (result.exchangeRateConversion as unknown as Prisma.InputJsonValue)
           : undefined,
+        // FIX-092: 持久化參考編號匹配結果（供 Template 注入 _ref_*）
+        referenceNumberMatch: result.referenceNumberMatch
+          ? (result.referenceNumberMatch as unknown as Prisma.InputJsonValue)
+          : undefined,
       },
       update: {
         companyId: result.companyId ?? null,
@@ -340,6 +344,10 @@ export async function persistProcessingResult(
         // CHANGE-072: 持久化 FX 換算審計（覆蓋寫回後原值僅存於此）
         fxConversionResult: result.exchangeRateConversion
           ? (result.exchangeRateConversion as unknown as Prisma.InputJsonValue)
+          : undefined,
+        // FIX-092: 持久化參考編號匹配結果（供 Template 注入 _ref_*）
+        referenceNumberMatch: result.referenceNumberMatch
+          ? (result.referenceNumberMatch as unknown as Prisma.InputJsonValue)
           : undefined,
       },
     }),
