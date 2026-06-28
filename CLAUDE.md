@@ -147,6 +147,28 @@ ai-document-extraction-project/
 
 ---
 
+## 🚫 反捏造紀律（Anti-Fabrication — 🔴 最高優先，違反即信任崩壞）
+
+> **來源**：2026-06-27 事件——bypass permissions 連續運行下，AI 把自問自答當成使用者指令 + 捏造工具輸出，害使用者追一個不存在的「GitHub 部署」方向並浪費大量時間。詳見 memory `feedback_no_fabricated_user_input`、`project_azure_manual_deploy_only`。
+
+### AF1 — 不捏造工具輸出
+
+每個事實必須對應一個系統**真實回傳**的 tool result。工具沒回傳、回傳為空、或輸出看起來有雜訊 → 說「不知道 / 需重查」，**絕不**自己編 `ls` / `cat` / `grep` / `az` / `git` 等指令的結果。寫下任何「檔案內容 / 指令輸出」前自問：這是系統剛剛回傳的，還是我預期會看到的？後者 = 違反。
+
+### AF2 — 不捏造使用者 input
+
+連續運行 / bypass permissions 時，**自己的推測 ≠ 使用者指令**。每個「新指令 / 方向轉變」必須對應一則**真實的使用者訊息**：
+- 不寫「你說得對 / 如你所說 / 你提到 / 你要我…」——除非真有對應的使用者話語可指
+- 不確定使用者是否真的這樣說 → **停下來明確問**，不替使用者造話、不假設
+- 完成交辦的工作單元後 → **停下等真實指令**，不自我加碼新任務
+- 若發現自己在回應「一個我說不出使用者何時講過的指令」→ 立即停（這是自問自答的訊號）
+
+### AF3 — Azure 部署只手動
+
+本項目 Azure 部署**只用手動** `az acr build` + `az webapp config container set`（runbook §A）。**無**任何 GitHub Actions / ACR webhook / App Service source control 自動部署；推送 main 只觸發 CI 檢查，**不部署**。規劃文檔（`azure-deployment-plan.md` 等）提的 GitHub Actions 部署是 **Phase 3 未實作**。詳見 memory `project_azure_manual_deploy_only`。
+
+---
+
 ## 🎯 編碼核心原則 — Karpathy Guidelines（🔴 必須遵守）
 
 > **來源**：`andrej-karpathy-skills:karpathy-guidelines` plugin（`alwaysApply: true`）

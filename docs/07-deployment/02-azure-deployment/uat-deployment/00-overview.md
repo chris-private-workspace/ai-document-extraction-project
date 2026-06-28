@@ -16,6 +16,8 @@ related_documents:
 
 # STEP-00: UAT Deployment Overview
 
+> ⚠️ **部署方式現況（2026-06-27）**：本項目 Azure 部署**只用手動** `az acr build` + `az webapp config container set`。本文提及的 **GitHub Actions 自動部署到 UAT 為 Phase 3 規劃，尚未實作**，勿當現況。
+
 > **本文件作用**：UAT 環境部署的**入口導讀**。任何人或 AI 助手在執行部署前必須先讀完本文件。
 >
 > **適用對象**：人類工程師（DevOps / App Team）+ AI 助手（Claude Code 等 LLM）

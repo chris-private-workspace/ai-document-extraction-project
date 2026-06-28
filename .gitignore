@@ -112,3 +112,6 @@ claudedocs/CLAUDE.md.draft-v4.md
 
 # 日常開發討論記錄 — 本地保留即可，不同步 GitHub（2026-06-28 使用者決定）
 docs/12-development-log/
+
+# 業務 master data Excel — 本地參考資料，不入 git（含 20MB+ 二進位，2026-06-28 使用者決定）
+docs/15-master-data/

@@ -1,6 +1,8 @@
 # Azure 部署文件（🟢 DEV 已上線 → UAT/PRD 進行中）
 
 > **狀態**: 🟢 **DEV 環境已上線**(2026-06-15,App Service for Containers)+ 機密已正規化到 Key Vault + 本地業務/設定資料已同步;UAT/PRD 文件化進行中
+>
+> ⚠️ **部署方式現況（2026-06-27）**：本項目 Azure 部署**只用手動** `az acr build` + `az webapp config container set`（見 [`dev-deployment-runbook.md §A`](./dev-deployment-runbook.md)）。本目錄文件提及的 **GitHub Actions / CI/CD 自動部署為 Phase 3 規劃，尚未實作**，勿當現況。
 > **建立日期**: 2026-04-22 ・ **最後更新**: 2026-06-16
 > **追蹤**: [CHANGE-055](../../../claudedocs/4-changes/feature-changes/CHANGE-055-azure-deployment-foundation.md) + [CHANGE-056](../../../claudedocs/4-changes/feature-changes/CHANGE-056-prisma-migration-baseline.md)
 > **主規劃文件**: [`azure-deployment-plan.md`](./azure-deployment-plan.md) v0.3

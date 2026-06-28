@@ -2,6 +2,8 @@
 
 > **建立日期**: 2026-04-22
 > **狀態**: 📋 規劃中（Phase 1：技術決策階段 — **全 10 項決策已定案**，進入 Phase 2 文件化階段）
+>
+> ⚠️ **部署方式現況（2026-06-27）**：本項目 Azure 部署**只用手動** `az acr build` + `az webapp config container set`（見 [`dev-deployment-runbook.md §A`](./dev-deployment-runbook.md)）。本文提及的 **GitHub Actions / CI/CD 自動部署為 Phase 3 規劃，尚未實作**，勿當現況。
 > **版本**: 0.3（2026-04-22）
 > **追蹤**: CHANGE-055（主規劃傘） + CHANGE-056（Prisma migration baseline 獨立追蹤）
 > **前置**: CHANGE-054 + FIX-054 已完成（本地部署可靠性與 SYSTEM_USER_ID 可覆蓋機制）
