@@ -135,41 +135,17 @@ export const PROMPT_CONFIG_SEEDS: PromptConfigSeed[] = [
 - 金額保留兩位小數
 - 如無法識別某欄位，設為 null
 - 信心度評分：0-100（越高越確定）`,
-    userPromptTemplate: `請從這張發票圖片中提取以下資訊：
+    userPromptTemplate: `請從這張發票圖片中提取所有資訊，並嚴格依照系統訊息（SYSTEM）指定的 JSON 結構輸出。
 
-輸出 JSON 格式：
-{
-  "success": true,
-  "confidence": 0-100,
-  "invoiceData": {
-    "invoiceNumber": "發票號碼",
-    "invoiceDate": "YYYY-MM-DD",
-    "dueDate": "YYYY-MM-DD 或 null",
-    "vendor": {
-      "name": "供應商名稱",
-      "address": "供應商地址",
-      "taxId": "稅號"
-    },
-    "buyer": {
-      "name": "買方名稱",
-      "address": "買方地址"
-    },
-    "lineItems": [
-      {
-        "description": "項目描述",
-        "quantity": 1,
-        "unitPrice": 0.00,
-        "amount": 0.00
-      }
-    ],
-    "subtotal": 0.00,
-    "taxAmount": 0.00,
-    "totalAmount": 0.00,
-    "currency": "USD/TWD/CNY/etc"
-  }
-}
+必須提取：
+1. 發票基本資訊：發票號碼、發票日期、到期日、幣別、小計、總金額
+2. 供應商與買方：名稱、地址
+3. 所有費用明細項目（line items）：項目描述、數量、單價、金額
 
-只輸出有效的 JSON，不要有其他文字。`,
+注意事項：
+- 日期格式 YYYY-MM-DD；金額保留兩位小數；無法識別的欄位設為 null
+- 必須使用系統訊息指定的 { fields, lineItems, overallConfidence } 結構；不要改用其他結構（例如不要輸出 { success, confidence, invoiceData } 包裹格式）
+- 只輸出有效的 JSON，不要有其他文字。`,
     mergeStrategy: 'OVERRIDE',
     variables: [],
     isActive: true,
@@ -200,41 +176,17 @@ export const PROMPT_CONFIG_SEEDS: PromptConfigSeed[] = [
 - 金額保留兩位小數
 - 如無法識別某欄位，設為 null
 - 信心度評分：0-100（越高越確定）`,
-    userPromptTemplate: `請從這張發票圖片中提取以下資訊：
+    userPromptTemplate: `請從這張發票圖片中提取所有資訊，並嚴格依照系統訊息（SYSTEM）指定的 JSON 結構輸出。
 
-輸出 JSON 格式：
-{
-  "success": true,
-  "confidence": 0-100,
-  "invoiceData": {
-    "invoiceNumber": "發票號碼",
-    "invoiceDate": "YYYY-MM-DD",
-    "dueDate": "YYYY-MM-DD 或 null",
-    "vendor": {
-      "name": "供應商名稱",
-      "address": "供應商地址",
-      "taxId": "稅號"
-    },
-    "buyer": {
-      "name": "買方名稱",
-      "address": "買方地址"
-    },
-    "lineItems": [
-      {
-        "description": "項目描述",
-        "quantity": 1,
-        "unitPrice": 0.00,
-        "amount": 0.00
-      }
-    ],
-    "subtotal": 0.00,
-    "taxAmount": 0.00,
-    "totalAmount": 0.00,
-    "currency": "USD/TWD/CNY/etc"
-  }
-}
+必須提取：
+1. 發票基本資訊：發票號碼、發票日期、到期日、幣別、小計、總金額
+2. 供應商與買方：名稱、地址
+3. 所有費用明細項目（line items）：項目描述、數量、單價、金額
 
-只輸出有效的 JSON，不要有其他文字。`,
+注意事項：
+- 日期格式 YYYY-MM-DD；金額保留兩位小數；無法識別的欄位設為 null
+- 必須使用系統訊息指定的 { fields, lineItems, overallConfidence } 結構；不要改用其他結構（例如不要輸出 { success, confidence, invoiceData } 包裹格式）
+- 只輸出有效的 JSON，不要有其他文字。`,
     mergeStrategy: 'OVERRIDE',
     variables: [],
     isActive: true,

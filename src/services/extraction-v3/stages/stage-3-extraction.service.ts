@@ -864,6 +864,21 @@ Respond in valid JSON format matching the provided schema.`;
       (f) => f.fieldType === 'lineItem'
     );
 
+    // FIX-095: 標準發票基本欄位 — 必須與費用欄位一起放進 fields。
+    //   否則當 GPT 採用 fields 格式輸出時不會提取這些欄位，導致 standardFields 全空、
+    //   信心度的 FIELD_COMPLETENESS 維度被誤判為 0（本地/Azure 同文件信心度落差的根因）。
+    //   key 對齊 buildStandardFieldsFromRecord 的查找鍵。
+    const standardInvoiceFields: Array<{ key: string; label: string }> = [
+      { key: 'invoice_number', label: '發票號碼 Invoice Number' },
+      { key: 'invoice_date', label: '發票日期 Invoice Date (YYYY-MM-DD)' },
+      { key: 'due_date', label: '到期日 Due Date (YYYY-MM-DD or null)' },
+      { key: 'vendor_name', label: '供應商/發行公司名稱 Vendor / Issuer Name' },
+      { key: 'customer_name', label: '買方名稱 Customer / Buyer Name' },
+      { key: 'currency', label: '幣別 Currency (ISO 4217, e.g. USD/HKD/TWD)' },
+      { key: 'subtotal', label: '小計 Subtotal' },
+      { key: 'total_amount', label: '總金額 Total Amount' },
+    ];
+
     const lines: string[] = [
       '\n--- Field Extraction Requirements ---',
       `Total fields to extract: ${fieldDefinitions.length}`,
@@ -943,8 +958,16 @@ Respond in valid JSON format matching the provided schema.`;
     lines.push(
       '- The "fields" object MUST contain ALL field keys listed above, even if the value is null.'
     );
+    // FIX-095: 要求 fields 同時包含標準發票基本欄位（與費用欄位並存），
+    //   讓 standardFields 能被填滿、FIELD_COMPLETENESS 正確計算。不影響 lineItems 提取。
     lines.push(
-      '- Do NOT add fields that are not in the list above.'
+      '- The "fields" object MUST ALSO include these standard invoice fields (use EXACTLY these keys; set value to null only if truly absent from the document):'
+    );
+    for (const sf of standardInvoiceFields) {
+      lines.push(`    - ${sf.key}: ${sf.label}`);
+    }
+    lines.push(
+      '- Do NOT invent fields outside the charge field keys and the standard invoice fields listed above.'
     );
     lines.push(
       '- Each field value MUST be an object with "value" and "confidence" properties.'
@@ -1045,6 +1068,9 @@ Respond in valid JSON format matching the provided schema.`;
 
         // 從 fields 生成向下兼容的 standardFields
         const standardFields = this.buildStandardFieldsFromRecord(fields);
+        // FIX-095: 防禦性容錯 — 若標準發票欄位未出現在 fields 內，
+        //   嘗試從 GPT 回傳的頂層或 invoiceData 區塊補撈（僅補空缺，不碰 lineItems）。
+        this.backfillStandardFieldsFromRaw(standardFields, parsed);
 
         return {
           standardFields,
@@ -1277,6 +1303,62 @@ Respond in valid JSON format matching the provided schema.`;
       subtotal: fields['subtotal'],
       currency: fields['currency'] || emptyField,
     };
+  }
+
+  /**
+   * FIX-095: 防禦性容錯 — 當 GPT 採 `fields` 格式但標準發票欄位未放進 fields 時，
+   *   嘗試從回傳的頂層（或 invoiceData 區塊，若同時存在）補撈標準必填欄位。
+   *
+   * @description
+   *   僅補「目前為空」的標準欄位，不覆蓋已有值；**完全不涉及 lineItems**。
+   *   注意：此為防禦補強。若 GPT 根本未提取基本欄位（如僅輸出費用 fields），
+   *   此處無資料可補 — 真正的修復在 prompt 層（要求 GPT 一併提取基本欄位）。
+   * @since FIX-095
+   */
+  private backfillStandardFieldsFromRaw(
+    standardFields: StandardFieldsV3,
+    parsed: Record<string, unknown>
+  ): void {
+    const inv = (parsed.invoiceData && typeof parsed.invoiceData === 'object'
+      ? parsed.invoiceData
+      : parsed) as Record<string, unknown>;
+    const vendor = inv.vendor as Record<string, unknown> | undefined;
+
+    const pick = (...candidates: unknown[]): FieldValue | undefined => {
+      for (const c of candidates) {
+        if (c !== undefined && c !== null && c !== '') {
+          if (typeof c === 'object' && 'value' in (c as Record<string, unknown>)) {
+            return c as FieldValue;
+          }
+          return { value: c as string | number, confidence: 85 };
+        }
+      }
+      return undefined;
+    };
+
+    const isEmpty = (f?: FieldValue): boolean =>
+      !f || f.value === null || f.value === '';
+
+    if (isEmpty(standardFields.invoiceNumber)) {
+      const v = pick(inv.invoiceNumber, inv.invoice_number);
+      if (v) standardFields.invoiceNumber = v;
+    }
+    if (isEmpty(standardFields.invoiceDate)) {
+      const v = pick(inv.invoiceDate, inv.invoice_date);
+      if (v) standardFields.invoiceDate = v;
+    }
+    if (isEmpty(standardFields.vendorName)) {
+      const v = pick(inv.vendorName, inv.vendor_name, vendor?.name);
+      if (v) standardFields.vendorName = v;
+    }
+    if (isEmpty(standardFields.totalAmount)) {
+      const v = pick(inv.totalAmount, inv.total_amount);
+      if (v) standardFields.totalAmount = v;
+    }
+    if (isEmpty(standardFields.currency)) {
+      const v = pick(inv.currency);
+      if (v) standardFields.currency = v;
+    }
   }
 
   /**
