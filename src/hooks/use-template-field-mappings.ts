@@ -71,10 +71,12 @@ interface ListResponse {
   success: boolean;
   data: {
     mappings: TemplateFieldMappingSummary[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
   };
 }
 
@@ -297,10 +299,10 @@ export function useTemplateFieldMappings(
 
   return {
     mappings: query.data?.data.mappings ?? [],
-    total: query.data?.data.total ?? 0,
-    page: query.data?.data.page ?? page,
-    limit: query.data?.data.limit ?? limit,
-    totalPages: query.data?.data.totalPages ?? 0,
+    total: query.data?.data.pagination.total ?? 0,
+    page: query.data?.data.pagination.page ?? page,
+    limit: query.data?.data.pagination.limit ?? limit,
+    totalPages: query.data?.data.pagination.totalPages ?? 0,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error as Error | null,
