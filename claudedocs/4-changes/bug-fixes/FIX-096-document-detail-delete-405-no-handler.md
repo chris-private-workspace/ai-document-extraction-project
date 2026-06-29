@@ -4,7 +4,7 @@
 > **發現方式**: Playwright E2E（FIX-095 回歸驗證後清理測試文件時發現）
 > **影響頁面/功能**: 文件詳情頁刪除功能 — `DELETE /api/documents/[id]`
 > **優先級**: 中（功能缺失；有「直接 DB 刪除」workaround，但日常文件管理無法用 UI 刪除）
-> **狀態**: 🚧 待修復
+> **狀態**: ✅ 已修復（2026-06-29，採方案 B 授權；本地 type-check / lint / live E2E 通過）
 
 ---
 
@@ -63,11 +63,12 @@ Failed to load resource: the server responded with a status of 405 (Method Not A
 
 1. **認證**：`const session = await auth()`，無 session 回 401（RFC 7807）。
 2. **授權**：呼叫 `hasPermission(session.user, ...)` + 城市存取檢查（參考 `upload/route.ts` 對 `INVOICE_CREATE` + `hasPermission` 的 pattern）。
-   - 🔴 **授權選項（需用戶/實作定案）**：
-     - 選項 A：沿用 `INVOICE_CREATE`（與上傳對等，最小改動，但「能上傳即能刪除」語意偏寬）。
-     - 選項 B：限制為 admin 級角色（`GLOBAL_ADMIN` / `CITY_ADMIN`）+ 城市存取檢查（較保守，符合破壞性操作）。
-     - 選項 C：新增 `INVOICE_DELETE` 權限（最正規，但需動 `permissions.ts` 與角色分配 → 牽涉較廣，屬 H1 風險，須先確認）。
-     - **建議**：先採選項 B（admin + 城市檢查），避免擴大權限模型；若需細粒度再走選項 C 另開 CHANGE。
+   - ✅ **授權方案已定案：方案 B（admin 角色 + 城市檢查）**（用戶 2026-06-29 確認）。其他選項：A（沿用 `INVOICE_CREATE`，語意偏寬）、C（新增 `INVOICE_DELETE`，牽涉權限模型 + i18n，屬 H1）皆未採用。
+   - **實作的授權規則**（用 `session.user` 權威欄位，非 progress route 那組錯誤的 `user.role`/`user.cityAccess`）：
+     - `isGlobalAdmin === true` → 可刪任何城市的文件。
+     - `isRegionalManager === true` 且 `cityCodes` 含文件城市（或 `'*'`）→ 可刪該城市文件。
+     - 其餘（city manager / reviewer / viewer）→ 403。
+     - ⚠️ **範圍說明**：方案 B 保守起見**只放行 global / regional 兩個明確 admin 旗標**；city manager 暫不放行（系統無乾淨的 city-admin 布林旗標）。若日後需放行 city manager，再調整。
 3. **存在性檢查**：查無文件回 404（RFC 7807）。
 4. **執行刪除**：`await deleteDocument(id)`（重用既有 service，含 blob + DB cascade）。
 5. **回應**：成功回 200（或 204 No Content）。
@@ -80,13 +81,14 @@ Failed to load resource: the server responded with a status of 405 (Method Not A
 
 ## 修改的檔案
 
-> 以下為**預估**範圍，實作後更新為實際修改。
+> 以下為**實際**修改範圍。
 
-| 檔案 | 預估修改內容 |
+| 檔案 | 實際修改內容 |
 |------|------------|
-| `src/app/api/documents/[id]/route.ts` | 新增 `export async function DELETE`：auth + 授權 + 404 檢查 + 呼叫 `deleteDocument(id)` + RFC 7807 + 審計 |
-| `src/types/permissions.ts`（僅選項 C 才需）| 新增 `INVOICE_DELETE` 並分配給對應角色（牽涉 H1，需先確認）|
-| `messages/{en,zh-TW,zh-CN}/documents.json`（若新增/調整刪除相關文案才需）| 確認 `detail.deleteSuccess` / `detail.errors.deleteFailed` 既有 key 一致 |
+| `src/app/api/documents/[id]/route.ts` | 新增 `export async function DELETE`：`auth()` → 401；查文件取城市 → 404；方案 B 授權（global/regional admin + 城市檢查）→ 403；呼叫 `deleteDocument(id)`（blob + DB 級聯）；`logAudit('DOCUMENT_DELETED')`；成功回 200。錯誤採 RFC 7807 top-level。新增 import `deleteDocument` / `logAudit`，更新檔頭端點清單 + `@lastModified` |
+
+> **未改動**：`src/types/permissions.ts`（採方案 B，不新增權限）、i18n（前端 `detail.deleteSuccess` / `detail.errors.deleteFailed` 既有 key 沿用）、前端 `DocumentDetailHeader`（其 DELETE 呼叫原已正確）、`deleteDocument` service（直接重用）。
+> **未順手修**：同檔 `progress/route.ts` 用 `user.role`/`user.cityAccess` 錯誤欄位的潛在 bug（超出本 FIX 範圍，另記）。
 
 ---
 
@@ -94,14 +96,25 @@ Failed to load resource: the server responded with a status of 405 (Method Not A
 
 修復完成後需驗證：
 
-- [ ] 文件詳情頁點「Delete」→ 確認 → 文件被刪除，列表/DB 不再存在
-- [ ] DELETE `/api/documents/[id]` 回 200/204（非 405）
-- [ ] 級聯刪除正確（`extraction_results` / `processing_queues` / `document_processing_stages` 等子表一併清除）
-- [ ] Azure Blob 一併刪除（Azurite 內對應 blob 消失）
-- [ ] 未登入 → 401；無權限 → 403；查無文件 → 404（皆 RFC 7807）
-- [ ] 審計記錄 `DOCUMENT_DELETED`（如採用）
-- [ ] `npm run type-check` 通過
-- [ ] `npm run lint` 通過
+- [x] 文件詳情頁點「Delete」→ 確認 → 文件被刪除，列表/DB 不再存在（2026-06-29 live E2E）
+- [x] DELETE `/api/documents/[id]` 回 200（非 405）— 刪除後自動導回列表、console 0 errors
+- [x] 級聯刪除正確（`extraction_results`=0、`processing_queues`=0 已驗證）
+- [x] 審計記錄 `DOCUMENT_DELETED`（`audit_logs` 有 DELETE on document）
+- [x] `npm run type-check` 通過
+- [x] `npm run lint` 通過（0 error；`detectExtractionVersion` 未使用警告為既有，非本次造成）
+- [ ] Azure Blob 一併刪除 — `deleteDocument` 已呼叫 `deleteFile`，但本次未個別核對 Azurite blob 消失
+- [ ] 負面路徑（未登入 401 / 無權限 403 / 查無 404）— 本次只驗 global admin happy path，負面路徑未個別觸發
+
+### Live E2E（2026-06-29，本地，方案 B + 全域管理員）
+
+上傳 `CEVA_HEX250447,0448_45585.pdf`（SHA）→ 詳情頁點 Delete → 確認：
+
+| 項目 | 修復前 | 修復後 |
+|------|--------|--------|
+| DELETE 回應 | 405 Method Not Allowed | **200**（導回 `/en/documents`）|
+| 文件刪除 | ❌ 仍存在 | ✅ `documents` count=0 |
+| 級聯子表 | — | ✅ `extraction_results`=0、`processing_queues`=0 |
+| 審計 | — | ✅ `audit_logs` DELETE on document |
 
 ---
 

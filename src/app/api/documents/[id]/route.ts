@@ -9,11 +9,12 @@
  *
  *   端點：
  *   - GET /api/documents/[id]?include=extractedFields,uploadedBy,company,city
+ *   - DELETE /api/documents/[id]（FIX-096：補上缺失的刪除 handler）
  *
  * @module src/app/api/documents/[id]/route
  * @author Development Team
  * @since Epic 2 - Story 2.7 (Processing Status Tracking & Display)
- * @lastModified 2026-01-28
+ * @lastModified 2026-06-29
  *
  * @dependencies
  *   - next/server - Next.js API 處理
@@ -29,6 +30,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { deleteDocument } from '@/services/document.service'
+import { logAudit } from '@/lib/audit'
 import type { ExtractedField } from '@/types/extracted-field'
 import { getConfidenceLevelFromScore } from '@/types/extracted-field'
 import { detectExtractionVersion } from '@/types/extraction-v3.types'
@@ -428,6 +431,111 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       {
         success: false,
         error: process.env.NODE_ENV === 'development' ? errorMessage : 'Internal server error'
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * DELETE /api/documents/[id]
+ *
+ * @description
+ *   刪除指定文件，重用 `deleteDocument` service（連同 Azure Blob 與
+ *   Prisma `onDelete: Cascade` 子表一併清除）。
+ *
+ *   FIX-096：前端 `DocumentDetailHeader` 早已送出 `DELETE /api/documents/[id]`，
+ *   但本路由原本只實作 GET → Next.js 回 405、UI 刪除功能無法運作。此為補上的 handler。
+ *
+ *   授權（FIX-096 方案 B：admin 角色 + 城市檢查）：
+ *   - 全域管理員（`isGlobalAdmin`）：可刪除任何城市的文件
+ *   - 區域管理員（`isRegionalManager`）：僅限其可存取城市（`cityCodes` 含該城市或 `'*'`）
+ *   - 其餘角色：403
+ *
+ *   錯誤格式採 RFC 7807 top-level（新端點規範）。
+ */
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+  try {
+    // 1. 認證
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/unauthorized',
+          title: 'Unauthorized',
+          status: 401,
+          detail: '需要登入才能刪除文件',
+        },
+        { status: 401 }
+      )
+    }
+
+    const { id } = await params
+
+    // 2. 查詢文件（取城市做授權判斷 + 確認存在）
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, fileName: true, cityCode: true },
+    })
+
+    if (!document) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/not-found',
+          title: 'Not Found',
+          status: 404,
+          detail: '找不到指定文件',
+          instance: `/api/documents/${id}`,
+        },
+        { status: 404 }
+      )
+    }
+
+    // 3. 授權（方案 B：admin 角色 + 城市檢查）
+    const user = session.user
+    const cityCodes = user.cityCodes ?? []
+    const hasCityAccess =
+      cityCodes.includes('*') || cityCodes.includes(document.cityCode)
+    const allowed =
+      user.isGlobalAdmin === true ||
+      (user.isRegionalManager === true && hasCityAccess)
+
+    if (!allowed) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/forbidden',
+          title: 'Forbidden',
+          status: 403,
+          detail: '您沒有刪除此文件的權限',
+          instance: `/api/documents/${id}`,
+        },
+        { status: 403 }
+      )
+    }
+
+    // 4. 刪除（service 處理 Azure Blob + DB 級聯）
+    await deleteDocument(id)
+
+    // 5. 審計
+    await logAudit({
+      userId: user.id,
+      action: 'DOCUMENT_DELETED',
+      entityType: 'Document',
+      entityId: id,
+      details: { fileName: document.fileName, cityCode: document.cityCode },
+    })
+
+    // 6. 成功
+    return NextResponse.json({ success: true, data: { id, deleted: true } })
+  } catch (error) {
+    console.error('Delete document error:', error)
+    return NextResponse.json(
+      {
+        type: 'https://api.example.com/errors/internal',
+        title: 'Internal Server Error',
+        status: 500,
+        detail:
+          error instanceof Error ? error.message : '刪除文件時發生錯誤',
       },
       { status: 500 }
     )
