@@ -131,7 +131,9 @@
 | `src/services/extraction-v3/stages/stage-3-extraction.service.ts` | `buildFieldDefinitionsSection` 要求 `fields` 含 8 個標準發票欄位並調整「Do NOT add fields」措辭（A1）；新增 `backfillStandardFieldsFromRaw` 並於 Case 1 解析後呼叫補容錯（B）。**未動 `convertRawLineItems` / `backfillLineItemCharges` / lineItems 區塊** | A1 + B |
 | `prisma/seed-data/prompt-configs.ts` | `STAGE_3_FIELD_EXTRACTION` 與 `FIELD_EXTRACTION` 的 `userPromptTemplate` 移除互斥 `invoiceData` JSON 範本，改為自然語言 + 指向 SYSTEM 格式 | A2 |
 | `src/services/static-prompts.ts` | `FIELD_EXTRACTION_USER_PROMPT` 同步修改（靜態備援一致） | A2 |
-| `scripts/fix-095-update-stage3-prompt.ts` | 一次性更新已部署 DB 的 `PromptConfig.userPromptTemplate`（gated，未帶 `--confirm` 即 DRY-RUN）。**Azure 須在 VNet 內執行，待部署** | A3（工具就緒，Azure 待執行） |
+| `scripts/fix-095-update-stage3-prompt.ts` | 一次性更新已部署 DB 的 `PromptConfig.userPromptTemplate`（gated，未帶 `--confirm` 即 DRY-RUN）。**本地工具**（tsx，能直連時用） | A3（本地工具） |
+| `prisma/update-stage3-prompt.js` | **新增**：Azure 端 A3 機制。純 `pg`、冪等（`is distinct from`）、參數化；由容器 entrypoint gated 觸發。production runner 映像只含 `scripts/docker-entrypoint.sh`、不含 `scripts/` 其餘檔與 `tsx`，故 `.ts` 版無法在容器內跑 → 比照 `grant-global-admin.js` 改寫為 prisma/*.js。模板與 `.ts`／seed 逐字一致 | A3（Azure 機制，2026-06-29） |
+| `scripts/docker-entrypoint.sh` | **新增** gated step：`RUN_STAGE3_PROMPT_FIX=true` 時於啟動跑 `node prisma/update-stage3-prompt.js`（非致命，比照其他 4 個 gated 步驟），補完設回 false | A3（Azure 機制，2026-06-29） |
 
 ---
 

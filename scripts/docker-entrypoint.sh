@@ -48,5 +48,14 @@ if [ "$RUN_DEV_DATA_IMPORT" = "true" ]; then
   node prisma/import-dev-data.js || echo "[entrypoint] dev data import failed (non-fatal), continuing"
 fi
 
+# (選用)一次性 FIX-095 prompt 修正 —— 由 RUN_STAGE3_PROMPT_FIX=true 觸發,非致命。
+# Stage 3 從 DB 的 prompt_configs 讀 prompt;Azure 的 GLOBAL 記錄來自本地同步匯入、
+# 重新部署不會更新它。此步驟把舊版「invoiceData 包裹」userPromptTemplate 改為 FIX-095
+# 新版(消除信心度非確定性,冪等:已是新版則 0 筆)。補完後把旗標設回 false。
+if [ "$RUN_STAGE3_PROMPT_FIX" = "true" ]; then
+  echo "[entrypoint] (optional) applying FIX-095 Stage 3 prompt update"
+  node prisma/update-stage3-prompt.js || echo "[entrypoint] stage3 prompt update failed (non-fatal), continuing"
+fi
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js

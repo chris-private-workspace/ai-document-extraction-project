@@ -52,9 +52,10 @@ az acr build --registry acrscmdocprocessingdev \
 - 改看控制面確認:`az acr task list-runs --registry acrscmdocprocessingdev --top 1 -o table`(等 `Succeeded`);完整 log 用 SAS URL(見 §11 末)。
 - 確認 tag 已就緒:`az acr repository show-tags --name acrscmdocprocessingdev --repository ai-document-extraction --orderby time_desc --top 3 -o tsv`。
 
-### A.2 (選用)一次性資料同步 / schema 重設旗標
+### A.2 (選用)一次性資料同步 / schema 重設 / DB 修補旗標
 - 只在需要灌資料時設 `RUN_DEV_DATA_IMPORT=true`(見 §11);只在 schema 落後 main 時設 `FORCE_SCHEMA_RESET=true`(見 §11,**破壞性**)。
-- **PRD 這兩個旗標永遠 false**(見 governance §3)。
+- additive schema 漂移用 `RUN_SCHEMA_DRIFT_FIX=true`(見 §14);**FIX-095** 一次性 Stage 3 prompt 修正用 `RUN_STAGE3_PROMPT_FIX=true`(見 §15,冪等、非致命)。
+- 🔴 所有一次性旗標**用完即設回 false**(見 §A.5);**PRD 這些旗標永遠 false**(見 governance §3)。
 
 ### A.3 切換映像 + 重啟
 ```bash
@@ -340,5 +341,23 @@ failed to compile wasm module: RuntimeError: abort(...re2.wasm)
 
 ---
 
+## 15. FIX-095 一次性 Stage 3 prompt 修正(`update-stage3-prompt.js`,2026-06-29 新增)
+
+### 問題
+Stage 3 由 `stage-3-extraction.service.ts` 的 `loadPromptConfigHierarchical()` 從 **DB** `prompt_configs`(FORMAT > COMPANY > GLOBAL)讀 prompt;Azure 的 GLOBAL 記錄來自 2026-06-15「本地 DB 同步匯入」、**重新部署/容器啟動不會更新它**(essential seed 不 seed PromptConfig)。FIX-095 的程式碼(SYSTEM 注入標準欄位 + Case 1 回填)隨映像生效,但舊版 `user_prompt_template` 仍要求 GPT 輸出 `{success,confidence,invoiceData}` 包裹格式,與 SYSTEM 的 `{fields,lineItems,overallConfidence}` 互斥 → 信心度非確定。
+
+### 為何不能用 `scripts/fix-095-update-stage3-prompt.ts`
+production `runner` 映像只 `COPY scripts/docker-entrypoint.sh`(其餘 `scripts/` 與 `tsx` 不在映像),且本機連不到私有 PG。故比照 `grant-global-admin.js` 改寫為純 `pg` 的 `prisma/update-stage3-prompt.js`(Dockerfile 整包 `COPY prisma/`,自動入映像)。
+
+### 解法(增量、冪等、保留資料)
+- `prisma/update-stage3-prompt.js`:參數化 `UPDATE prompt_configs SET user_prompt_template=$1, updated_at=now() WHERE prompt_type::text = any($2) AND scope::text='GLOBAL' AND user_prompt_template IS DISTINCT FROM $1`(目標 2 筆:`STAGE_3_FIELD_EXTRACTION` / `FIELD_EXTRACTION`)。冪等:已是新版則 0 筆。
+- `scripts/docker-entrypoint.sh`:在 dev-data-import 後加 gated step(`RUN_STAGE3_PROMPT_FIX=true` 才跑,非致命)。
+- ⚠️ `NEW_USER_PROMPT_TEMPLATE` 必須與 `scripts/fix-095-update-stage3-prompt.ts`、`prisma/seed-data/prompt-configs.ts` 逐字一致。
+
+### 部署
+設 `RUN_STAGE3_PROMPT_FIX=true` → 切新映像 → log 應見 `[entrypoint] (optional) applying FIX-095 Stage 3 prompt update` + `[stage3-prompt] done — N GLOBAL prompt(s) updated`(首次 N=2;已修則 0)→ **驗證後設回 false**(§A.5)。
+
+---
+
 *維護者: AI 助手 + 開發團隊*
-*最後更新: 2026-06-23*
+*最後更新: 2026-06-29*
