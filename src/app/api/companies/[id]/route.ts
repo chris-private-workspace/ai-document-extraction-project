@@ -26,6 +26,7 @@ import {
   type UpdateCompanyInput,
 } from '@/services/company.service'
 import { UpdateCompanySchema } from '@/types/company'
+import { logAudit } from '@/lib/audit'
 import { ZodError } from 'zod'
 
 interface RouteParams {
@@ -169,6 +170,26 @@ export async function PUT(
     // 5. 更新 Company
     const updatedCompany = await updateCompany(id, validatedData)
 
+    // 5b. CHANGE-095: code 由空補填為有值時寫入稽核記錄
+    if (
+      (existingCompany.code === null || existingCompany.code === '') &&
+      updatedCompany.code
+    ) {
+      const userId = (session.user as { id: string }).id
+      await logAudit({
+        userId,
+        action: 'FORWARDER_UPDATED',
+        entityType: 'Forwarder',
+        entityId: id,
+        details: {
+          field: 'code',
+          before: existingCompany.code ?? null,
+          after: updatedCompany.code,
+        },
+        ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+      })
+    }
+
     // 6. 返回結果
     return NextResponse.json({
       success: true,
@@ -201,6 +222,20 @@ export async function PUT(
           instance: `/api/companies/${id}`,
         },
         { status: 409 }
+      )
+    }
+
+    // CHANGE-095: 嘗試修改已設定的 code（違反「只補空值」政策）
+    if (error instanceof Error && error.message.includes('cannot be modified')) {
+      return NextResponse.json(
+        {
+          type: 'https://api.example.com/errors/bad-request',
+          title: 'Bad Request',
+          status: 400,
+          detail: error.message,
+          instance: `/api/companies/${id}`,
+        },
+        { status: 400 }
       )
     }
 

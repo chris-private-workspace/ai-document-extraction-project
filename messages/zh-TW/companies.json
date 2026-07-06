@@ -1,4 +1,11 @@
 {
+  "new": {
+    "pageTitle": "新增公司",
+    "metaDescription": "新增發票發行公司檔案",
+    "backToList": "返回公司列表",
+    "title": "新增公司",
+    "subtitle": "填寫公司基本資訊以建立新的發票發行公司檔案"
+  },
   "page": {
     "title": "公司管理",
     "description": "管理公司檔案、映射規則和優先級設定"
@@ -66,9 +73,9 @@
   },
   "form": {
     "basic": "基本資訊",
-    "title": "新增貨代商",
-    "editTitle": "編輯貨代商",
-    "description": "填寫貨代商基本資訊",
+    "title": "新增公司",
+    "editTitle": "編輯公司",
+    "description": "填寫公司基本資訊",
     "name": "公司名稱",
     "namePlaceholder": "輸入公司名稱",
     "code": "公司代碼",
@@ -89,7 +96,7 @@
     "defaultConfidence": "預設信心度",
     "defaultConfidenceDescription": "低於此信心度需要人工審核",
     "logo": "Logo",
-    "submit": "創建貨代商",
+    "submit": "建立公司",
     "submitEdit": "儲存變更",
     "submitError": "操作失敗",
     "submitErrorRetry": "操作失敗，請稍後重試",

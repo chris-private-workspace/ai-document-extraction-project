@@ -1272,6 +1272,8 @@ export async function createCompanyJIT(input: {
 export interface UpdateCompanyInput {
   /** 名稱 */
   name?: string
+  /** 公司代碼（CHANGE-095：僅允許對空 code 補填一次，已有值不可修改） */
+  code?: string | null
   /** 描述 */
   description?: string | null
   /** 聯絡電子郵件 */
@@ -1291,7 +1293,7 @@ export interface UpdateCompanyInput {
  *
  * @description
  *   更新 Company Profile 基本資訊
- *   - 不允許修改 code
+ *   - CHANGE-095: 僅允許對「空 code」補填一次；已有 code 不可修改
  *   - 不允許直接修改 status（使用 deactivate/activate）
  *
  * @param id - Company ID
@@ -1314,6 +1316,30 @@ export async function updateCompany(
 }> {
   // 構建更新資料，只包含有值的欄位
   const updateData: Prisma.CompanyUpdateInput = {}
+
+  // CHANGE-095: code 補填處理（「只補空值」政策的後端防線）
+  if (input.code) {
+    const current = await prisma.company.findUnique({
+      where: { id },
+      select: { code: true },
+    })
+
+    if (current?.code) {
+      // 已有 code：只有「維持原值」允許（no-op），改成別的值一律拒絕
+      if (current.code !== input.code) {
+        throw new Error('Company code cannot be modified once set')
+      }
+    } else {
+      // 空 code 補填：唯一性檢查（排除自身）後寫入
+      const existing = await prisma.company.findUnique({
+        where: { code: input.code },
+      })
+      if (existing && existing.id !== id) {
+        throw new Error(`Company with code '${input.code}' already exists`)
+      }
+      updateData.code = input.code
+    }
+  }
 
   if (input.name !== undefined) {
     updateData.name = input.name

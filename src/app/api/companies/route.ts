@@ -139,8 +139,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2. 解析請求體
-    const body = await request.json()
+    // 2. 解析請求體（FIX-102: 支援 multipart/form-data 的 'data' JSON blob 與純 JSON，與 PUT 一致）
+    const contentType = request.headers.get('content-type') || ''
+    let body: unknown
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData()
+      const jsonData = formData.get('data')
+      body = typeof jsonData === 'string' ? JSON.parse(jsonData) : {}
+      // Logo 上傳暫未實現（與 PUT 一致）
+    } else {
+      body = await request.json()
+    }
 
     // 3. 驗證請求數據
     const validatedData = CreateCompanySchema.parse(body)

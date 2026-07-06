@@ -1,4 +1,11 @@
 {
+  "new": {
+    "pageTitle": "Add Company",
+    "metaDescription": "Create a new invoice-issuing company profile",
+    "backToList": "Back to Company List",
+    "title": "Add Company",
+    "subtitle": "Fill in the company details to create a new invoice-issuing company profile"
+  },
   "page": {
     "title": "Company Management",
     "description": "Manage company profiles, mapping rules, and priority settings"
@@ -66,9 +73,9 @@
   },
   "form": {
     "basic": "Basic Information",
-    "title": "Add Forwarder",
-    "editTitle": "Edit Forwarder",
-    "description": "Fill in forwarder basic information",
+    "title": "Add Company",
+    "editTitle": "Edit Company",
+    "description": "Fill in company basic information",
     "name": "Company Name",
     "namePlaceholder": "Enter company name",
     "code": "Company Code",
@@ -89,7 +96,7 @@
     "defaultConfidence": "Default Confidence",
     "defaultConfidenceDescription": "Confidence threshold below this requires manual review",
     "logo": "Logo",
-    "submit": "Create Forwarder",
+    "submit": "Create Company",
     "submitEdit": "Save Changes",
     "submitError": "Operation failed",
     "submitErrorRetry": "Operation failed, please try again",

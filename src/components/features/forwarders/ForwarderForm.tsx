@@ -100,6 +100,8 @@ export function ForwarderForm({
   const t = useTranslations('companies')
   const router = useRouter()
   const isEditMode = isEdit || !!initialData?.id
+  // CHANGE-095: 已有 code 的公司維持鎖定；僅空 code 可補填
+  const isCodeLocked = isEditMode && !!initialData?.code
 
   // 動態標題和描述
   const title = isEditMode ? t('form.editTitle') : t('form.title')
@@ -159,7 +161,11 @@ export function ForwarderForm({
     setCodeCheck({ status: 'checking' })
 
     try {
-      const response = await fetch(`/api/companies/check-code?code=${encodeURIComponent(code)}`)
+      // CHANGE-095: 編輯模式補填時排除自身，避免誤判自身 code 佔用
+      const checkUrl = isEditMode && initialData?.id
+        ? `/api/companies/check-code?code=${encodeURIComponent(code)}&excludeId=${initialData.id}`
+        : `/api/companies/check-code?code=${encodeURIComponent(code)}`
+      const response = await fetch(checkUrl)
       const data = await response.json()
 
       if (data.success && data.data.available) {
@@ -202,8 +208,8 @@ export function ForwarderForm({
   }, [])
 
   const onSubmit = async (data: CreateForwarderFormData) => {
-    // 檢查代碼是否可用（創建模式）
-    if (!isEditMode && codeCheck.status === 'taken') {
+    // 檢查代碼是否可用（創建或補填皆須擋 taken）
+    if (codeCheck.status === 'taken') {
       setSubmitError(t('form.codeCheck.taken'))
       return
     }
@@ -212,17 +218,24 @@ export function ForwarderForm({
     setSubmitError(null)
 
     try {
-      const formData = new FormData()
-      formData.append('name', data.name)
-      formData.append('code', data.code)
-      formData.append('defaultConfidence', data.defaultConfidence.toString())
-
+      // FIX-102: 後端 POST/PUT 皆解析 'data' JSON blob，故以單一 payload 送出
+      const payload: Record<string, unknown> = {
+        name: data.name,
+        defaultConfidence: data.defaultConfidence,
+      }
+      // CHANGE-095: 已鎖定的 code 不送出，僅創建或補空值時送
+      if (!isCodeLocked && data.code) {
+        payload.code = data.code
+      }
       if (data.description) {
-        formData.append('description', data.description)
+        payload.description = data.description
       }
       if (data.contactEmail) {
-        formData.append('contactEmail', data.contactEmail)
+        payload.contactEmail = data.contactEmail
       }
+
+      const formData = new FormData()
+      formData.append('data', JSON.stringify(payload))
       if (logoFile) {
         formData.append('logo', logoFile)
       }
@@ -335,7 +348,7 @@ export function ForwarderForm({
                     e.target.value = e.target.value.toUpperCase()
                   },
                 })}
-                disabled={isSubmitting || isEditMode}
+                disabled={isSubmitting || isCodeLocked}
                 className="uppercase"
               />
               {errors.code ? (
@@ -424,7 +437,7 @@ export function ForwarderForm({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || (!isEditMode && codeCheck.status === 'taken')}
+              disabled={isSubmitting || codeCheck.status === 'taken'}
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {submitLabel}

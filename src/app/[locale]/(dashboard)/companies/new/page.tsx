@@ -20,6 +20,7 @@
  */
 
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { auth } from '@/lib/auth'
 import { hasPermission } from '@/lib/auth/city-permission'
 import { PERMISSIONS } from '@/types/permissions'
@@ -28,9 +29,12 @@ import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
-export const metadata = {
-  title: '新增公司 | AI Document Extraction',
-  description: '新增發票發行公司檔案',
+export async function generateMetadata() {
+  const t = await getTranslations('companies.new')
+  return {
+    title: t('pageTitle'),
+    description: t('metaDescription'),
+  }
 }
 
 /**
@@ -46,6 +50,9 @@ export const metadata = {
  *   3. 渲染新增表單
  */
 export default async function NewCompanyPage() {
+  // 獲取翻譯
+  const t = await getTranslations('companies.new')
+
   // 驗證認證狀態
   const session = await auth()
 
@@ -67,7 +74,7 @@ export default async function NewCompanyPage() {
         <Button variant="ghost" size="sm" asChild>
           <Link href="/companies">
             <ChevronLeft className="mr-1 h-4 w-4" />
-            返回公司列表
+            {t('backToList')}
           </Link>
         </Button>
       </div>
@@ -75,10 +82,10 @@ export default async function NewCompanyPage() {
       {/* 頁面標題 */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          新增公司
+          {t('title')}
         </h1>
         <p className="text-muted-foreground">
-          填寫公司基本資訊以建立新的發票發行公司檔案
+          {t('subtitle')}
         </p>
       </div>
 
