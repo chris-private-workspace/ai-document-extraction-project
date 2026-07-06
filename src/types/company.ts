@@ -768,6 +768,15 @@ export type CreateForwarderRequest = CreateCompanyRequest
  */
 export const UpdateCompanySchema = z.object({
   name: z.string().min(1, '名稱為必填').max(100, '名稱最多 100 個字符').optional(),
+  // CHANGE-095: 允許補填 code（僅對空 code 補填一次，由服務層強制「只補空值」政策）
+  code: z
+    .string()
+    .min(2, '代碼至少 2 個字符')
+    .max(20, '代碼最多 20 個字符')
+    .regex(/^[A-Z0-9_]+$/, '代碼只能包含大寫字母、數字和底線')
+    .transform((v) => v.toUpperCase())
+    .optional()
+    .nullable(),
   type: z.enum(['FORWARDER', 'EXPORTER', 'CARRIER', 'CUSTOMS_BROKER', 'OTHER', 'UNKNOWN']).optional(),
   description: z.string().max(500, '描述最多 500 個字符').optional().nullable(),
   contactEmail: z.string().email('請輸入有效的電子郵件').optional().nullable().or(z.literal('')),
