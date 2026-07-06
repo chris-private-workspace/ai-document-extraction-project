@@ -1,4 +1,11 @@
 {
+  "new": {
+    "pageTitle": "新增公司",
+    "metaDescription": "新增发票发行公司档案",
+    "backToList": "返回公司列表",
+    "title": "新增公司",
+    "subtitle": "填写公司基本信息以建立新的发票发行公司档案"
+  },
   "page": {
     "title": "公司管理",
     "description": "管理公司档案、映射规则和优先级设置"
@@ -66,9 +73,9 @@
   },
   "form": {
     "basic": "基本信息",
-    "title": "新增货代商",
-    "editTitle": "编辑货代商",
-    "description": "填写货代商基本信息",
+    "title": "新增公司",
+    "editTitle": "编辑公司",
+    "description": "填写公司基本信息",
     "name": "公司名称",
     "namePlaceholder": "输入公司名称",
     "code": "公司代码",
@@ -89,7 +96,7 @@
     "defaultConfidence": "默认信心度",
     "defaultConfidenceDescription": "低于此信心度需要人工审核",
     "logo": "Logo",
-    "submit": "创建货代商",
+    "submit": "创建公司",
     "submitEdit": "保存变更",
     "submitError": "操作失败",
     "submitErrorRetry": "操作失败，请稍后重试",
