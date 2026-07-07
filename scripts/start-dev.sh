@@ -44,12 +44,14 @@ PORT=3200
 GENERATE=0
 CLEAN=0
 SKIP_DOCKER=0
+PREPARE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -p|--port)      PORT="$2"; shift 2;;
     --generate)     GENERATE=1; shift;;
     --clean)        CLEAN=1; shift;;
     --skip-docker)  SKIP_DOCKER=1; shift;;
+    --prepare)      PREPARE=1; shift;;
     *)              fail "未知參數：$1";;
   esac
 done
@@ -143,13 +145,24 @@ fi
 
 if [[ -n "$PORT_PID" ]]; then
   warn "端口 ${PORT} 已被進程佔用（PID ${PORT_PID}）"
-  fail "請先停止該進程，或改用其他端口（-p <其他>）"
+  if [[ $PREPARE -eq 1 ]]; then
+    warn "（--prepare 模式）僅準備環境，端口衝突交由後續啟動流程處理"
+  else
+    fail "請先停止該進程，或改用其他端口（-p <其他>）"
+  fi
+else
+  ok "端口 ${PORT} 可用"
 fi
-ok "端口 ${PORT} 可用"
 
 # =================================================================
 # Step 6: 啟動 Next.js dev server（前景）
 # =================================================================
+if [[ $PREPARE -eq 1 ]]; then
+  step 6 "環境準備完成（--prepare）"
+  ok "Docker + PostgreSQL + Prisma 已就緒；未啟動 dev server（交由呼叫方啟動）"
+  exit 0
+fi
+
 step 6 "啟動 Next.js dev server（port ${PORT}，Ctrl+C 可停止）"
 echo ""
 
