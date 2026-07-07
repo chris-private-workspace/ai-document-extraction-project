@@ -1,5 +1,9 @@
 # 🚀 情況6: 服務啟動 - 重新啟動所有開發環境服務
 
+> 🔴 **啟動優先用統一腳本**：手動前景啟動用 `scripts/start-dev.ps1`（Windows）／`scripts/start-dev.sh`（Bash）——含 Docker 啟動、PostgreSQL healthy 等待、Prisma generate 偵測、端口檢查；需 dev server 跨 AI session 存活時，用排程任務 `AiDocDevServer`（`schtasks /run /tn AiDocDevServer`，內部呼叫 `scripts/dev-server-detached.ps1`，log 在 `%LOCALAPPDATA%\ai-doc-devserver\dev-server.log`）。本文件保留作為故障排解與情境背景參考。
+>
+> ⚠️ **端口注意**：dev server 預設端口已為 **3200**（`package.json` 自 CHANGE-096 起 `--port 3200`）。本文件下方部分歷史內容仍寫 3005，以 3200 為準。
+
 > **使用時機**: 開發環境需要啟動或重啟所有服務
 > **目標**: 確保所有 Docker 服務與 Next.js 開發伺服器正常運行
 > **適用場景**: 電腦重開機後、服務異常、開始新的開發工作、容器衝突排除
@@ -97,15 +101,15 @@ Bash: docker-compose ps
 # 1. 檢查端口佔用
 Bash: netstat -ano | findstr ":3000 :3005 :3200" | findstr LISTENING
 
-# 2. 啟動開發伺服器（專案預設 port 3005）
+# 2. 啟動開發伺服器（專案預設 port 3200）
 Bash: npm run dev
-# 注意: package.json 中 dev script 已設定 --port 3005
+# 注意: package.json 中 dev script 自 CHANGE-096 起為 --port 3200
 
-# 3. 如果 port 3005 被佔用，使用備用端口
+# 3. 如果 port 3200 被佔用，使用備用端口
 Bash: npm run dev -- -p 3200
 ```
 
-**備用端口優先順序**: 3005 (預設) → 3200 → 3300 → 3500
+**備用端口優先順序**: 3200 (預設) → 3300 → 3500
 
 ### Step 5: 等待並驗證服務就緒 (1 分鐘)
 

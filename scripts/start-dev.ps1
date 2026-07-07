@@ -28,7 +28,8 @@ param(
     [int]$Port = 3200,
     [switch]$Generate,
     [switch]$Clean,
-    [switch]$SkipDocker
+    [switch]$SkipDocker,
+    [switch]$Prepare
 )
 
 $ErrorActionPreference = 'Stop'
@@ -140,6 +141,12 @@ Write-OK "端口 $Port 可用"
 # =================================================================
 # Step 6: 啟動 Next.js dev server（前景）
 # =================================================================
+if ($Prepare) {
+    Write-Step 6 "環境準備完成（-Prepare）"
+    Write-OK "Docker + PostgreSQL + Prisma 已就緒；未啟動 dev server（交由呼叫方啟動）"
+    exit 0
+}
+
 Write-Step 6 "啟動 Next.js dev server（port $Port，Ctrl+C 可停止）"
 Write-Host ""
 
