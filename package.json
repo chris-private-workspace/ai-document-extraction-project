@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "predev": "node scripts/copy-pdfjs-worker.mjs",
-    "dev": "next dev --port 3005",
+    "dev": "next dev --port 3200",
     "prebuild": "node scripts/copy-pdfjs-worker.mjs",
     "build": "next build",
     "start": "next start",
