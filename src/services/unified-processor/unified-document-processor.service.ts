@@ -263,8 +263,11 @@ export class UnifiedDocumentProcessorService {
       // 代表 DB 當下不可用，重試已耗盡。此時不回退 V2（V2 同樣寫不進 DB，只會白燒 GPT），
       // 直接標為失敗結果（可重試），避免產生半殘資料拖垮下游 template 匹配。
       if (isTransientDbError(err)) {
+        // 格式字串使用字面常量 + %s 佔位符（動態值作為後續參數），
+        // 避免非字面變數進入 console 格式字串（Semgrep unsafe-formatstring）。
         console.error(
-          `[UnifiedProcessor] transient DB error for ${input.fileId}, aborting (no V2 fallback):`,
+          '[UnifiedProcessor] transient DB error for %s, aborting (no V2 fallback): %s',
+          input.fileId,
           err.message,
         );
         return this.buildErrorResult(input.fileId, err, null, startTime);
@@ -273,7 +276,8 @@ export class UnifiedDocumentProcessorService {
       // 檢查是否需要回退到 V2
       if (v3Flags.fallbackToV2OnError) {
         console.warn(
-          `[UnifiedProcessor] V3 failed for ${input.fileId}, falling back to V2:`,
+          '[UnifiedProcessor] V3 failed for %s, falling back to V2: %s',
+          input.fileId,
           err.message
         );
         // 回退到 V2

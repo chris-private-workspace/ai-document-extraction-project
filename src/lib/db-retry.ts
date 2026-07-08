@@ -117,9 +117,15 @@ export async function withDbRetry<T>(
       }
 
       const delay = backoff[attempt - 1] ?? backoff[backoff.length - 1] ?? 1000
+      // 格式字串使用字面常量 + %s/%d 佔位符（動態值作為後續參數傳入），
+      // 避免將非字面變數放進 console 格式字串（Semgrep unsafe-formatstring）。
       console.warn(
-        `[withDbRetry] transient DB error on "${label}" (attempt ${attempt}/${attempts}), retrying in ${delay}ms:`,
-        error instanceof Error ? error.message : error
+        '[withDbRetry] transient DB error on "%s" (attempt %d/%d), retrying in %dms: %s',
+        label,
+        attempt,
+        attempts,
+        delay,
+        error instanceof Error ? error.message : String(error)
       )
       await sleep(delay)
     }
