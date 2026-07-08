@@ -54,6 +54,7 @@ import { getStepHandlerFactory } from './factory/step-factory';
 import { legacyProcessorAdapter } from './adapters/legacy-processor.adapter';
 import { IStepHandler } from './interfaces/step-handler.interface';
 import { prisma } from '@/lib/prisma';
+import { withDbRetry, isTransientDbError } from '@/lib/db-retry';
 
 // V3 相關導入 (CHANGE-021)
 import {
@@ -232,7 +233,9 @@ export class UnifiedDocumentProcessorService {
 
     try {
       // 更新文件狀態為處理中
-      await this.updateDocumentStatus(input.fileId, 'OCR_PROCESSING');
+      // CHANGE-098: 標記為 critical — 這是初始關鍵狀態轉換，retry 後仍失敗即上拋，
+      // 觸發下方 catch 的 fail-stop，避免在 DB 不可用時仍白燒 GPT 產生半殘結果。
+      await this.updateDocumentStatus(input.fileId, 'OCR_PROCESSING', { critical: true });
 
       // 構建 V3 輸入
       const v3Input: ExtractionV3Input = {
@@ -255,6 +258,17 @@ export class UnifiedDocumentProcessorService {
       return this.convertV3Result(input.fileId, v3Result, startTime);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
+
+      // CHANGE-098 fail-stop: transient DB 連線錯誤（如 "Connection terminated unexpectedly"）
+      // 代表 DB 當下不可用，重試已耗盡。此時不回退 V2（V2 同樣寫不進 DB，只會白燒 GPT），
+      // 直接標為失敗結果（可重試），避免產生半殘資料拖垮下游 template 匹配。
+      if (isTransientDbError(err)) {
+        console.error(
+          `[UnifiedProcessor] transient DB error for ${input.fileId}, aborting (no V2 fallback):`,
+          err.message,
+        );
+        return this.buildErrorResult(input.fileId, err, null, startTime);
+      }
 
       // 檢查是否需要回退到 V2
       if (v3Flags.fallbackToV2OnError) {
@@ -287,18 +301,29 @@ export class UnifiedDocumentProcessorService {
    */
   private async updateDocumentStatus(
     fileId: string,
-    status: import('@prisma/client').DocumentStatus
+    status: import('@prisma/client').DocumentStatus,
+    options?: { critical?: boolean }
   ): Promise<void> {
     try {
-      await prisma.document.update({
-        where: { id: fileId },
-        data: { status },
-      });
+      // CHANGE-098: transient 連線錯誤自動重試（update by id 為冪等操作，重試安全）。
+      await withDbRetry(
+        () =>
+          prisma.document.update({
+            where: { id: fileId },
+            data: { status },
+          }),
+        { label: `updateDocumentStatus:${status}` }
+      );
     } catch (statusErr) {
       console.warn(
         `[UnifiedProcessor] Failed to update status to ${status} for ${fileId}:`,
         statusErr
       );
+      // CHANGE-098: 關鍵狀態轉換 retry 後仍失敗 → 上拋，由呼叫方 fail-stop；
+      // 非關鍵（中間狀態）維持 best-effort，僅記錄不中斷。
+      if (options?.critical) {
+        throw statusErr;
+      }
     }
   }
 

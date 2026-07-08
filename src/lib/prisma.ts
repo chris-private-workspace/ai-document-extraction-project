@@ -46,7 +46,21 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient(): PrismaClient {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
+    // CHANGE-098: 連線韌性設定。降低私有端點閒置連線被網路層默默切斷造成的
+    // "Connection terminated unexpectedly" 硬失敗（見 CHANGE-098 根因查證）。
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
+    max: 10,
   })
+
+  // CHANGE-098: 監聽閒置 client 錯誤，避免 pg Pool 的 'error' 事件無 listener 時
+  // 變成未捕捉例外拖垮整個進程。
+  pool.on('error', (err) => {
+    console.error('[prisma] idle pg pool client error:', err.message)
+  })
+
   const adapter = new PrismaPg(pool)
 
   return new PrismaClient({
