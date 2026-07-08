@@ -81,6 +81,7 @@ import { ConfidenceV3Service } from './confidence-v3.service';
 import { StageOrchestratorService } from './stages/stage-orchestrator.service';
 import { ConfidenceV3_1Service } from './confidence-v3-1.service';
 import { prisma } from '@/lib/prisma';
+import { isTransientDbError } from '@/lib/db-retry';
 // CHANGE-032 imports
 import type {
   ReferenceNumberMatchResult,
@@ -423,6 +424,12 @@ export class ExtractionV3Service {
           });
         }
       } catch (refMatchError) {
+        // CHANGE-098 fail-stop: transient DB 連線錯誤（如 "Connection terminated unexpectedly"）
+        // 代表 DB 當下不可用，不可與「查無匹配」混為一談、也不可靜默續跑（會產生半殘文件）。
+        // 上拋讓上層 processWithV3 catch 判定 transient → 標失敗（可重試）並中止。
+        if (isTransientDbError(refMatchError)) {
+          throw refMatchError;
+        }
         const errorMsg = refMatchError instanceof Error ? refMatchError.message : 'Unknown ref match error';
         warnings.push(`Reference number matching failed: ${errorMsg}`);
         stepResults.push({

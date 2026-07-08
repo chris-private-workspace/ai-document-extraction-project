@@ -27,6 +27,7 @@
 
 import { Prisma, ProcessingPath, QueueStatus } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { withDbRetry } from '@/lib/db-retry';
 import type {
   UnifiedProcessingResult,
   UnifiedRoutingDecision,
@@ -399,7 +400,12 @@ export async function persistProcessingResult(
   }
 
   // 使用 Prisma 交易確保原子性
-  const [extractionResult] = await prisma.$transaction(txOperations) as [{ id: string }, ...unknown[]];
+  // CHANGE-098: 以 withDbRetry 包裝。交易內全為冪等操作（upsert / update by id）且具原子性，
+  // 連線瞬斷時整批 rollback，重試安全 → 避免提取結果因 transient 連線錯誤而遺失。
+  const [extractionResult] = (await withDbRetry(
+    () => prisma.$transaction(txOperations),
+    { label: `persistProcessingResult:${documentId}` },
+  )) as [{ id: string }, ...unknown[]];
 
   return {
     extractionResultId: extractionResult.id,
