@@ -127,12 +127,14 @@
     "parseError": "无法解析文件，请确认是否为有效的 .xlsx 文件。",
     "emptyFile": "Excel 文件中没有数据行。",
     "invalidFormat": "无效的文件格式，仅接受 .xlsx 文件。",
+    "overLimit": "此文件含 {actual} 笔，超过单档上限 {max} 笔，请拆分后分批导入。",
     "preview": {
       "title": "数据预览",
       "showing": "显示前 {count} 条，共 {total} 条",
       "allRows": "共 {total} 条",
       "valid": "有效",
       "invalid": "无效",
+      "duplicates": "重复：{count} 条",
       "rowNumber": "行"
     },
     "columns": {
@@ -163,7 +165,22 @@
       "imported": "导入：{count} 条",
       "updated": "更新：{count} 条",
       "skipped": "跳过：{count} 条",
-      "errors": "错误：{count} 条"
+      "errors": "错误：{count} 条",
+      "skipReasons": {
+        "duplicateExisting": "已存在（未覆盖）：{count} 条",
+        "regionNotFound": "地区不存在：{count} 条",
+        "validationFailed": "验证失败：{count} 条"
+      }
+    },
+    "validation": {
+      "numberRequired": "号码为必填（1-100 字符）",
+      "invalidType": "无效的类型：{type}",
+      "yearRange": "年份必须介于 2000 至 2100",
+      "regionRequired": "地区代码为必填",
+      "regionCodeLength": "地区代码需 2-20 字符",
+      "regionNotFound": "地区代码不存在：{code}",
+      "descriptionTooLong": "描述不能超过 500 字符",
+      "codeTooLong": "识别码不能超过 50 字符"
     }
   },
   "export": {
