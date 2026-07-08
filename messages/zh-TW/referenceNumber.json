@@ -127,12 +127,14 @@
     "parseError": "無法解析文件，請確認是否為有效的 .xlsx 文件。",
     "emptyFile": "Excel 文件中沒有資料列。",
     "invalidFormat": "無效的文件格式，僅接受 .xlsx 文件。",
+    "overLimit": "此檔案含 {actual} 筆，超過單檔上限 {max} 筆，請拆分後分批匯入。",
     "preview": {
       "title": "資料預覽",
       "showing": "顯示前 {count} 筆，共 {total} 筆",
       "allRows": "共 {total} 筆",
       "valid": "有效",
       "invalid": "無效",
+      "duplicates": "重複：{count} 筆",
       "rowNumber": "列"
     },
     "columns": {
@@ -163,7 +165,22 @@
       "imported": "導入：{count} 筆",
       "updated": "更新：{count} 筆",
       "skipped": "跳過：{count} 筆",
-      "errors": "錯誤：{count} 筆"
+      "errors": "錯誤：{count} 筆",
+      "skipReasons": {
+        "duplicateExisting": "已存在（未覆蓋）：{count} 筆",
+        "regionNotFound": "地區不存在：{count} 筆",
+        "validationFailed": "驗證失敗：{count} 筆"
+      }
+    },
+    "validation": {
+      "numberRequired": "號碼為必填（1-100 字元）",
+      "invalidType": "無效的類型：{type}",
+      "yearRange": "年份必須介於 2000 至 2100",
+      "regionRequired": "地區代碼為必填",
+      "regionCodeLength": "地區代碼需 2-20 字元",
+      "regionNotFound": "地區代碼不存在：{code}",
+      "descriptionTooLong": "描述不能超過 500 字元",
+      "codeTooLong": "識別碼不能超過 50 字元"
     }
   },
   "export": {

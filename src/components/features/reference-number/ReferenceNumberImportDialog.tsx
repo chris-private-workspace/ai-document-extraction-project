@@ -59,6 +59,7 @@ import {
   useImportReferenceNumbers,
 } from '@/hooks/use-reference-numbers'
 import type { ImportReferenceNumbersResult } from '@/hooks/use-reference-numbers'
+import { useRegions } from '@/hooks/use-regions'
 
 // ============================================================
 // Constants
@@ -120,8 +121,8 @@ const ZH_COLUMN_MAP: Record<string, string> = {
 /** Max rows to show in preview */
 const PREVIEW_LIMIT = 10
 
-/** Max items allowed */
-const MAX_ITEMS = 1000
+/** Max items allowed (SI-3: 與後端 IMPORT_MAX_ITEMS 必須同步) */
+const MAX_ITEMS = 5000
 
 // ============================================================
 // Types
@@ -198,28 +199,6 @@ function parseDate(value: ExcelJS.CellValue): string | undefined {
   return undefined
 }
 
-/**
- * Validate a single parsed row.
- */
-function validateRow(row: ParsedRow): { valid: boolean; errors: string[] } {
-  const errors: string[] = []
-
-  if (!row.number || row.number.length === 0 || row.number.length > 100) {
-    errors.push('Number is required (1-100 chars)')
-  }
-  if (!VALID_TYPES.includes(row.type as typeof VALID_TYPES[number])) {
-    errors.push(`Invalid type: ${row.type}`)
-  }
-  if (!row.year || row.year < 2000 || row.year > 2100) {
-    errors.push(`Year must be 2000-2100`)
-  }
-  if (!row.regionCode || row.regionCode.trim().length === 0) {
-    errors.push('Region Code is required')
-  }
-
-  return { valid: errors.length === 0, errors }
-}
-
 // ============================================================
 // Component
 // ============================================================
@@ -241,8 +220,57 @@ export function ReferenceNumberImportDialog({
   const [skipInvalid, setSkipInvalid] = React.useState(true)
   const [result, setResult] = React.useState<ImportReferenceNumbersResult | null>(null)
   const [isParsing, setIsParsing] = React.useState(false)
+  // SI-3: 檔案資料列數超過 MAX_ITEMS 時記錄實際列數，顯示明確超限提示（不再靜默截斷）
+  const [overLimitRows, setOverLimitRows] = React.useState<number | null>(null)
 
   const importMutation = useImportReferenceNumbers()
+
+  // SI-2：載入現有地區清單，用於驗證 regionCode 是否存在
+  const { data: regions } = useRegions()
+  const validRegionCodes = React.useMemo(
+    () => new Set((regions ?? []).map((r) => r.code.toUpperCase())),
+    [regions]
+  )
+
+  // SI-2：與後端規則一致的單筆驗證（地區存在、長度限制、i18n 訊息）
+  const validateRow = React.useCallback(
+    (row: ParsedRow): { valid: boolean; errors: string[] } => {
+      const errors: string[] = []
+
+      if (!row.number || row.number.length === 0 || row.number.length > 100) {
+        errors.push(t('validation.numberRequired'))
+      }
+      if (!VALID_TYPES.includes(row.type as typeof VALID_TYPES[number])) {
+        errors.push(t('validation.invalidType', { type: row.type }))
+      }
+      if (!row.year || row.year < 2000 || row.year > 2100) {
+        errors.push(t('validation.yearRange'))
+      }
+
+      const regionCode = row.regionCode?.trim() ?? ''
+      if (!regionCode) {
+        errors.push(t('validation.regionRequired'))
+      } else if (regionCode.length < 2 || regionCode.length > 20) {
+        errors.push(t('validation.regionCodeLength'))
+      } else if (
+        validRegionCodes.size > 0 &&
+        !validRegionCodes.has(regionCode.toUpperCase())
+      ) {
+        // 僅在地區清單已載入時檢查存在性（未載入時不誤擋）
+        errors.push(t('validation.regionNotFound', { code: regionCode }))
+      }
+
+      if (row.description && row.description.length > 500) {
+        errors.push(t('validation.descriptionTooLong'))
+      }
+      if (row.code && row.code.length > 50) {
+        errors.push(t('validation.codeTooLong'))
+      }
+
+      return { valid: errors.length === 0, errors }
+    },
+    [t, validRegionCodes]
+  )
 
   // --- Derived state ---
 
@@ -256,6 +284,32 @@ export function ReferenceNumberImportDialog({
     () => validatedRows.slice(0, PREVIEW_LIMIT),
     [validatedRows]
   )
+  // SI-4：偵測檔案內重複鍵（相同 number|type|year|regionCode）
+  const duplicateCount = React.useMemo(() => {
+    const seen = new Set<string>()
+    let dup = 0
+    for (const r of validatedRows) {
+      const key = `${r.data.number}|${r.data.type}|${r.data.year}|${r.data.regionCode.trim().toUpperCase()}`
+      if (seen.has(key)) dup++
+      else seen.add(key)
+    }
+    return dup
+  }, [validatedRows])
+
+  // SI-4：依原因統計跳過筆數（供結果明細顯示）
+  const skipReasonCounts = React.useMemo(() => {
+    const counts = {
+      DUPLICATE_EXISTING: 0,
+      REGION_NOT_FOUND: 0,
+      VALIDATION_FAILED: 0,
+    }
+    for (const d of result?.skippedDetails ?? []) {
+      if (d.reason in counts) {
+        counts[d.reason as keyof typeof counts]++
+      }
+    }
+    return counts
+  }, [result])
 
   // --- Reset ---
 
@@ -268,6 +322,7 @@ export function ReferenceNumberImportDialog({
     setSkipInvalid(true)
     setResult(null)
     setIsParsing(false)
+    setOverLimitRows(null)
   }, [])
 
   // --- Format file size ---
@@ -285,6 +340,7 @@ export function ReferenceNumberImportDialog({
     setResult(null)
     setParseError(null)
     setValidatedRows([])
+    setOverLimitRows(null)
     setIsParsing(true)
 
     try {
@@ -321,9 +377,18 @@ export function ReferenceNumberImportDialog({
         return
       }
 
+      // SI-3: 明確偵測超限，不再靜默截斷
+      // worksheet.rowCount 含表頭，扣除後為資料列數（可能含尾端空列，作為超限 gate 已足夠）
+      const dataRowCount = worksheet.rowCount - 1
+      if (dataRowCount > MAX_ITEMS) {
+        setOverLimitRows(dataRowCount)
+        setIsParsing(false)
+        return
+      }
+
       // Parse data rows
       const rows: ValidatedRow[] = []
-      const lastRow = Math.min(worksheet.rowCount, MAX_ITEMS + 1) // +1 for header
+      const lastRow = worksheet.rowCount
 
       for (let rowIdx = 2; rowIdx <= lastRow; rowIdx++) {
         const row = worksheet.getRow(rowIdx)
@@ -392,7 +457,7 @@ export function ReferenceNumberImportDialog({
     } finally {
       setIsParsing(false)
     }
-  }, [])
+  }, [validateRow])
 
   // --- Template Download ---
 
@@ -655,6 +720,16 @@ export function ReferenceNumberImportDialog({
                 </Alert>
               )}
 
+              {/* SI-3: 超限明確提示（取代靜默截斷） */}
+              {overLimitRows !== null && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    {t('overLimit', { actual: overLimitRows, max: MAX_ITEMS })}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {/* Preview Table */}
               {totalRows > 0 && (
                 <div className="space-y-2">
@@ -731,6 +806,11 @@ export function ReferenceNumberImportDialog({
                         {t('preview.invalid')}: {invalidCount}
                       </span>
                     )}
+                    {duplicateCount > 0 && (
+                      <span className="text-amber-600">
+                        {t('preview.duplicates', { count: duplicateCount })}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -767,6 +847,33 @@ export function ReferenceNumberImportDialog({
                   <li>{t('result.imported', { count: result.imported })}</li>
                   <li>{t('result.updated', { count: result.updated })}</li>
                   <li>{t('result.skipped', { count: result.skipped })}</li>
+                  {result.skippedDetails && result.skippedDetails.length > 0 && (
+                    <li className="list-none">
+                      <ul className="list-[circle] list-inside ml-4 text-xs">
+                        {skipReasonCounts.DUPLICATE_EXISTING > 0 && (
+                          <li>
+                            {t('result.skipReasons.duplicateExisting', {
+                              count: skipReasonCounts.DUPLICATE_EXISTING,
+                            })}
+                          </li>
+                        )}
+                        {skipReasonCounts.REGION_NOT_FOUND > 0 && (
+                          <li>
+                            {t('result.skipReasons.regionNotFound', {
+                              count: skipReasonCounts.REGION_NOT_FOUND,
+                            })}
+                          </li>
+                        )}
+                        {skipReasonCounts.VALIDATION_FAILED > 0 && (
+                          <li>
+                            {t('result.skipReasons.validationFailed', {
+                              count: skipReasonCounts.VALIDATION_FAILED,
+                            })}
+                          </li>
+                        )}
+                      </ul>
+                    </li>
+                  )}
                   {result.errors.length > 0 && (
                     <li className="text-destructive">
                       {t('result.errors', { count: result.errors.length })}

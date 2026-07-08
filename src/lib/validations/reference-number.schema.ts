@@ -327,8 +327,8 @@ export type ReferenceNumberIdParam = z.infer<typeof referenceNumberIdParamSchema
 // Import Reference Numbers Schema (Story 20.4)
 // ============================================================================
 
-/** 導入批次最大數量 */
-const IMPORT_MAX_ITEMS = 1000;
+/** 導入批次最大數量（SI-3：受限於前端 ExcelJS 解析 + React 狀態的瀏覽器承載能力，與前端 MAX_ITEMS 必須同步） */
+const IMPORT_MAX_ITEMS = 5000;
 
 /** Region Code 最大長度 */
 const REGION_CODE_MAX_LENGTH = 20;

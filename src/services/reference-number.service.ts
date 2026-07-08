@@ -100,15 +100,22 @@ export interface ReferenceNumberListResult {
 // Helper Functions
 // ============================================================================
 
+/** SI-6：code 隨機碼字母表（大寫英數，36 種） */
+const CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
 /**
- * 生成隨機碼（6 字元大寫英數字）
+ * 生成隨機碼（保證 6 字元大寫英數字）
+ *
+ * SI-6：原實作以 base64 過濾後取前 6 字元，過濾非英數後可能不足 6 字元、
+ * 縮小唯一性空間。改為逐字元從 36 字元表取樣，保證固定長度並降低碰撞。
  */
 function generateRandomCode(): string {
-  return randomBytes(4)
-    .toString('base64')
-    .replace(/[^A-Za-z0-9]/g, '')
-    .substring(0, 6)
-    .toUpperCase();
+  const bytes = randomBytes(6);
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  }
+  return result;
 }
 
 /**
@@ -126,6 +133,25 @@ async function generateCode(year: number, regionCode: string): Promise<string> {
     return generateCode(year, regionCode);
   }
 
+  return code;
+}
+
+/**
+ * SI-6：以記憶體集合確保唯一的 code 生成（供批次匯入使用）
+ * 不查詢資料庫，改在傳入的 usedCodes 集合中檢查與登記，避免逐筆 N+1 查詢。
+ */
+function generateUniqueCodeInMemory(
+  year: number,
+  regionCode: string,
+  usedCodes: Set<string>
+): string {
+  let code: string;
+  let attempts = 0;
+  do {
+    code = `REF-${year}-${regionCode}-${generateRandomCode()}`;
+    attempts++;
+  } while (usedCodes.has(code) && attempts < 20);
+  usedCodes.add(code);
   return code;
 }
 
@@ -568,6 +594,33 @@ export async function referenceNumberExists(id: string): Promise<boolean> {
 // Import (Story 20.4)
 // ============================================================================
 
+/** SI-5：分批交易的每批筆數（平衡交易時長與可靠性） */
+const IMPORT_BATCH_SIZE = 200;
+
+/**
+ * SI-4：匯入跳過/失敗的原因分類
+ * - DUPLICATE_EXISTING：記錄已存在且未啟用覆蓋
+ * - REGION_NOT_FOUND：地區代碼不存在
+ * - VALIDATION_FAILED：資料驗證失敗或其他寫入錯誤
+ */
+export type ImportSkipReason =
+  | 'DUPLICATE_EXISTING'
+  | 'REGION_NOT_FOUND'
+  | 'VALIDATION_FAILED';
+
+/**
+ * SI-4：帶原因分類的匯入單筆錯誤
+ */
+class ImportItemError extends Error {
+  constructor(
+    public reason: ImportSkipReason,
+    message: string
+  ) {
+    super(message);
+    this.name = 'ImportItemError';
+  }
+}
+
 /**
  * 導入結果統計
  */
@@ -576,6 +629,12 @@ export interface ImportResult {
   updated: number;
   skipped: number;
   errors: Array<{ index: number; error: string }>;
+  /** SI-4：跳過/失敗的原因明細（相容擴充） */
+  skippedDetails: Array<{
+    index: number;
+    reason: ImportSkipReason;
+    message: string;
+  }>;
 }
 
 /**
@@ -602,6 +661,7 @@ export async function importReferenceNumbers(
     updated: 0,
     skipped: 0,
     errors: [],
+    skippedDetails: [],
   };
 
   // 預先載入所有 region 代碼映射，避免 N+1 查詢
@@ -612,88 +672,146 @@ export async function importReferenceNumbers(
     regions.map((r) => [r.code.toUpperCase(), r.id])
   );
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
+  // SI-6：一次撈出既有 code 至記憶體集合，生成流水號時在記憶體檢查唯一性，
+  // 避免逐筆 findUnique 造成的 N+1 查詢
+  const existingCodeRows = await prisma.referenceNumber.findMany({
+    select: { code: true },
+  });
+  const usedCodes = new Set(existingCodeRows.map((r) => r.code));
 
-    try {
-      // 查找 region
-      const regionId = regionMap.get(item.regionCode.toUpperCase());
-      if (!regionId) {
-        throw new Error(`地區代碼 ${item.regionCode} 不存在`);
-      }
+  // 單筆處理邏輯（db 可為 prisma 或交易 client tx）
+  // 拋出 ImportItemError（帶原因）或其他錯誤；由呼叫端依 skipInvalid 決定容錯或中止
+  const processItem = async (
+    db: Prisma.TransactionClient,
+    item: ImportReferenceNumbersInput['items'][number],
+    index: number
+  ): Promise<void> => {
+    // 查找 region
+    const regionId = regionMap.get(item.regionCode.toUpperCase());
+    if (!regionId) {
+      throw new ImportItemError(
+        'REGION_NOT_FOUND',
+        `地區代碼 ${item.regionCode} 不存在`
+      );
+    }
 
-      // 檢查是否已存在（優先 by code，其次唯一約束）
-      let existing = null;
-      if (item.code) {
-        existing = await prisma.referenceNumber.findUnique({
-          where: { code: item.code },
-        });
-      }
+    // 檢查是否已存在（優先 by code，其次唯一約束）
+    let existing = null;
+    if (item.code) {
+      existing = await db.referenceNumber.findUnique({
+        where: { code: item.code },
+      });
+    }
 
-      if (!existing) {
-        existing = await prisma.referenceNumber.findFirst({
-          where: {
-            number: item.number,
-            type: item.type,
-            year: item.year,
-            regionId,
-          },
-        });
-      }
+    if (!existing) {
+      existing = await db.referenceNumber.findFirst({
+        where: {
+          number: item.number,
+          type: item.type,
+          year: item.year,
+          regionId,
+        },
+      });
+    }
 
-      if (existing) {
-        if (overwriteExisting) {
-          await prisma.referenceNumber.update({
-            where: { id: existing.id },
-            data: {
-              number: item.number,
-              type: item.type,
-              documentSubType: item.documentSubType ?? null,
-              year: item.year,
-              regionId,
-              description: item.description ?? null,
-              validFrom: item.validFrom ? new Date(item.validFrom) : null,
-              validUntil: item.validUntil ? new Date(item.validUntil) : null,
-              isActive: item.isActive,
-            },
-          });
-          result.updated++;
-        } else {
-          result.skipped++;
-        }
-      } else {
-        // 生成或使用提供的 code
-        const code = item.code || (await generateCode(item.year, item.regionCode));
-
-        await prisma.referenceNumber.create({
+    if (existing) {
+      if (overwriteExisting) {
+        await db.referenceNumber.update({
+          where: { id: existing.id },
           data: {
-            code,
             number: item.number,
             type: item.type,
+            documentSubType: item.documentSubType ?? null,
             year: item.year,
             regionId,
             description: item.description ?? null,
             validFrom: item.validFrom ? new Date(item.validFrom) : null,
             validUntil: item.validUntil ? new Date(item.validUntil) : null,
             isActive: item.isActive,
-            createdById,
           },
         });
-        result.imported++;
-      }
-    } catch (error) {
-      if (skipInvalid) {
-        result.errors.push({
-          index: i,
-          error: error instanceof Error ? error.message : '未知錯誤',
-        });
-        result.skipped++;
+        result.updated++;
       } else {
-        // skipInvalid = false：整批失敗，拋出帶有 index 資訊的錯誤
-        throw new Error(
-          `導入第 ${i + 1} 筆時失敗：${error instanceof Error ? error.message : '未知錯誤'}`
-        );
+        result.skipped++;
+        result.skippedDetails.push({
+          index,
+          reason: 'DUPLICATE_EXISTING',
+          message: '記錄已存在且未啟用覆蓋',
+        });
       }
+    } else {
+      // 生成或使用提供的 code（記憶體集合確保唯一）
+      let code: string;
+      if (item.code) {
+        code = item.code;
+        usedCodes.add(code);
+      } else {
+        code = generateUniqueCodeInMemory(item.year, item.regionCode, usedCodes);
+      }
+
+      await db.referenceNumber.create({
+        data: {
+          code,
+          number: item.number,
+          type: item.type,
+          documentSubType: item.documentSubType ?? null,
+          year: item.year,
+          regionId,
+          description: item.description ?? null,
+          validFrom: item.validFrom ? new Date(item.validFrom) : null,
+          validUntil: item.validUntil ? new Date(item.validUntil) : null,
+          isActive: item.isActive,
+          createdById,
+        },
+      });
+      result.imported++;
+    }
+  };
+
+  if (skipInvalid) {
+    // SI-5（容錯模式）：逐筆獨立寫入，不使用交易。
+    // 單筆錯誤（含資料庫約束衝突）只影響該筆，其餘照常寫入。
+    // 註：容錯與「批次原子性」語意互斥——若包在單一交易內，PostgreSQL 交易一旦
+    // 因某筆出錯進入 aborted 狀態，同批後續操作都會失敗，故此模式刻意不包交易。
+    for (let i = 0; i < items.length; i++) {
+      try {
+        await processItem(prisma, items[i], i);
+      } catch (error) {
+        const reason: ImportSkipReason =
+          error instanceof ImportItemError ? error.reason : 'VALIDATION_FAILED';
+        const message = error instanceof Error ? error.message : '未知錯誤';
+        result.errors.push({ index: i, error: message });
+        result.skippedDetails.push({ index: i, reason, message });
+        result.skipped++;
+      }
+    }
+  } else {
+    // SI-5（嚴格模式）：分批交易，批次內全有或全無。
+    // 任一筆失敗即拋出 → 該批 rollback 並中止整個匯入
+    // （已提交的前序批次保留，可從失敗點續傳）。
+    for (
+      let batchStart = 0;
+      batchStart < items.length;
+      batchStart += IMPORT_BATCH_SIZE
+    ) {
+      const batchEnd = Math.min(batchStart + IMPORT_BATCH_SIZE, items.length);
+
+      await prisma.$transaction(
+        async (tx) => {
+          for (let i = batchStart; i < batchEnd; i++) {
+            try {
+              await processItem(tx, items[i], i);
+            } catch (error) {
+              throw new Error(
+                `導入第 ${i + 1} 筆時失敗：${
+                  error instanceof Error ? error.message : '未知錯誤'
+                }`
+              );
+            }
+          }
+        },
+        { timeout: 30000, maxWait: 10000 }
+      );
     }
   }
 

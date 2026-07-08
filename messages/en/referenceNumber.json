@@ -127,12 +127,14 @@
     "parseError": "Failed to parse file. Please ensure it is a valid .xlsx file.",
     "emptyFile": "No data rows found in the Excel file.",
     "invalidFormat": "Invalid file format. Only .xlsx files are accepted.",
+    "overLimit": "This file contains {actual} rows, exceeding the single-file limit of {max}. Please split it and import in batches.",
     "preview": {
       "title": "Data Preview",
       "showing": "Showing first {count} of {total} rows",
       "allRows": "All {total} rows",
       "valid": "Valid",
       "invalid": "Invalid",
+      "duplicates": "Duplicates: {count}",
       "rowNumber": "Row"
     },
     "columns": {
@@ -163,7 +165,22 @@
       "imported": "Imported: {count}",
       "updated": "Updated: {count}",
       "skipped": "Skipped: {count}",
-      "errors": "Errors: {count}"
+      "errors": "Errors: {count}",
+      "skipReasons": {
+        "duplicateExisting": "Already exists (not overwritten): {count}",
+        "regionNotFound": "Region not found: {count}",
+        "validationFailed": "Validation failed: {count}"
+      }
+    },
+    "validation": {
+      "numberRequired": "Number is required (1-100 characters)",
+      "invalidType": "Invalid type: {type}",
+      "yearRange": "Year must be between 2000 and 2100",
+      "regionRequired": "Region Code is required",
+      "regionCodeLength": "Region Code must be 2-20 characters",
+      "regionNotFound": "Region Code does not exist: {code}",
+      "descriptionTooLong": "Description must not exceed 500 characters",
+      "codeTooLong": "Code must not exceed 50 characters"
     }
   },
   "export": {

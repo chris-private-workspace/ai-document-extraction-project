@@ -391,6 +391,8 @@ export interface ImportReferenceNumbersResult {
   updated: number
   skipped: number
   errors: Array<{ index: number; error: string }>
+  /** SI-4：跳過/失敗的原因明細（相容擴充，後端可能未回傳） */
+  skippedDetails?: Array<{ index: number; reason: string; message: string }>
 }
 
 /**
