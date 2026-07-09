@@ -409,17 +409,53 @@ export function getExtractionV3_1FlagStatus(): string {
 // ============================================================================
 
 /**
- * 是否經 `LlmGatewayService`（Vercel AI SDK）路由 extraction 的 LLM 呼叫。
+ * gateway 路由主開關（master toggle）。
  *
  * @description
- *   step 4 採**全域硬切換**（無百分比灰度）：
- *   - `FEATURE_LLM_GATEWAY_ENABLED='true'` → gpt-caller 走 gateway（同一批 Azure 模型）。
+ *   - `FEATURE_LLM_GATEWAY_ENABLED='true'` → 啟用 gateway 路由（同一批 Azure 模型）。
  *   - 預設 / 其他值 → 走既有直接 Azure `fetch`，**行為零變**（opt-in 安全模型）。
- *   百分比灰度 + shadow mode（新舊並行比對 confidence 分佈）留 **step 4b**——
- *   需先把 `fileId` 串到呼叫點才能做一致性灰度路由（`simpleHash(fileId)`）。
+ *   實際是否對某次呼叫走 gateway，請用 {@link shouldUseLlmGateway}（含百分比灰度）。
  *
- * @returns 是否啟用 gateway 路由
+ * @returns master toggle 是否開啟
  */
 export function isLlmGatewayEnabled(): boolean {
   return process.env.FEATURE_LLM_GATEWAY_ENABLED === 'true';
+}
+
+/**
+ * step 4b：判斷單次 extraction LLM 呼叫是否經 `LlmGatewayService`（一致性百分比灰度）。
+ *
+ * @description
+ *   - master `FEATURE_LLM_GATEWAY_ENABLED` 關 → false（行為零變）。
+ *   - `FEATURE_LLM_GATEWAY_PERCENTAGE`（0-100，**預設 100**，維持 step 4 硬切換語意）：
+ *     ≥100 全開、≤0 全關。
+ *   - 中間值：有 `fileId` 用 `simpleHash(fileId) % 100 < pct` 一致性路由（同一文件恆走同一路徑，
+ *     確保三階段不混路徑）；無 `fileId` 時退回隨機（對齊 {@link shouldUseExtractionV3}）。
+ *
+ * @param fileId 文件識別（一致性灰度雜湊鍵；缺省則隨機分流）
+ * @returns 本次呼叫是否走 gateway
+ */
+export function shouldUseLlmGateway(fileId?: string): boolean {
+  if (!isLlmGatewayEnabled()) {
+    return false;
+  }
+
+  const percentage = parseInt(
+    process.env.FEATURE_LLM_GATEWAY_PERCENTAGE ?? '100',
+    10
+  );
+  if (percentage >= 100) {
+    return true;
+  }
+  if (percentage <= 0) {
+    return false;
+  }
+
+  // 一致性路由：同一 fileId 恆走同一路徑
+  if (fileId) {
+    return simpleHash(fileId) % 100 < percentage;
+  }
+
+  // 無 fileId 時退回隨機分流
+  return Math.random() * 100 < percentage;
 }

@@ -25,7 +25,7 @@
  */
 
 import { generateText, generateObject, jsonSchema } from 'ai';
-import type { ModelMessage } from 'ai';
+import type { FilePart, ModelMessage } from 'ai';
 import type { ProviderOptions } from '@ai-sdk/provider-utils';
 import { createAzure } from '@ai-sdk/azure';
 import type { LlmProviderType } from '@prisma/client';
@@ -37,12 +37,16 @@ import { aiCostService } from '@/services/ai-cost.service';
 import type { ApiProviderType } from '@/types/ai-cost';
 
 import type {
+  LlmAssembledMessage,
+  LlmAssembledPart,
   LlmCallInput,
   LlmCallPlan,
   LlmCallResult,
   LlmCallUsage,
+  LlmImageDetail,
   LlmImagePart,
   LlmMessage,
+  LlmMessageRole,
   LlmOutputSpec,
 } from './llm-gateway.types';
 
@@ -158,12 +162,41 @@ function resolveTemperature(
 
 /**
  * 圖片 → AI SDK FilePart（§3.5）。
- * ⚠️ `img.detail`（low/high/auto）目前**未**轉發至 provider option——AI SDK 各 provider 的 image
- *    detail 傳法未經查證，盲設風險高（§3.8 wire 非零風險）。`detail` 保留在資料層、由呼叫端忠實傳入，
- *    實際 wire 轉發（影響 nano 階段成本）列為 **step 4b 等價調校項**，於 shadow 比對時定案。
+ * step 4b：忠實轉發 `img.detail`。經查證 `@ai-sdk/azure@4.0.9`（內部沿用 `OpenAIChatLanguageModel`）
+ * 的訊息轉換讀 `part.providerOptions.openai.imageDetail` → wire `image_url.detail`
+ * （`node_modules/@ai-sdk/openai/dist/index.js:308`），與舊手寫 fetch 的 `image_url.detail` 等價。
+ * `detail` 未提供時省略 providerOptions（provider 採預設，與舊路徑 `?? defaultImageDetail` 由呼叫端補齊一致）。
  */
-function toFilePart(img: LlmImagePart): { type: 'file'; mediaType: string; data: string } {
-  return { type: 'file', mediaType: img.mediaType ?? DEFAULT_IMAGE_MEDIA_TYPE, data: img.data };
+function toFilePart(img: LlmImagePart): FilePart {
+  const part: FilePart = {
+    type: 'file',
+    mediaType: img.mediaType ?? DEFAULT_IMAGE_MEDIA_TYPE,
+    data: img.data,
+  };
+  if (img.detail) {
+    part.providerOptions = { openai: { imageDetail: img.detail } };
+  }
+  return part;
+}
+
+/** 組裝訊息 → 去敏快照（§3.8）：角色 + 內容部位種類，圖片附帶實際轉發的 `imageDetail` */
+function summarizeAssembledMessages(messages: ModelMessage[]): LlmAssembledMessage[] {
+  return messages.map((m): LlmAssembledMessage => {
+    const role = m.role as LlmMessageRole;
+    if (typeof m.content === 'string') {
+      return { role, parts: [{ kind: 'text' }] };
+    }
+    const parts = (m.content as Array<{ type: string; mediaType?: string; providerOptions?: ProviderOptions }>).map(
+      (p): LlmAssembledPart => {
+        if (p.type === 'file') {
+          const imageDetail = p.providerOptions?.openai?.imageDetail as LlmImageDetail | undefined;
+          return { kind: 'image', mediaType: p.mediaType ?? DEFAULT_IMAGE_MEDIA_TYPE, imageDetail };
+        }
+        return { kind: 'text' };
+      },
+    );
+    return { role, parts };
+  });
 }
 
 /**
@@ -426,6 +459,7 @@ export class LlmGatewayService {
       maxOutputTokens: prepared.maxOutputTokens,
       temperature: prepared.temperature,
       maxRetries: prepared.maxRetries,
+      assembledMessages: summarizeAssembledMessages(prepared.aiMessages),
     };
   }
 

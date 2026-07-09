@@ -155,6 +155,44 @@ describe('LlmGatewayService', () => {
 
       expect(plan.deploymentName).toBe('gpt-5-4-mini-aidocprocessing');
     });
+
+    it('should forward image detail to the assembled file part (step 4b wire equivalence)', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+
+      const plan = await llmGatewayService.describeCall({
+        modelId: 'model-1',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'usr' },
+        ],
+        images: [{ data: 'data:image/png;base64,AAAA', detail: 'high' }],
+        output: { mode: 'object', jsonSchema: { type: 'object' } },
+      });
+
+      // 圖片附加到最後一則 user 訊息、且圖片在前文字在後（對齊舊 gpt-caller 擺法）
+      const userMsg = plan.assembledMessages.find((m) => m.role === 'user');
+      expect(userMsg?.parts).toEqual([
+        { kind: 'image', mediaType: 'image/png', imageDetail: 'high' },
+        { kind: 'text' },
+      ]);
+      // system 訊息維持純文字
+      expect(plan.assembledMessages[0]).toEqual({ role: 'system', parts: [{ kind: 'text' }] });
+    });
+
+    it('should omit imageDetail in the snapshot when detail is not provided', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+
+      const plan = await llmGatewayService.describeCall({
+        modelId: 'model-1',
+        messages: USER_MSG,
+        images: [{ data: 'data:image/png;base64,AAAA' }],
+      });
+
+      const imagePart = plan.assembledMessages
+        .flatMap((m) => m.parts)
+        .find((p) => p.kind === 'image');
+      expect(imagePart).toEqual({ kind: 'image', mediaType: 'image/png', imageDetail: undefined });
+    });
   });
 
   describe('call()（三態 output + usage 映射）', () => {

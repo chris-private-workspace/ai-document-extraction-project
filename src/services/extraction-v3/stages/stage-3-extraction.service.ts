@@ -1019,6 +1019,8 @@ Respond in valid JSON format matching the provided schema.`;
         jsonSchema: outputSchema, // CHANGE-042 Phase 2: JSON Schema for structured output
         // Epic 23 step 5：經 gateway 時據此寫 ApiUsageLog（documentId 反查 cityCode）
         usageContext: { documentId, operation: 'extraction-stage3' },
+        // Epic 23 step 4b：以 documentId 作 gateway 一致性灰度雜湊鍵（三階段同路徑）
+        fileId: documentId,
       }
     );
 

@@ -141,6 +141,8 @@ export class StageOrchestratorService {
             autoCreateCompany: options.autoCreateCompany,
             cityCode: input.input.cityCode,
           },
+          // Epic 23 step 4b：gateway 一致性灰度雜湊鍵（三階段同路徑）
+          fileId: input.input.fileId,
         });
 
         stepResults.push({
@@ -198,6 +200,8 @@ export class StageOrchestratorService {
           options: {
             autoCreateFormat: options.autoCreateFormat,
           },
+          // Epic 23 step 4b：gateway 一致性灰度雜湊鍵（三階段同路徑）
+          fileId: input.input.fileId,
         });
 
         stepResults.push({
