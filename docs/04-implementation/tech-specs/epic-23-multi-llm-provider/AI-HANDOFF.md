@@ -1,23 +1,24 @@
 # Epic 23 — AI 助手接手指引（Onboarding / Handoff）
 
 > **這份文件是什麼**：給**任何新 AI 助手**（新 session / 新電腦 / 新 worktree）快速進入 Epic 23 狀況的**單一入口**。讀完這份 + 下方連結的文件，就能無縫接續，不必回溯對話歷史。
-> **最後更新**：2026-07-09（規格 v0.4.0，三輪審視後）｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
+> **最後更新**：2026-07-09（規格 v0.4.0；D8–D11 定案，進 Phase 0 spike）｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
 
 ---
 
 ## 0. 先讀這裡（30 秒進入狀況）
 
 - **在做什麼**：把目前硬綁 Azure OpenAI、散落 7 處的 LLM 呼叫，經 **Vercel AI SDK** 收斂為統一 gateway，並讓用戶在後台自行配置多家 LLM provider（OpenAI / Gemini / Claude / Grok 等）與模型。
-- **現在到哪**：規劃 **Tech Spec v0.4.0**，經**三輪**獨立審視，🟡 **Draft 提案、尚未進實作**（一行 code 都還沒寫）。
+- **現在到哪**：**Tech Spec v0.4.0** + **Phase 0 spike（Azure 基準）已完成**（見 `phase-0-spike-report.md`）；🔴 **炸彈①在真實資料確認**（同模型內 confidence 92–99 幾乎恆定、與正確性脫鉤，42/42 全 AUTO_APPROVE）。非 Azure 對比待 key。Epic 正式 code 未動。
 - **🔴🔴 三輪審視揪出兩顆炸彈（必讀 `senior-review-v0.3.1.md`）**：
   1. **信心度路由會靜默失準** — 路由分數 65% 來自模型自評 confidence + 硬編 90/70 閾值（`confidence-v3-1.service.ts:112-119`）→ 換 provider 即使提取一樣準，路由也會壞（漏審/人工爆量）、且不報錯。**必須 per-model 重新校準才能安全換模型。**
   2. **營運骨架缺失/斷裂** — 成本歸帳斷裂（`logUsage` 零呼叫端）、無 provider 韌性/failover、無出站限流。多 provider 核心賣點零地基。
-- **下一步（待用戶決策 D8）**：建議先做 1-2 天 **spike**（真實文件量準確率 + confidence 分佈）再定投資規模；之後才進 Story 23.1。
+- **下一步**：Phase 0 spike 的 Azure 基準已跑完（harness = `scripts/epic-23-spike/`）。**非 Azure 對比（炸彈② + 真 per-model confidence 分佈）待兩件事**：(a) 非 Azure API key（H4 已批：少量真實發票；H2 已批：用 AI SDK）；(b) 補**不同發票 + 少量人工 gold set**（本地 71 份無 ground truth、實約 5 份不同發票，準確率結論不夠力）。**Story 23.1（gateway 收斂 + 營運地基，全 Azure、行為零變）與非 Azure 是否過關無關、可先做**。D9 校準框架確認為接非 Azure 核心提取的硬 gate。
 - **權威文件**（同目錄，閱讀順序）：
   1. `senior-review-v0.3.1.md` — **三輪資深審視**（兩顆炸彈 + 營運/憑證缺口 + 重構 roadmap + D7–D11）← **先讀這份**
-  2. `tech-spec-epic-23-overview.md` — **主規格 v0.4.0**（架構/資料模型/介面/Story/風險，實作照這份）
-  3. `design-review-v0.2.0.md` — 一/二輪審視（介面 G1–G10 + AI SDK API 查證）
-  4. `README.md` — Epic 導覽 + 換電腦接續步驟
+  2. `phase-0-spike-report.md` — **Phase 0 spike 結果**（炸彈①真實資料確認 + harness + 資料現況 + 投資建議）
+  3. `tech-spec-epic-23-overview.md` — **主規格 v0.4.0**（架構/資料模型/介面/Story/風險，實作照這份）
+  4. `design-review-v0.2.0.md` — 一/二輪審視（介面 G1–G10 + AI SDK API 查證）
+  5. `README.md` — Epic 導覽 + 換電腦接續步驟
 
 ---
 
@@ -42,8 +43,11 @@
 | D5 | 用 **Vercel AI SDK**（`ai` + `@ai-sdk/*`），**非**自建 adapter |
 | D6 | **低風險環節**（分類/驗證）先開放他家；**核心提取（Stage 3）**切非 Azure 前需**準確率回歸**通過 |
 | D7 | 真正動機 = **備援/避免鎖定 + 能力 + 彈性**（**非省成本**）→ provider 韌性/failover 列為正式目標 |
+| D8 | **先做 Phase 0 spike**（1-2 天）驗證準確率 + confidence 分佈，再進 Story 23.1 |
+| D10 | **不縮減 scope** — 照 v0.4.0 完整後台 CRUD 憑證系統（spike 後預設方向，可依結果調整） |
+| D11 | 營運骨架**納入 Epic 23**（用量持久化 + logging 進 23.1；韌性/failover 進 23.3） |
 
-> **待用戶拍板（D8–D11，見 `senior-review-v0.3.1.md` §7）**：D8 是否先 spike｜D9 confidence per-model 校準做法｜D10 scope 是否縮減｜D11 營運骨架納入本 Epic 還是拆獨立。**進實作前這些應先有方向。**
+> **D8–D11 已於 2026-07-09 定案**（見上表）。**D9**（confidence per-model 校準做法）**暫緩**：依賴 spike 的 confidence 分佈資料，待 spike 完或 Phase 2 前再定。
 
 ## 4. 架構藍圖
 
@@ -67,7 +71,7 @@
 | 23.3 | 多 provider 接上 + **per-model confidence 校準（P0）** + 準確率回歸框架 + **circuit breaker/failover** | H1+H2 |
 | 23.4 | 其餘 5 處遷移 + per-環節指派 UI + 出站限流 + 成本計價（低優先）+ 測試/觀測 | H1 |
 
-**現在該做**：先 spike（D8），再 Story 23.1。
+**現在該做**：Phase 0 spike（D8 已定），再照完整 scope（D10）做 Story 23.1；營運骨架納入本 Epic（D11）。
 
 ## 6. 🔴 需要注意的地方（踩過的坑 / 紅旗）
 
