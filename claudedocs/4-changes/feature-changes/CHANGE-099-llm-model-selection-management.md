@@ -156,4 +156,5 @@ Stage 1/2/3 呼叫 GPT 前，改為**從配置服務讀取該 Stage 選定的模
 
 **驗證**：`type-check` ✅ / `lint` ✅ 0 errors / `i18n:check` ✅ 三語言同步 / `vitest` ✅ 17/17。
 **向後相容**：配置缺失時 fallback 到 Stage 1/2=nano、Stage 3=gpt-5.2（＝變更前行為）。
-**待執行期驗證**：頁面 E2E（載入 / 儲存 / 非 admin 唯讀）需啟動服務登入實測。
+**執行期驗證（2026-07-09 本地 E2E ✅ 通過）**：dev session（globalAdmin）登入 → `/admin/model-settings` 載入顯示預設（fallback nano/nano/gpt-5.2）→ 改 Stage 1 為 `gpt-5.2` 儲存 → GET 讀回 `stage1=gpt-5.2`（持久化生效）→ 還原預設；負向 PUT 無效 model → 400「模型不在允許清單內」且 DB 不變；Sidebar 入口、能力提示即時更新、hasChanges gate（未變更 Save 停用）均確認。
+**未 UI 實測**：非 admin 唯讀（dev bypass 固定 globalAdmin；`client.tsx` 條件渲染 + API PUT 403 已 code review）、實際提取用新選模型（需 Azure OpenAI 跑真文件）。
