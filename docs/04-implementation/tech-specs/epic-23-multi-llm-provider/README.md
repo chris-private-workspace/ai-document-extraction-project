@@ -54,6 +54,15 @@
 
 ---
 
-## ▶️ 下一步
+## ▶️ 進度與接續（供換電腦跟進）
 
-規劃已收斂（兩輪審視 + 修正）。待用戶審視 PR #96 後，於獨立 git worktree 開 **Story 23.1** 實作（不影響現行版本）。
+**今日進度（2026-07-09）**：規劃提案從 v0.1 迭代到 **v0.3.1**，經兩輪獨立審視（呼叫點缺口 G1–G10、provider 能力查證、AI SDK API 查證）+ 修正，決策 **D1–D6 全數定案**。規劃已**收斂**，尚未進實作。
+
+**當前狀態**：🟡 Draft 提案，全部文件在 PR [#96](https://github.com/chris-private-workspace/ai-document-extraction-project/pull/96)（分支 `docs/epic-23-multi-llm-provider-proposal`）。
+
+**下一步**：於獨立 git worktree 開 **Story 23.1** 實作（Gateway + `LlmProvider`/`LlmModel` model + `@ai-sdk/azure` 接上 extraction 三階段），不影響現行版本。開工觸發 **H1**（Prisma model + gateway）/ **H2**（裝 `ai` + `@ai-sdk/*`），需逐項確認。
+
+**換電腦接續步驟**：
+1. `git fetch origin` — ⚠️ remote 已搬到 `chris-private-workspace/ai-document-extraction-project`；若本機 `origin` 仍指舊 `laitim2001`，先 `git remote set-url origin https://github.com/chris-private-workspace/ai-document-extraction-project.git`
+2. 讀規劃：`git checkout docs/epic-23-multi-llm-provider-proposal`，看本目錄三份文件 + PR #96。
+3. 要實作時：`git worktree add ../ai-doc-epic23 -b feature/epic-23-multi-llm-provider main`，在 worktree 開 Story 23.1（勿在共用 working tree 上與其他 session 併行操作）。
