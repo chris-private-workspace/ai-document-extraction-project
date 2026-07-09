@@ -236,14 +236,13 @@ model LlmModel {
 }
 ```
 
-- **`isDefault` 唯一性（C2）**：Prisma 無法宣告條件唯一 → migration 加 partial unique index：
-  `CREATE UNIQUE INDEX one_default_provider ON "LlmProvider" ("isDefault") WHERE "isDefault" = true;`（或應用層 setDefault 用 transaction 清除其他）。
+- **`isDefault` 唯一性（C2）**：✅ **Story 23.1 定案：走應用層**（`setDefault` 用 transaction 清除其他，Story 23.2 實作）。原提議的 partial unique index **不採用**——本專案 db-push 驅動（見下方 Migration），手動 partial index 會被後續 `db push` 當 drift 移除。
 - **per-環節指派（C3）**：延續 `SystemConfig(AI_MODEL/GLOBAL)`，value = `LlmModel.id`，key 擴充：`extraction.model.stage1/2/3`（既有）+ `vision.model` / `termClassification.model` / `termValidation.model` / `v2Extraction.model`。
-  - ⚠️ 三輪審視建議：`SystemConfig.value=LlmModel.id` 是字串軟外鍵、無 FK。若要 referential integrity，可改用獨立 `StageModelAssignment` model（FK 到 `LlmModel`、`onDelete: SetNull`）。權衡「延續 CHANGE-099 一致性」vs「integrity」，Story 23.1 定案。
+  - ✅ **C3 Story 23.1 定案：採獨立 `StageModelAssignment` model**（FK 到 `LlmModel`、`onDelete: SetNull`，取得 referential integrity），取代 SystemConfig 字串軟外鍵。`stageKey` 沿用 CHANGE-099 命名（`extraction.model.stage1/2/3`），供 step 4 遷移對齊。step 1 播種只寫入（shadow data），管線仍讀 SystemConfig → 行為零變；step 4 才切換讀取來源。
 - **Fallback 鏈**：環節指派缺失/無效 → 取該環節的**預設 model key**（如 `DEFAULT_STAGE_MODELS.stage3`）在 `isDefault` provider 下比對 `modelKey` 的 `LlmModel` → 仍無則硬編 Azure 預設（CHANGE-099 現行行為，零變）。
 - **播種**：migration 後以既有 `AZURE_OPENAI_*` 建一筆 `isDefault` Azure provider + 既有模型，並把各環節預設指派（`SystemConfig` value）寫成**新建 `LlmModel` 的 id**，用戶原設定即刻可用。
 - **capability 維護**：`capability` 手填 JSON 易錯 → 內建常見模型（gpt-5-nano / gpt-5.2 / claude / gemini / grok 等）的 capability **預設模板**，新增模型時帶入可改，降低手填錯誤。
-- **Migration**：Azure DEV 有 schema drift 史，照既有 gated 流程。
+- **Migration（Story 23.1 實測修正）**：本專案 **db-push 驅動**——`prisma/migrations/` 僅殘留 10 檔、與實際 122-model DB 差距甚大；`prisma migrate dev` 會誤判整庫 drift、互動下恐提議 reset（清空資料）。→ 改用 **`npx prisma db push`**（套用前先 `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` **唯讀預覽**確認純新增無 DROP），**不建 migration 檔**（與既有 122 model 存在方式一致）。DB 連線靠 `prisma.config.ts` 讀 `DATABASE_URL`；worktree 無 `.env` 時用 `DOTENV_CONFIG_PATH` 指向主 repo `.env`。新 model id 用 `@default(uuid())`（專案新標準，非上方範例的 cuid）。
 
 ---
 

@@ -4378,3 +4378,80 @@ model SystemSetting {
   @@index([category])
   @@map("system_settings")
 }
+
+// ============================================================
+// Epic 23: 多 LLM Provider 整合管理
+// LlmProvider（provider 憑證/設定）+ LlmModel（各 provider 下的模型）
+// + StageModelAssignment（各處理環節 → 模型指派，FK 取代 CHANGE-099 的 SystemConfig 字串軟外鍵）
+// ============================================================
+
+/// LLM Provider 類型
+enum LlmProviderType {
+  AZURE_OPENAI
+  OPENAI
+  ANTHROPIC
+  GOOGLE_GEMINI
+  XAI_GROK
+  OPENAI_COMPATIBLE
+}
+
+/// LLM Provider（一家供應商的連線設定 + 加密憑證）
+/// @since Epic 23 - Story 23.1
+model LlmProvider {
+  id                 String          @id @default(uuid())
+  name               String          @unique
+  providerType       LlmProviderType @map("provider_type")
+  baseUrl            String?         @map("base_url")
+  apiVersion         String?         @map("api_version") // Azure 專用
+  apiKeyEnc          String?         @map("api_key_enc") // aes-256-gcm 加密（Story 23.2 起填入）
+  isEncrypted        Boolean         @default(true) @map("is_encrypted")
+  keyVersion         Int             @default(1) @map("key_version") // 前向相容金鑰輪替
+  isEnabled          Boolean         @default(true) @map("is_enabled")
+  isDefault          Boolean         @default(false) @map("is_default") // 全域預設 fallback；唯一性由 partial unique index 保證
+  allowSensitiveData Boolean         @default(false) @map("allow_sensitive_data") // §7 合規護欄
+  extraConfig        Json?           @map("extra_config")
+  models             LlmModel[]
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+  updatedBy          String?         @map("updated_by")
+
+  @@index([providerType])
+  @@index([isEnabled])
+  @@map("llm_providers")
+}
+
+/// LLM Model（某 provider 下的一個可用模型）
+/// @since Epic 23 - Story 23.1
+model LlmModel {
+  id          String                 @id @default(uuid())
+  providerId  String                 @map("provider_id")
+  provider    LlmProvider            @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  modelKey    String                 @map("model_key") // Azure=deployment name；其他=model id
+  label       String
+  capability  Json // { maxTokens, supportsTemperature, temperature?, defaultImageDetail, supportsJsonSchema, supportsVision }
+  pricing     Json? // { inputPer1k, outputPer1k, currency } — 跨 provider 計價（低優先）
+  isEnabled   Boolean                @default(true) @map("is_enabled")
+  assignments StageModelAssignment[]
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  @@unique([providerId, modelKey])
+  @@index([isEnabled])
+  @@map("llm_models")
+}
+
+/// 各處理環節 → 模型指派（C3=B：FK 取代 SystemConfig 字串，onDelete SetNull 回退 fallback 鏈）
+/// stageKey 沿用 CHANGE-099 命名（extraction.model.stage1/2/3）+ 後續環節（vision/termClassification/...）
+/// @since Epic 23 - Story 23.1
+model StageModelAssignment {
+  id         String    @id @default(uuid())
+  stageKey   String    @unique @map("stage_key")
+  llmModelId String?   @map("llm_model_id")
+  llmModel   LlmModel? @relation(fields: [llmModelId], references: [id], onDelete: SetNull)
+  updatedBy  String?   @map("updated_by")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@index([llmModelId])
+  @@map("stage_model_assignments")
+}
