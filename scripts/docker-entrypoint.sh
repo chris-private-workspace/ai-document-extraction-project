@@ -57,5 +57,14 @@ if [ "$RUN_STAGE3_PROMPT_FIX" = "true" ]; then
   node prisma/update-stage3-prompt.js || echo "[entrypoint] stage3 prompt update failed (non-fatal), continuing"
 fi
 
+# (選用)一次性 CHANGE-101 Template Field Mapping 診斷/建立 —— 由
+# RUN_TEMPLATE_MAPPING_SEED=inspect|dryrun|write 觸發(非空即執行),非致命。
+# inspect=唯讀診斷(印 template fields / 38 公司比對 / classifiedAs 樣本,不寫入);
+# dryrun=印將 upsert 內容與對不上清單,不寫入;write=冪等 upsert。完成後把旗標清空。
+if [ -n "$RUN_TEMPLATE_MAPPING_SEED" ]; then
+  echo "[entrypoint] (optional) template field mapping seed: mode=$RUN_TEMPLATE_MAPPING_SEED"
+  node prisma/seed-template-field-mappings.js || echo "[entrypoint] template mapping seed failed (non-fatal), continuing"
+fi
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js
