@@ -153,7 +153,12 @@ function resolveTemperature(
   return requested ?? capability.temperature;
 }
 
-/** 圖片 → AI SDK FilePart（§3.5） */
+/**
+ * 圖片 → AI SDK FilePart（§3.5）。
+ * ⚠️ `img.detail`（low/high/auto）目前**未**轉發至 provider option——AI SDK 各 provider 的 image
+ *    detail 傳法未經查證，盲設風險高（§3.8 wire 非零風險）。`detail` 保留在資料層、由呼叫端忠實傳入，
+ *    實際 wire 轉發（影響 nano 階段成本）列為 **step 4b 等價調校項**，於 shadow 比對時定案。
+ */
 function toFilePart(img: LlmImagePart): { type: 'file'; mediaType: string; data: string } {
   return { type: 'file', mediaType: img.mediaType ?? DEFAULT_IMAGE_MEDIA_TYPE, data: img.data };
 }
@@ -317,6 +322,23 @@ export class LlmGatewayService {
       temperature: prepared.temperature,
       maxRetries: prepared.maxRetries,
     };
+  }
+
+  /**
+   * 解析 model **key**（如 `'gpt-5.2'`）→ 預設啟用 Azure provider 下該 modelKey 的 `LlmModel.id`。
+   * 供 key-based 呼叫端（extraction gpt-caller，Story 23.1 step 4）接入 gateway；
+   * 找不到即回 `null`，呼叫端據此回退既有直接 Azure 路徑（播種缺失時零風險）。
+   */
+  async resolveModelIdByKey(modelKey: string): Promise<string | null> {
+    const model = await prisma.llmModel.findFirst({
+      where: {
+        modelKey,
+        isEnabled: true,
+        provider: { isDefault: true, isEnabled: true, providerType: 'AZURE_OPENAI' },
+      },
+      select: { id: true },
+    });
+    return model?.id ?? null;
   }
 
   // --------------------------------------------------------------------------
