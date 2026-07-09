@@ -1,0 +1,1664 @@
+{
+  "generated": [
+    {
+      "company": "Redline",
+      "companyId": "f645183d-cfef-45a2-9ff4-d4e7de5cbc67",
+      "azureName": "Redlines Shipping & Logistics",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Redlines Shipping & Logistics - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "f645183d-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "f645183d-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "thc_charge",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "f645183d-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "cfs_charge",
+          "targetField": "cfs_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "f645183d-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "low_sulpur_surcharge",
+          "targetField": "lss",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "f645183d-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "b_l_charges",
+          "targetField": "document_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "Fairate",
+      "companyId": "369c787f-8429-4ebd-9bc4-67ca8974524e",
+      "azureName": "Fairate Express",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Fairate Express - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "369c787f-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "369c787f-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "airline_document_charge",
+          "targetField": "document_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "369c787f-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "container_field_station_charge",
+          "targetField": "cfs_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "369c787f-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_charge",
+          "targetField": "handling_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "369c787f-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "terminal_charge",
+          "targetField": "terminal_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "369c787f-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "customs_electronic_data_charge",
+          "targetField": "scf_e_data",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "369c787f-e-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "x_ray_screening_charge",
+          "targetField": "x_ray_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "Cargo Partner",
+      "companyId": "87d611ab-d022-4c49-8cc4-6b83bbe1697d",
+      "azureName": "Cargo Partner",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Cargo Partner - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "87d611ab-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "87d611ab-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "origin_terminal_handling_charges",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "87d611ab-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "origin_sealing_charge",
+          "targetField": "seal_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "87d611ab-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "vgm_fee",
+          "targetField": "vgm",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "87d611ab-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "documentation_fee",
+          "targetField": "document_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "87d611ab-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "origin_handling_fee",
+          "targetField": "handling_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "87d611ab-e-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "courier_freight",
+          "targetField": "freight",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "CYTS",
+      "companyId": "cbc8e540-dc35-4952-949b-c6c3b4080d85",
+      "azureName": "CYTS",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "CYTS - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "cbc8e540-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "terminal_handling_charge",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "doc",
+          "targetField": "document_fee",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{doc} + {registration_charge}"
+          }
+        },
+        {
+          "id": "cbc8e540-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_charge",
+          "targetField": "handling_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "telex_release_charge",
+          "targetField": "telex_release",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "vgm_surcharge",
+          "targetField": "vgm",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "seal_fee",
+          "targetField": "seal_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-7",
+          "order": 7,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "cfs_charge",
+          "targetField": "cfs_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-8",
+          "order": 8,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "pick_up_fee",
+          "targetField": "delivery",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-9",
+          "order": 9,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "gate_charge",
+          "targetField": "gate_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "cbc8e540-e-10",
+          "order": 10,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "tunnel_fee",
+          "targetField": "tunnel_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "DHL",
+      "companyId": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+      "azureName": "DHL Express",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "DHL Express - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "eedf4065-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "eedf4065-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "express_worldwide_doc",
+          "targetField": "document_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "DHL",
+      "companyId": "eedf4065-653b-4fd0-8bfb-f71c78bb2ae5",
+      "azureName": "DHL Express",
+      "direction": "import",
+      "dataTemplateId": "cmrbi0ktk033201o3rivrxb6h",
+      "templateName": "Logistics Cost - Inbound Template (Full List)",
+      "name": "DHL Express - Logistics Cost - Inbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "eedf4065-i-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "eedf4065-i-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "express_worldwide_nondoc",
+          "targetField": "freight",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "DSV",
+      "companyId": "8d6bf010-88f4-44cc-b4ba-fbdd67824cb7",
+      "azureName": "DSV Air & Sea Ltd.",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "DSV Air & Sea Ltd. - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "8d6bf010-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8d6bf010-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "cfs_charges",
+          "targetField": "cfs_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8d6bf010-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "b_l_bill_of_lading",
+          "targetField": "document_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8d6bf010-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling",
+          "targetField": "handling_charge",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{handling} + {enviromental_fee} + {vat}"
+          }
+        },
+        {
+          "id": "8d6bf010-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "solas_vgm_fee",
+          "targetField": "vgm",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8d6bf010-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "thc_terminal_handling_charge",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "Kings",
+      "companyId": "83e7a1e4-c1c4-4a11-9f02-f64cab4ae549",
+      "azureName": "Kings Air Logistics Company",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Kings Air Logistics Company - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "83e7a1e4-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "83e7a1e4-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "fob_charge",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "83e7a1e4-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "x_ray_fee",
+          "targetField": "x_ray_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "83e7a1e4-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "pick_up_fee",
+          "targetField": "delivery",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "83e7a1e4-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "parking_fee",
+          "targetField": "car_park_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "MAINFREIGHT",
+      "companyId": "89a92910-a9cf-4883-85ef-166a2ea58e5d",
+      "azureName": "MAINFREIGHT",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "MAINFREIGHT - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "89a92910-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "89a92910-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "express_bill_of_lading",
+          "targetField": "document_fee",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{express_bill_of_lading} + {export_document_fee_bl_fee}"
+          }
+        },
+        {
+          "id": "89a92910-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "seal_fee",
+          "targetField": "seal_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "89a92910-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "terminal_handling_charge",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "89a92910-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_fees",
+          "targetField": "handling_charge",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{handling_fees} + {agency_handling} + {cargowise_technology_fee}"
+          }
+        },
+        {
+          "id": "89a92910-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "cfs",
+          "targetField": "cfs_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "89a92910-e-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "verified_gross_mass_vgm",
+          "targetField": "vgm",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "NIPPON",
+      "companyId": "5d5d66c4-e6ca-420d-896b-3198ea443c3d",
+      "azureName": "Nippon Express Logistics",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Nippon Express Logistics - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "5d5d66c4-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "b_l_fee",
+          "targetField": "document_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "seal_charge",
+          "targetField": "seal_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "thc",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_charge",
+          "targetField": "handling_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "NIPPON",
+      "companyId": "5d5d66c4-e6ca-420d-896b-3198ea443c3d",
+      "azureName": "Nippon Express Logistics",
+      "direction": "import",
+      "dataTemplateId": "cmrbi0ktk033201o3rivrxb6h",
+      "templateName": "Logistics Cost - Inbound Template (Full List)",
+      "name": "Nippon Express Logistics - Logistics Cost - Inbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "5d5d66c4-i-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-i-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "t_h_c",
+          "targetField": "thc",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{t_h_c} + {thc}"
+          }
+        },
+        {
+          "id": "5d5d66c4-i-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "nehk_do_fee",
+          "targetField": "docs_fee",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{nehk_do_fee} + {d_o_fee}"
+          }
+        },
+        {
+          "id": "5d5d66c4-i-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_charge",
+          "targetField": "handling",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{handling_charge} + {empty_container_placement}"
+          }
+        },
+        {
+          "id": "5d5d66c4-i-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "nvo_freight",
+          "targetField": "freight",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{nvo_freight} + {ocean_freight}"
+          }
+        },
+        {
+          "id": "5d5d66c4-i-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "cfs_charge",
+          "targetField": "cfs",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-i-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "low_sulphur_surchg",
+          "targetField": "lss",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-i-7",
+          "order": 7,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "port_security_charge",
+          "targetField": "psc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-i-8",
+          "order": 8,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "o_local_truckage",
+          "targetField": "delivery",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-i-9",
+          "order": 9,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "o_gate_i_o_or_parking_chg",
+          "targetField": "car_park_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "5d5d66c4-i-10",
+          "order": 10,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "status_charge",
+          "targetField": "wh_container_facility_fee",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{status_charge} + {facility_charge}"
+          }
+        },
+        {
+          "id": "5d5d66c4-i-11",
+          "order": 11,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "other_charge",
+          "targetField": "others_local_charge",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{other_charge} + {cleaning_container}"
+          }
+        }
+      ]
+    },
+    {
+      "company": "RIL",
+      "companyId": "3589d37c-314c-4d58-a6a7-6e6d12dadc41",
+      "azureName": "SBS",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "SBS - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "3589d37c-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "dryage_charge",
+          "targetField": "delivery",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "port_security_charge",
+          "targetField": "psf",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "gate_charge",
+          "targetField": "gate_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "parking_charge",
+          "targetField": "car_park_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "tunnel_fee",
+          "targetField": "tunnel_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-e-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "sea_cfs",
+          "targetField": "cfs_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "RIL",
+      "companyId": "3589d37c-314c-4d58-a6a7-6e6d12dadc41",
+      "azureName": "SBS",
+      "direction": "import",
+      "dataTemplateId": "cmrbi0ktk033201o3rivrxb6h",
+      "templateName": "Logistics Cost - Inbound Template (Full List)",
+      "name": "SBS - Logistics Cost - Inbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "3589d37c-i-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_for_rlchk",
+          "targetField": "handling",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{handling_for_rlchk} + {handling} + {air_alfa_charge_dest_charge} + {air_import_service_fee_dest_charge} + {currency_adjustment_charge} + {rr_charge}"
+          }
+        },
+        {
+          "id": "3589d37c-i-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_freight",
+          "targetField": "freight",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{air_freight} + {sea_ocean_freight_non_nvocc} + {ocean_freight_non_nvocc}"
+          }
+        },
+        {
+          "id": "3589d37c-i-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_fuel_surcharge",
+          "targetField": "fuel_surcharge_at_origin",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_security_surcharge",
+          "targetField": "security_surcharge_at_origin",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_terminal_charge_dest_charge",
+          "targetField": "terminal_fees",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_cfs_charge_dest_charge",
+          "targetField": "cfs",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{air_cfs_charge_dest_charge} + {sea_cfs}"
+          }
+        },
+        {
+          "id": "3589d37c-i-7",
+          "order": 7,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_airline_document_charge_dest_charge",
+          "targetField": "docs_fee",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{air_airline_document_charge_dest_charge} + {sea_document_b_l} + {sea_emc_charge} + {air_delivery_order_dest_charge} + {d_o_fee}"
+          }
+        },
+        {
+          "id": "3589d37c-i-8",
+          "order": 8,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_pick_up_charge_original_charge",
+          "targetField": "pick_up_fee_at_origin",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{air_pick_up_charge_original_charge} + {air_pick_up_charge_origin_charge}"
+          }
+        },
+        {
+          "id": "3589d37c-i-9",
+          "order": 9,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_local_charge_in_usa_origin_charge",
+          "targetField": "terminal_fees_at_origin",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-10",
+          "order": 10,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_delivery_charge_dest_charge",
+          "targetField": "delivery",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{air_delivery_charge_dest_charge} + {drayage}"
+          }
+        },
+        {
+          "id": "3589d37c-i-11",
+          "order": 11,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_gate_charge_dest_charge",
+          "targetField": "gate_charge",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{air_gate_charge_dest_charge} + {gate_charge}"
+          }
+        },
+        {
+          "id": "3589d37c-i-12",
+          "order": 12,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "sea_thc_hongkong_asia",
+          "targetField": "thc",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{sea_thc_hongkong_asia} + {thc}"
+          }
+        },
+        {
+          "id": "3589d37c-i-13",
+          "order": 13,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "port_security_charge",
+          "targetField": "psc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-14",
+          "order": 14,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "air_local_charge_in_usa_origin_charge",
+          "targetField": "handling_at_origin",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-15",
+          "order": 15,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "sea_container_cleaning_charges",
+          "targetField": "others_local_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-16",
+          "order": 16,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "status_charge",
+          "targetField": "wh_container_facility_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-17",
+          "order": 17,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "pick_up_d_o_charge",
+          "targetField": "others_delivery",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3589d37c-i-18",
+          "order": 18,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "baf_charge",
+          "targetField": "baf",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "TOLL",
+      "companyId": "8f933f53-fae5-4c52-944c-3eac699e4ac4",
+      "azureName": "Toll Global Forwarder Limited",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Toll Global Forwarder Limited - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "8f933f53-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "bill_of_lading_fee_origin",
+          "targetField": "document_fee",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{bill_of_lading_fee_origin} + {airway_bill_fee_origin} + {documentation_fee_origin}"
+          }
+        },
+        {
+          "id": "8f933f53-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "container_seal_fee_origin",
+          "targetField": "seal_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_fee_origin",
+          "targetField": "handling_charge",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{handling_fee_origin} + {vat} + {handling_fee_incl_p_u}"
+          }
+        },
+        {
+          "id": "8f933f53-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "terminal_handling_charge_origin",
+          "targetField": "thc",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{terminal_handling_charge_origin} + {terminal_handling_charges_origin}"
+          }
+        },
+        {
+          "id": "8f933f53-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "telex_fees_origin",
+          "targetField": "telex_release",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-e-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "airport_terminal_fee_origin",
+          "targetField": "terminal_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-e-7",
+          "order": 7,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_fee_origin_incl_p_u",
+          "targetField": "all_in_rate",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{handling_fee_origin_incl_p_u} + {origin_chage_incl_pick_up}"
+          }
+        },
+        {
+          "id": "8f933f53-e-8",
+          "order": 8,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "container_freight_station_charge_origin",
+          "targetField": "cfs_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-e-9",
+          "order": 9,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "port_service_charge_origin",
+          "targetField": "psf",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-e-10",
+          "order": 10,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "vgm_fee_origin",
+          "targetField": "vgm",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-e-11",
+          "order": 11,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "international_freight",
+          "targetField": "freight",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "TOLL",
+      "companyId": "8f933f53-fae5-4c52-944c-3eac699e4ac4",
+      "azureName": "Toll Global Forwarder Limited",
+      "direction": "import",
+      "dataTemplateId": "cmrbi0ktk033201o3rivrxb6h",
+      "templateName": "Logistics Cost - Inbound Template (Full List)",
+      "name": "Toll Global Forwarder Limited - Logistics Cost - Inbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "8f933f53-i-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-i-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "bill_of_lading_fee_origin",
+          "targetField": "docs_fee_at_origin",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{bill_of_lading_fee_origin} + {document_fee_origin} + {eu_ics2_filling_fee_origin}"
+          }
+        },
+        {
+          "id": "8f933f53-i-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "container_seal_fee_origin",
+          "targetField": "handling_at_origin",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{container_seal_fee_origin} + {handling_fee_origin} + {vat} + {agency_fee_origin}"
+          }
+        },
+        {
+          "id": "8f933f53-i-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "terminal_handling_charges_origin",
+          "targetField": "terminal_fees_at_origin",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-i-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "document_fee_destination",
+          "targetField": "docs_fee",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{document_fee_destination} + {delivery_order_fee_destination}"
+          }
+        },
+        {
+          "id": "8f933f53-i-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_fee_destination",
+          "targetField": "handling",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{handling_fee_destination} + {food_grade} + {vat}"
+          }
+        },
+        {
+          "id": "8f933f53-i-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "international_freight",
+          "targetField": "freight",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-i-7",
+          "order": 7,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "terminal_handling_charge_destination",
+          "targetField": "thc",
+          "transformType": "FORMULA",
+          "transformParams": {
+            "formula": "{terminal_handling_charge_destination} + {terminal_handling_charges_destination}"
+          }
+        },
+        {
+          "id": "8f933f53-i-8",
+          "order": 8,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "pick_up_cartage_origin",
+          "targetField": "pick_up_fee_at_origin",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-i-9",
+          "order": 9,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "customs_export_clearance_fee",
+          "targetField": "clearance_at_origin",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-i-10",
+          "order": 10,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "vgm_fee_origin",
+          "targetField": "vgm_at_origin",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-i-11",
+          "order": 11,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "international_ship_port_facility_security_fee_isps",
+          "targetField": "psc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-i-12",
+          "order": 12,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "special_equipment_fee_destination",
+          "targetField": "wh_container_facility_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "8f933f53-i-13",
+          "order": 13,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "container_cleaning_destination",
+          "targetField": "others_local_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "UNION",
+      "companyId": "99b21087-fff8-42f4-b6ed-2c0ef6c9043c",
+      "azureName": "Union Express Group CO. LTD",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Union Express Group CO. LTD - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "99b21087-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "99b21087-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "thc",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "99b21087-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "doc",
+          "targetField": "document_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "99b21087-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "seal_fee",
+          "targetField": "seal_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "99b21087-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "vgm",
+          "targetField": "vgm",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "99b21087-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_charge",
+          "targetField": "handling_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "Worldwide",
+      "companyId": "fd34394d-6879-4b4e-bd4b-2bdd227476ec",
+      "azureName": "Worldwide Partner Logistics CO. LTD",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Worldwide Partner Logistics CO. LTD - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "fd34394d-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "fd34394d-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "fob_charge",
+          "targetField": "thc",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "fd34394d-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "warehouse_charge",
+          "targetField": "vanning_cost",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "fd34394d-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "handling_charge",
+          "targetField": "handling_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "fd34394d-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "x_ray_charge",
+          "targetField": "x_ray_fee",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "fd34394d-e-5",
+          "order": 5,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "pick_up_fee",
+          "targetField": "delivery",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "fd34394d-e-6",
+          "order": 6,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "gate_charge",
+          "targetField": "gate_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    },
+    {
+      "company": "Yamato",
+      "companyId": "3e54867f-bf1a-4e0e-b682-64db51ae32f9",
+      "azureName": "Yamato Logistic Hong Kong",
+      "direction": "export",
+      "dataTemplateId": "cmrbhjbl4033101o3n77yg0sh",
+      "templateName": "Logistics Cost - Outbound Template (Full List)",
+      "name": "Yamato Logistic Hong Kong - Logistics Cost - Outbound Template (Full List)",
+      "mappings": [
+        {
+          "id": "3e54867f-e-0",
+          "order": 0,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "_ref_number",
+          "targetField": "shipment_number",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3e54867f-e-1",
+          "order": 1,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "dryage_charge",
+          "targetField": "delivery",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3e54867f-e-2",
+          "order": 2,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "port_security_charge",
+          "targetField": "psf",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3e54867f-e-3",
+          "order": 3,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "gate_charge",
+          "targetField": "gate_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        },
+        {
+          "id": "3e54867f-e-4",
+          "order": 4,
+          "isRequired": false,
+          "description": "",
+          "sourceField": "cleaning_fee",
+          "targetField": "others_local_charge",
+          "transformType": "DIRECT",
+          "transformParams": null
+        }
+      ]
+    }
+  ],
+  "unmatched": [
+    {
+      "company": "RIL",
+      "dir": "export",
+      "targetVal": "EBS",
+      "sources": [
+        "Fuel Surcharge"
+      ]
+    },
+    {
+      "company": "Yamato",
+      "dir": "export",
+      "targetVal": "EBS",
+      "sources": [
+        "Fuel Surcharge"
+      ]
+    }
+  ]
+}

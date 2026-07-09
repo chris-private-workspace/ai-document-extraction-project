@@ -227,6 +227,82 @@ async function inspectExistingMappings(client) {
 }
 
 // ---------------------------------------------------------------------------
+// Seed（dryrun / write）：讀 template-mappings-data.json，upsert COMPANY-scope mapping
+// ---------------------------------------------------------------------------
+
+async function runSeed(client, doWrite) {
+  const fs = require('fs')
+  const path = require('path')
+  let data
+  try {
+    data = JSON.parse(
+      fs.readFileSync(path.join(__dirname, 'template-mappings-data.json'), 'utf8')
+    )
+  } catch (e) {
+    console.error('[seed] 讀取 template-mappings-data.json 失敗:', e.message)
+    return
+  }
+  const generated = data.generated || []
+  const unmatched = data.unmatched || []
+  console.log(`[seed] ${doWrite ? 'WRITE' : 'DRYRUN'} — ${generated.length} 筆 mapping`)
+
+  // 驗證 company / template 在 DB 存在（不存在則該筆 SKIP）
+  const companyIds = [...new Set(generated.map((m) => m.companyId))]
+  const templateIds = [...new Set(generated.map((m) => m.dataTemplateId))]
+  const cRes = await client.query('select id from companies where id = any($1)', [companyIds])
+  const tRes = await client.query('select id from data_templates where id = any($1)', [templateIds])
+  const foundC = new Set(cRes.rows.map((r) => r.id))
+  const foundT = new Set(tRes.rows.map((r) => r.id))
+  console.log(
+    `  company 驗證: ${foundC.size}/${companyIds.length} 存在；template 驗證: ${foundT.size}/${templateIds.length} 存在`
+  )
+  for (const id of companyIds) if (!foundC.has(id)) console.log(`    ⚠ company 不存在: ${id}`)
+  for (const id of templateIds) if (!foundT.has(id)) console.log(`    ⚠ template 不存在: ${id}`)
+
+  let done = 0
+  let skipped = 0
+  for (const m of generated) {
+    if (!foundC.has(m.companyId) || !foundT.has(m.dataTemplateId)) {
+      console.log(`  SKIP（company/template 不存在）: ${m.name}`)
+      skipped++
+      continue
+    }
+    console.log(
+      `  ${doWrite ? 'WRITE' : 'DRYRUN'}: ${m.azureName} | ${m.direction} | rules=${m.mappings.length}`
+    )
+    if (doWrite) {
+      await client.query('begin')
+      try {
+        // 冪等：先刪同 (template, company, COMPANY, null format) 舊列，再插
+        // （null document_format_id 會使 @@unique 失效，故不用 on conflict）
+        await client.query(
+          `delete from template_field_mappings
+             where data_template_id=$1 and company_id=$2 and scope='COMPANY' and document_format_id is null`,
+          [m.dataTemplateId, m.companyId]
+        )
+        await client.query(
+          `insert into template_field_mappings
+             (id, data_template_id, scope, company_id, document_format_id, name, description,
+              mappings, priority, is_active, created_at, updated_at)
+           values (gen_random_uuid()::text, $1, 'COMPANY', $2, null, $3, $4, $5::jsonb, 0, true, now(), now())`,
+          [m.dataTemplateId, m.companyId, m.name, 'CHANGE-101 batch import', JSON.stringify(m.mappings)]
+        )
+        await client.query('commit')
+        done++
+      } catch (e) {
+        await client.query('rollback')
+        console.error(`    ✗ WRITE 失敗 ${m.name}:`, e.message)
+      }
+    }
+  }
+  console.log(
+    `\n[seed] ${doWrite ? `已寫入 ${done}` : `將寫入 ${generated.length - skipped}`} 筆，skip ${skipped} 筆`
+  )
+  console.log(`[seed] Excel 對不上 template 欄位（未納入，${unmatched.length}）：`)
+  for (const u of unmatched) console.log(`    ${u.company} [${u.dir}] "${u.targetVal}"`)
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -237,12 +313,6 @@ async function main() {
   }
 
   console.log(`[template-mapping] MODE=${MODE}`)
-  if (MODE !== 'inspect') {
-    console.log(
-      `[template-mapping] MODE=${MODE} 尚未實作（Phase 2）。目前僅支援 inspect（唯讀診斷）。不執行任何寫入。`
-    )
-    return
-  }
 
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
@@ -252,12 +322,20 @@ async function main() {
 
   await client.connect()
   try {
-    console.log('[template-mapping] === INSPECT（唯讀，不寫入）===')
-    await inspectTemplates(client)
-    await inspectCompanies(client)
-    await inspectExtractionKeys(client)
-    await inspectExistingMappings(client)
-    console.log('\n[template-mapping] INSPECT 完成（DB 無任何變更）')
+    if (MODE === 'inspect') {
+      console.log('[template-mapping] === INSPECT（唯讀，不寫入）===')
+      await inspectTemplates(client)
+      await inspectCompanies(client)
+      await inspectExtractionKeys(client)
+      await inspectExistingMappings(client)
+      console.log('\n[template-mapping] INSPECT 完成（DB 無任何變更）')
+    } else if (MODE === 'dryrun' || MODE === 'write') {
+      await runSeed(client, MODE === 'write')
+    } else {
+      console.log(
+        `[template-mapping] 未知 MODE=${MODE}，僅支援 inspect / dryrun / write。不執行。`
+      )
+    }
   } finally {
     await client.end()
   }
