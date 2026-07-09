@@ -115,7 +115,9 @@ async function inspectCompanies(client) {
   console.log('\n--- Excel 38 名比對 ---')
 
   for (const target of COMPANY_NAMES) {
-    const exact = companies.filter((c) => ci(c.name) === ci(target))
+    const exact = companies.filter(
+      (c) => ci(c.name) === ci(target) || (c.code && ci(c.code) === ci(target))
+    )
     const contains = companies.filter(
       (c) => !exact.includes(c) && (ci(c.name).includes(ci(target)) || ci(target).includes(ci(c.name)))
     )
@@ -194,12 +196,11 @@ async function inspectExtractionKeys(client) {
 // ---------------------------------------------------------------------------
 
 async function inspectExistingMappings(client) {
-  line('4) 既有 template_field_mappings 現況')
+  line('4) 既有 template_field_mappings 現況 + Full List rule 範本')
   try {
     const res = await client.query(
       `select tfm.id, tfm.scope, tfm.company_id, c.name as company_name,
-              dt.name as template_name, jsonb_array_length(tfm.mappings) as rule_count,
-              tfm.is_active
+              dt.name as template_name, tfm.mappings, tfm.is_active
          from template_field_mappings tfm
          left join companies c on c.id = tfm.company_id
          left join data_templates dt on dt.id = tfm.data_template_id
@@ -208,10 +209,17 @@ async function inspectExistingMappings(client) {
     )
     console.log(`已存在 ${res.rowCount} 筆（Logistics Cost 相關）：`)
     for (const m of res.rows) {
+      const rules = Array.isArray(m.mappings) ? m.mappings : []
       console.log(
-        `  {template="${m.template_name}", scope=${m.scope}, company="${m.company_name}", ` +
-          `rules=${m.rule_count}, active=${m.is_active}, id=${m.id}}`
+        `\n  {template="${m.template_name}", scope=${m.scope}, company="${m.company_name}", ` +
+          `rules=${rules.length}, active=${m.is_active}, id=${m.id}}`
       )
+      // Full List template 的印完整 rule JSON，作為生成其他公司 mapping 的範本
+      if (/full list/i.test(m.template_name || '')) {
+        for (const r of rules) {
+          console.log(`      RULE: ${JSON.stringify(r)}`)
+        }
+      }
     }
   } catch (e) {
     console.error('  [existing mappings] 查詢失敗:', e.message)
