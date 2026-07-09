@@ -1,7 +1,7 @@
 # CHANGE-101: 批量建立公司 Template Field Mapping（Logistics Cost Inbound/Outbound）
 
 > **日期**: 2026-07-09
-> **狀態**: ⏳ 待實作
+> **狀態**: ✅ 已完成（2026-07-09 部署 Azure DEV，寫入 18 筆）
 > **優先級**: Medium
 > **類型**: Feature（資料建置 + 一次性維護腳本）
 > **影響範圍**: `prisma/`（新增 gated 腳本）、`scripts/docker-entrypoint.sh`、Azure DEV DB `template_field_mappings` 表
@@ -135,4 +135,22 @@ template-matching-engine.applyMapping(sourceFields):
 
 ## Implementation Notes
 
-（實作後補充）
+**實作結果（2026-07-09，Azure DEV）：**
+
+- **寫入 18 筆** COMPANY-scope mapping（14 間精確匹配公司，139 rules）：14 Outbound + 4 Inbound（DHL/NIPPON/RIL/TOLL 有 import）。
+- 交付：`prisma/seed-template-field-mappings.js`（inspect/dryrun/write 三模式）+ `prisma/template-mappings-data.json`（生成資料）+ entrypoint gate `RUN_TEMPLATE_MAPPING_SEED`。
+- 部署：手動 `az acr build` × 4（inspect ×3 修正 + phase2）→ dryrun（18 筆驗證、skip 0、零寫入）→ write（18 筆 commit、無失敗）→ flag 清 false。
+
+**OQ 定案：**
+- OQ-1：`sourceField` = Excel field def 名的 snake_case（取自 `ExtractionResult.fieldMappings` key），**非** `li_{classifiedAs}`。依既有 CEVA Full List mapping 範本確認。
+- OQ-2：多對一用 **FORMULA** `{a}+{b}`（snake_case 變數無空格、合法），非 AGGREGATE。
+- OQ-3：公司對應用 code+name 精確匹配；只做 15 精確（扣 CEVA 實做 14），模糊/變體/CEVA/Azure 無 皆跳過。
+- OQ-4：`targetField` = 兩個 Full List template field 的 `name`；Excel target 以 label ci 匹配（去括號 fuzzy 救 `LSS (HKD)`）；大小寫變體合併同一 targetField。
+
+**本批跳過（未納入）：**
+- **2 個 EBS**（RIL/Yamato export）：Outbound Full List 無 EBS 欄位。
+- **CEVA**：已有人工建的 Full List mapping（綁 `CEVA_LOGISTICS_HK` / id 7448b7c5），不重複。
+- **模糊/變體 6 間**：Constant International、Wang Kay、Cargo Link、Redlines、Wangkay、Worldwide Logistics（使用者選只做精確）。
+- **Azure 無此公司 ~16 間**：Sanco, BSI, Dongnam, Famous, Fartrans, Hua Feng, Kintetsu, Lam, MOL, Panda, Sharp, Unibest, Vinflair, WGL, Kargosmart, A2S Logistics, Profreight。
+
+**後續（backlog）**：跳過的公司待 Azure 補建/正名後可重跑 `write`（腳本冪等）；EBS 待 Outbound Full List template 加欄位。
