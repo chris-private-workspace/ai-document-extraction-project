@@ -1,7 +1,7 @@
 # CHANGE-098: DB 連線韌性與 transient 錯誤處理強化
 
 > **日期**: 2026-07-08
-> **狀態**: ✅ 已實作（待手動部署 Azure）
+> **狀態**: ✅ 已部署 Azure DEV（2026-07-09，映像 `dev-change098-20260709102634`；部署記錄見 `docs/07-deployment/02-azure-deployment/deployment-records/2026-07-09-dev-change098.md`）
 > **優先級**: High
 > **類型**: Reliability / Resilience
 > **影響範圍**: 資料庫連線層（`src/lib/prisma.ts`）+ 文件處理 pipeline（UnifiedProcessor / extraction-v3 / 結果持久化）
