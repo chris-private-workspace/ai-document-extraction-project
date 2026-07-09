@@ -107,6 +107,13 @@ async function inspectCompanies(client) {
     return
   }
 
+  // 印出全部 companies（供 Excel 名 → companyId 對應草案用）
+  console.log('--- 全部 companies（id | name | code）---')
+  for (const c of companies) {
+    console.log(`  ${c.id} | ${c.name} | ${c.code ?? '(null)'}`)
+  }
+  console.log('\n--- Excel 38 名比對 ---')
+
   for (const target of COMPANY_NAMES) {
     const exact = companies.filter((c) => ci(c.name) === ci(target))
     const contains = companies.filter(
@@ -136,9 +143,9 @@ async function inspectExtractionKeys(client) {
   // 3a) 幾筆完整樣本（看結構）
   try {
     const res = await client.query(
-      `select id, field_mappings, stage3_result
+      `select id, field_mappings, stage_3_result
          from extraction_results
-        where stage3_result is not null
+        where stage_3_result is not null
         order by created_at desc
         limit 5`
     )
@@ -148,7 +155,7 @@ async function inspectExtractionKeys(client) {
         r.field_mappings && typeof r.field_mappings === 'object'
           ? Object.keys(r.field_mappings)
           : []
-      const s3 = r.stage3_result || {}
+      const s3 = r.stage_3_result || {}
       const li = Array.isArray(s3.lineItems) ? s3.lineItems : []
       const ec = Array.isArray(s3.extraCharges) ? s3.extraCharges : []
       const caOf = (arr) => arr.map((x) => x && x.classifiedAs).filter(Boolean)
@@ -165,11 +172,11 @@ async function inspectExtractionKeys(client) {
   try {
     const res = await client.query(
       `select distinct ca from (
-         select jsonb_array_elements(stage3_result->'lineItems')->>'classifiedAs' as ca
-           from extraction_results where jsonb_typeof(stage3_result->'lineItems') = 'array'
+         select jsonb_array_elements(stage_3_result->'lineItems')->>'classifiedAs' as ca
+           from extraction_results where jsonb_typeof(stage_3_result->'lineItems') = 'array'
          union all
-         select jsonb_array_elements(stage3_result->'extraCharges')->>'classifiedAs' as ca
-           from extraction_results where jsonb_typeof(stage3_result->'extraCharges') = 'array'
+         select jsonb_array_elements(stage_3_result->'extraCharges')->>'classifiedAs' as ca
+           from extraction_results where jsonb_typeof(stage_3_result->'extraCharges') = 'array'
        ) t
        where ca is not null and ca <> ''
        order by ca`
