@@ -78,6 +78,7 @@
     "exchangeRates": "Exchange Rates",
     "pipelineSettings": "Pipeline Settings",
     "systemSettings": "System Settings",
+    "modelSettings": "Model Settings",
     "settings": "Settings"
   },
   "user": {

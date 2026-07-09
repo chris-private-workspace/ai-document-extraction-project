@@ -78,6 +78,7 @@
     "exchangeRates": "汇率管理",
     "pipelineSettings": "管线设置",
     "systemSettings": "系统设置",
+    "modelSettings": "模型设置",
     "settings": "设置"
   },
   "user": {

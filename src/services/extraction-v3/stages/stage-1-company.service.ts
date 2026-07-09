@@ -50,6 +50,7 @@ import type {
   CompanyIdentificationMethod,
 } from '@/types/extraction-v3.types';
 import { GptCallerService, type GptCallResult } from './gpt-caller.service';
+import { LlmModelConfigService } from '@/services/llm-model-config.service';
 // CHANGE-026: PromptConfig 整合
 import { loadStage1PromptConfig, type StagePromptConfig } from '../prompt-assembly.service';
 import {
@@ -287,7 +288,9 @@ Response format (JSON):
     tokenUsage: { input: number; output: number; total: number };
     model: string;
   }> {
-    const result: GptCallResult = await GptCallerService.callNano(
+    const modelKey = await LlmModelConfigService.getStageModel('stage1');
+    const result: GptCallResult = await GptCallerService.callModel(
+      modelKey,
       prompt.system,
       prompt.user,
       images

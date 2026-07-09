@@ -60,6 +60,7 @@ import {
   type GptCallResult,
   type ImageDetailMode,
 } from './gpt-caller.service';
+import { LlmModelConfigService } from '@/services/llm-model-config.service';
 // CHANGE-026: 變數替換支援
 import {
   replaceVariables,
@@ -1005,13 +1006,16 @@ Respond in valid JSON format matching the provided schema.`;
     tokenUsage: { input: number; output: number; total: number };
     model: string;
   }> {
-    const result: GptCallResult = await GptCallerService.callFull(
+    const modelKey = await LlmModelConfigService.getStageModel('stage3');
+    const result: GptCallResult = await GptCallerService.callModel(
+      modelKey,
       prompt.system,
       prompt.user,
       images,
-      imageDetailMode as ImageDetailMode,
-      undefined, // config
-      outputSchema // CHANGE-042 Phase 2: JSON Schema for structured output
+      {
+        imageDetailMode: imageDetailMode as ImageDetailMode,
+        jsonSchema: outputSchema, // CHANGE-042 Phase 2: JSON Schema for structured output
+      }
     );
 
     if (!result.success) {

@@ -26,6 +26,11 @@
  *   - src/services/extraction-v3/stages/stage-3-extraction.service.ts
  */
 
+import {
+  getLlmModelOption,
+  resolveDeploymentName,
+} from '@/lib/constants/llm-models';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -68,8 +73,8 @@ export interface GptCallerConfig {
  * GPT 調用輸入
  */
 export interface GptCallInput {
-  /** 模型類型 */
-  model: GptModelType;
+  /** 模型 key（來自白名單 AVAILABLE_LLM_MODELS，CHANGE-099） */
+  model: string;
   /** System Prompt */
   systemPrompt: string;
   /** User Prompt */
@@ -164,24 +169,6 @@ const DEFAULT_CONFIG: Required<GptCallerConfig> = {
   retryDelay: 1000,
 };
 
-/** 模型配置 */
-const MODEL_CONFIG = {
-  'gpt-5-nano': {
-    // 輕量模型：用於識別任務（Stage 1 & 2）
-    // 注意：GPT-5-nano 會使用 reasoning_tokens，需要留足夠空間給實際輸出
-    // 典型情況：reasoning 用 512-2048 tokens，實際輸出需要額外 512-1024 tokens
-    maxTokens: 4096, // 增加到 4096 以確保複雜文件有足夠空間
-    temperature: undefined as number | undefined, // GPT-5-nano 不支援自定義 temperature，只能使用預設值 1
-    defaultImageDetail: 'low' as ImageDetailMode, // 低解析度以節省成本
-  },
-  'gpt-5.2': {
-    // 完整模型：用於提取任務（Stage 3）
-    maxTokens: 8192, // 增加到 8192 以處理複雜文件的欄位提取
-    temperature: 0.1 as number | undefined,
-    defaultImageDetail: 'auto' as ImageDetailMode, // 自動選擇解析度
-  },
-};
-
 // ============================================================================
 // Service Class
 // ============================================================================
@@ -231,19 +218,27 @@ export class GptCallerService {
         };
       }
 
-      // 獲取模型配置
-      const modelConfig = MODEL_CONFIG[input.model];
-      const deploymentName =
-        input.model === 'gpt-5-nano'
-          ? this.config.nanoDeploymentName
-          : this.config.fullDeploymentName;
+      // CHANGE-099: 模型能力與 Azure 部署名改由白名單驅動（取代硬編 MODEL_CONFIG）
+      const modelOption = getLlmModelOption(input.model);
+      if (!modelOption) {
+        return {
+          success: false,
+          response: '',
+          error: `未知模型: ${input.model}`,
+          tokenUsage: { input: 0, output: 0, total: 0 },
+          model: input.model,
+          durationMs: Date.now() - startTime,
+        };
+      }
+      const capability = modelOption.capability;
+      const deploymentName = resolveDeploymentName(modelOption);
 
       // 構建訊息
       const messages = this.buildMessages(
         input.systemPrompt,
         input.userPrompt,
         input.imageBase64Array,
-        input.imageDetailMode || modelConfig.defaultImageDetail
+        input.imageDetailMode || capability.defaultImageDetail
       );
 
       // 調用 GPT API（帶重試）
@@ -254,8 +249,8 @@ export class GptCallerService {
           const response = await this.callGptApi(
             deploymentName,
             messages,
-            modelConfig.maxTokens,
-            modelConfig.temperature,
+            capability.maxTokens,
+            capability.supportsTemperature ? capability.temperature : undefined,
             input.jsonSchema
           );
 
@@ -467,6 +462,31 @@ export class GptCallerService {
       imageBase64Array,
       imageDetailMode,
       jsonSchema,
+    });
+  }
+
+  /**
+   * CHANGE-099: 以模型 key 動態調用（供 Stage 依配置選擇模型）
+   */
+  static async callModel(
+    modelKey: string,
+    systemPrompt: string,
+    userPrompt: string,
+    imageBase64Array: string[],
+    options?: {
+      imageDetailMode?: ImageDetailMode;
+      jsonSchema?: Record<string, unknown>;
+      config?: GptCallerConfig;
+    }
+  ): Promise<GptCallResult> {
+    const service = new GptCallerService(options?.config);
+    return service.call({
+      model: modelKey,
+      systemPrompt,
+      userPrompt,
+      imageBase64Array,
+      imageDetailMode: options?.imageDetailMode,
+      jsonSchema: options?.jsonSchema,
     });
   }
 

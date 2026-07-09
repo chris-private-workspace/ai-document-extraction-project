@@ -160,6 +160,34 @@
     "lastUpdated": "最后更新：{date}",
     "linkBadge": "外部页面"
   },
+  "modelSettings": {
+    "pageTitle": "LLM 模型设置",
+    "pageDescription": "为文件处理各阶段选择要使用的 LLM 模型",
+    "cardTitle": "阶段模型选择",
+    "cardDescription": "为公司识别、格式匹配与字段提取三个阶段各指定一个模型",
+    "stages": {
+      "stage1": "阶段 1 — 公司识别",
+      "stage1Description": "识别文件所属的货运承揽商／公司",
+      "stage2": "阶段 2 — 格式匹配",
+      "stage2Description": "比对文件格式以套用对应设置",
+      "stage3": "阶段 3 — 字段提取",
+      "stage3Description": "从文件中提取结构化字段数据"
+    },
+    "capability": {
+      "maxTokens": "最大 Token 数：{value}",
+      "temperature": "支持温度调整",
+      "noTemperature": "不支持温度调整",
+      "jsonSchema": "支持 JSON Schema",
+      "noJsonSchema": "不支持 JSON Schema",
+      "imageDetail": "图像细节：{value}"
+    },
+    "selectPlaceholder": "选择模型",
+    "readOnlyNotice": "仅全局管理员可修改模型设置，目前为只读检视。",
+    "loadError": "加载模型设置失败",
+    "saveSuccess": "模型设置已保存",
+    "saveError": "保存模型设置失败",
+    "save": "保存设置"
+  },
   "actions": {
     "save": "保存更改",
     "reset": "重置为默认值",
