@@ -30,6 +30,9 @@ import {
   getLlmModelOption,
   resolveDeploymentName,
 } from '@/lib/constants/llm-models';
+import { isLlmGatewayEnabled } from '@/config/feature-flags';
+import { llmGatewayService } from '@/services/llm';
+import type { LlmOutputSpec } from '@/services/llm';
 
 // ============================================================================
 // Types
@@ -85,6 +88,8 @@ export interface GptCallInput {
   imageDetailMode?: ImageDetailMode;
   /** JSON Schema（可選） */
   jsonSchema?: Record<string, unknown>;
+  /** 用量記帳 / 日誌歸屬（Epic 23 step 5）：經 gateway 時透傳給 LlmGatewayService */
+  usageContext?: { documentId?: string; operation?: string };
 }
 
 /**
@@ -230,6 +235,13 @@ export class GptCallerService {
           durationMs: Date.now() - startTime,
         };
       }
+      // Epic 23 Story 23.1 step 4：flag 開啟時經 LlmGatewayService（硬切換，同一批 Azure 模型）。
+      // gateway 資料未播種（modelId 解析不到）→ 回退既有直接 fetch 路徑，零風險。
+      if (isLlmGatewayEnabled()) {
+        const viaGateway = await this.callViaGateway(input, modelOption, startTime);
+        if (viaGateway) return viaGateway;
+      }
+
       const capability = modelOption.capability;
       const deploymentName = resolveDeploymentName(modelOption);
 
@@ -294,6 +306,61 @@ export class GptCallerService {
         durationMs: Date.now() - startTime,
       };
     }
+  }
+
+  /**
+   * Epic 23 Story 23.1 step 4：經 `LlmGatewayService` 呼叫（同一批 Azure 模型）。
+   * @description
+   *   映射 `GptCallInput` → gateway `LlmCallInput`（system+user 訊息、圖片、三態 output、
+   *   能力驅動的 maxTokens/temperature），再把 `LlmCallResult` 映回既有 `GptCallResult`。
+   *   modelId（`LlmModel.id`）解析不到即回 `null`，讓呼叫端回退既有直接 fetch（播種缺失時零風險）。
+   * @returns 對齊既有 `GptCallResult` 的結果；`null` 表示需回退舊路徑
+   */
+  private async callViaGateway(
+    input: GptCallInput,
+    modelOption: NonNullable<ReturnType<typeof getLlmModelOption>>,
+    startTime: number,
+  ): Promise<GptCallResult | null> {
+    const modelId = await llmGatewayService.resolveModelIdByKey(input.model);
+    if (!modelId) return null;
+
+    const capability = modelOption.capability;
+    // 對齊現行 response_format：有 jsonSchema → json_schema(object)；否則 json_object(json)
+    const output: LlmOutputSpec = input.jsonSchema
+      ? { mode: 'object', jsonSchema: input.jsonSchema, name: 'extraction_result' }
+      : { mode: 'json' };
+
+    const result = await llmGatewayService.call({
+      modelId,
+      messages: [
+        { role: 'system', content: input.systemPrompt },
+        { role: 'user', content: input.userPrompt },
+      ],
+      images: input.imageBase64Array.map((data) => ({
+        data,
+        detail: input.imageDetailMode ?? capability.defaultImageDetail,
+      })),
+      output,
+      // 能力驅動（對齊現行 gpt-caller）：nano 不支援 temperature 即丟棄
+      maxOutputTokens: capability.maxTokens,
+      temperature: capability.supportsTemperature ? capability.temperature : undefined,
+      maxRetries: this.config.retryCount,
+      abortTimeoutMs: this.config.timeout,
+      usageContext: input.usageContext,
+    });
+
+    return {
+      success: result.success,
+      response: result.text,
+      error: result.error,
+      tokenUsage: {
+        input: result.usage.input,
+        output: result.usage.output,
+        total: result.usage.total,
+      },
+      model: input.model,
+      durationMs: Date.now() - startTime,
+    };
   }
 
   /**
@@ -477,6 +544,8 @@ export class GptCallerService {
       imageDetailMode?: ImageDetailMode;
       jsonSchema?: Record<string, unknown>;
       config?: GptCallerConfig;
+      /** 用量記帳 / 日誌歸屬（Epic 23 step 5）：經 gateway 時透傳 */
+      usageContext?: { documentId?: string; operation?: string };
     }
   ): Promise<GptCallResult> {
     const service = new GptCallerService(options?.config);
@@ -487,6 +556,7 @@ export class GptCallerService {
       imageBase64Array,
       imageDetailMode: options?.imageDetailMode,
       jsonSchema: options?.jsonSchema,
+      usageContext: options?.usageContext,
     });
   }
 

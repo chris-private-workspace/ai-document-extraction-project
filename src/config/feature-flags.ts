@@ -403,3 +403,23 @@ export function getExtractionV3_1FlagStatus(): string {
 
   return status.join(' | ');
 }
+
+// ============================================================================
+// LLM Gateway Feature Flag (Epic 23 - Story 23.1 step 4)
+// ============================================================================
+
+/**
+ * 是否經 `LlmGatewayService`（Vercel AI SDK）路由 extraction 的 LLM 呼叫。
+ *
+ * @description
+ *   step 4 採**全域硬切換**（無百分比灰度）：
+ *   - `FEATURE_LLM_GATEWAY_ENABLED='true'` → gpt-caller 走 gateway（同一批 Azure 模型）。
+ *   - 預設 / 其他值 → 走既有直接 Azure `fetch`，**行為零變**（opt-in 安全模型）。
+ *   百分比灰度 + shadow mode（新舊並行比對 confidence 分佈）留 **step 4b**——
+ *   需先把 `fileId` 串到呼叫點才能做一致性灰度路由（`simpleHash(fileId)`）。
+ *
+ * @returns 是否啟用 gateway 路由
+ */
+export function isLlmGatewayEnabled(): boolean {
+  return process.env.FEATURE_LLM_GATEWAY_ENABLED === 'true';
+}
