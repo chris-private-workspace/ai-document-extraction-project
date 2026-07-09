@@ -1,24 +1,33 @@
-# Tech Spec 提案: Epic 23 - 多 LLM Provider 整合管理系統
+# Tech Spec: Epic 23 - 多 LLM Provider 整合管理系統
 
-> **Version**: 0.1.0（提案草案）
-> **Created**: 2026-07-09
-> **Status**: 🟡 Draft — 提案，待用戶審批（**尚未寫入 `sprint-status.yaml`**）
+> **Version**: 0.2.0（D1–D4 決策已定，實作規格草案）
+> **Created**: 2026-07-09 ｜ **Updated**: 2026-07-09
+> **Status**: 🟢 D1–D4 決策已定；待排入 sprint 進實作（**尚未寫入 `sprint-status.yaml`**）
 > **Epic Key**: EPIC-23（暫定編號，sprint-status 目前追蹤到 21、tech-specs 到 22）
 > **前置**: CHANGE-099（LLM 模型選擇管理，已完成）
 
 ---
 
-## ⚠️ Hard Constraint 觸發聲明（本提案僅為規劃，尚未動 code）
+## 決策記錄（D1–D4，2026-07-09 用戶定案）
 
-本提案若獲批實作，將觸發下列 Strict Mode Hard Constraints，**必須逐項取得用戶 explicit approval 後才可進入實作**：
+| # | 問題 | 定案 | 影響 |
+|---|------|------|------|
+| **D1** | 資料模型 | **新增 Prisma model**（`LlmProvider` + `LlmModel`） | 觸發 H1；需 migration |
+| **D2** | 支援哪些 provider | **多家主流 provider**：OpenAI、Google Gemini、Anthropic Claude、xAI Grok **等**（可擴充） | 見 §3 架構、§5 依賴 |
+| **D3** | 是否先只做 Phase 1（僅 Azure 抽象層） | **否** — 直接做完整、用戶可自行配置的多 provider 系統 | 移除 Phase 閘門，改為已承諾的 Story 序列（§11） |
+| **D4** | VNet egress / 資料合規誰拍板 | **由 AI 決定** → 見 §6（我的決定已記錄） | 見 §6、§10 |
 
-| 約束 | 觸發點 | 需 approve 的階段 |
-|------|--------|------------------|
-| **H1 架構變更** | 引入 Provider 抽象層，改動三層映射 Tier 3（`term-classification`）與 extraction 管線的 LLM 呼叫核心；新增 Prisma model（方案 B） | Phase 1 起 |
-| **H2 依賴/Vendor** | 引入 Azure OpenAI 以外的 LLM vendor + 對應 npm SDK（`@anthropic-ai/sdk`、`@google/generative-ai` 等） | Phase 2 起 |
-| **H4 安全/隱私** | 儲存各 provider 的 API key（憑證加密）；freight invoice 資料送往外部 provider 的合規面 | Phase 2 起 |
+---
 
-> 本文件本身是「規劃文件」，撰寫它不違反上述約束；但**任何一行實作 code 之前**，對應 Phase 必須先取得批准。
+## ⚠️ Hard Constraint 觸發聲明（實作前逐項 approve）
+
+| 約束 | 觸發點 | 需 approve 時機 |
+|------|--------|----------------|
+| **H1 架構變更** | 新增 Prisma model（`LlmProvider`/`LlmModel`）；引入 Provider 抽象層，改動 extraction 管線與 Tier 3（`term-classification`）的 LLM 呼叫底層 | Story 23.1 開工前 |
+| **H2 依賴/Vendor** | **唯一新增 npm 套件 `@anthropic-ai/sdk`**（Claude 專用）；OpenAI/Gemini/Grok 皆複用既有 `openai` SDK，無新依賴 | Story 23.3 安裝套件時（確認版本） |
+| **H4 安全/隱私** | 儲存各 provider API key（加密）；非 Azure provider 的發票資料落地合規 | Story 23.2 起 |
+
+> 本文件為規劃文件；撰寫它不違反約束。**任何一行實作 code 前**，對應 Story 仍須取得 explicit approval。用戶已於 2026-07-09 approve **方向**（D1–D4）。
 
 ---
 
@@ -27,109 +36,97 @@
 | 項目 | 內容 |
 |------|------|
 | **Epic ID** | 23（暫定） |
-| **Epic 名稱** | Multi-LLM Provider Integration & Governance（多 LLM Provider 整合與治理） |
-| **預估規模** | 大型 / 跨多 Sprint（Phase 1 約 5-8 天；完整三 Phase 約 3-5 週，視 provider 數量） |
+| **Epic 名稱** | Multi-LLM Provider Integration & Governance |
+| **預估規模** | 大型 / 跨多 Sprint（4 個 Story，約 3-4 週） |
 | **前置依賴** | CHANGE-099（已完成，提供白名單 + Stage 模型選擇雛形） |
-| **本質** | 把目前**硬綁 Azure OpenAI、散落 7 處**的 LLM 呼叫，收斂為統一 **Provider 抽象層**，並讓用戶可在後台配置多家 LLM service provider 與其模型 |
+| **本質** | 把硬綁 Azure OpenAI、散落 7 處的 LLM 呼叫，收斂為統一 Provider 抽象層，並讓用戶在後台**自行配置多家 LLM provider 與模型** |
 
 ---
 
-## 1. 需求背景與動機
+## 1. 需求背景
 
-### 1.1 用戶提出的需求
+CHANGE-099 只能在 **2 個 Azure OpenAI 模型**（`gpt-5-nano`/`gpt-5.2`）間選。用戶要求建立更系統化的機制，管理**不同 LLM service provider** 的整合設定，讓用戶自行配置、決定使用哪家 provider 的模型。
 
-> 現在的 model settings（CHANGE-099）只能在 **2 個 Azure OpenAI 模型**（`gpt-5-nano` / `gpt-5.2`）之間選。希望建立一套更有系統的機制，**管理不同 LLM service provider 的整合設定**，讓用戶自行配置、決定使用哪些 provider 的模型，而不是只有 2 個選擇。
-
-### 1.2 現況痛點（實測盤點，附檔案位置）
-
-1. **LLM 呼叫完全綁死 Azure OpenAI**：白名單 `src/lib/constants/llm-models.ts` 以 `deploymentEnvVar` 為核心，**無 provider 維度、無 endpoint/apiKey 概念**。
-2. **Client 初始化重複散落 7 處**（無統一抽象層）：
-   - 5 處各自 `new AzureOpenAI(...)`：`gpt-vision.service.ts:710`、`term-classification.service.ts:170`、`ai-term-validator.service.ts:248`、`extraction-v2/gpt-mini-extractor.service.ts:159`、`api/v1/prompt-configs/test/route.ts:467`（另 `api/test/extraction-compare/route.ts:252`）。
-   - 2 條獨立 `fetch` 路徑：`extraction-v3/stages/gpt-caller.service.ts`、`extraction-v3/unified-gpt-extraction.service.ts`。
-3. **設定不一致**：`gpt-caller` 的 `API_VERSION` 硬編 `'2024-12-01-preview'`；其他 service 讀 `AZURE_OPENAI_API_VERSION`，預設值還分歧（`2025-03-01-preview` / `2024-12-01-preview` / `2024-02-15-preview`）；`ai-term-validator` 甚至用獨立命名 `AZURE_OPENAI_DEPLOYMENT`（非 `_DEPLOYMENT_NAME`）。
-4. **CHANGE-099 只解決了「選哪個模型」，沒解決「選哪家 provider」**：`LlmModelConfigService` 存的是 stage→model key，仍假設 Azure。
-
-### 1.3 為何值得做
-
-- 避免單一 vendor 鎖定（成本 / 可用性 / 模型能力上的彈性）。
-- 收斂 7 處重複 client → 單一抽象層，本身就是巨大的可維護性改善（即使永遠只用 Azure）。
-- 為未來新模型 / 新供應商提供「加設定、不改 code」的擴充點。
+**現況痛點**（實測盤點）：
+- LLM 呼叫**完全綁 Azure OpenAI**：白名單 `src/lib/constants/llm-models.ts` 以 `deploymentEnvVar` 為核心，無 provider 維度、無 endpoint/apiKey 概念。
+- **Client 初始化散落 7 處**：5× `new AzureOpenAI`（`gpt-vision.service.ts:710`、`term-classification.service.ts:170`、`ai-term-validator.service.ts:248`、`extraction-v2/gpt-mini-extractor.service.ts:159`、`api/v1/prompt-configs/test/route.ts:467`；另 `api/test/extraction-compare/route.ts:252`）+ 2× fetch（`gpt-caller.service.ts`、`unified-gpt-extraction.service.ts`）。
+- **設定不一致**：`gpt-caller` 硬編 `API_VERSION='2024-12-01-preview'`；其他讀 `AZURE_OPENAI_API_VERSION`（預設值分歧）；`ai-term-validator` 用獨立命名 `AZURE_OPENAI_DEPLOYMENT`。
 
 ---
 
 ## 2. 目標與非目標
 
-### 2.1 目標（In Scope）
+### 目標（In Scope）
+- **G1**：統一 `LlmProviderAdapter` 抽象層，封裝「組 wire request / 認證 / 回應解析」。
+- **G2**：收斂散落 7 處 LLM 呼叫到抽象層（漸進，先 extraction 管線，再其餘）。
+- **G3**：後台可**由用戶自行配置** Provider（類型 + endpoint + 憑證）與其模型（+ 能力）。
+- **G4**：各處理環節可指定「用哪個 provider 的哪個模型」。
+- **G5**：憑證加密 at rest（複用既有 `aes-256-gcm` + `CONFIG_ENCRYPTION_KEY`）。
+- **G6**：支援 OpenAI / Gemini / Claude / Grok，且**可擴充**任何 OpenAI-compatible provider（D2 的「等」）。
 
-- **G1**：建立統一的 `LlmProviderAdapter` 抽象層，把「組 wire request / 認證 / 回應解析」封裝在各 provider adapter 內。
-- **G2**：把散落 7 處的 LLM 呼叫收斂到抽象層之上（漸進，先 extraction 管線，再其他 service）。
-- **G3**：後台可管理「Provider（類型 + endpoint + 憑證）」與「該 provider 下可用的模型（+ 能力）」。
-- **G4**：各處理環節（extraction Stage 1-3、term-classification、gpt-vision…）可指定「用哪個 provider 的哪個模型」。
-- **G5**：憑證安全儲存（加密 at rest），沿用既有 `aes-256-gcm` + `CONFIG_ENCRYPTION_KEY` pattern。
-
-### 2.2 非目標（Out of Scope — 明確排除以防 scope creep）
-
-- ❌ 不做每 provider 的用量計費 / billing 對帳（可另立治理 Epic）。
-- ❌ 不做 A/B 模型自動路由 / 自動 failover（Phase 3 之後再議）。
-- ❌ 不改動三層映射 Tier 1/2 的邏輯（只換 Tier 3 的 LLM 呼叫底層）。
-- ❌ 不引入 LangChain 之類的大型 orchestration framework（避免 H2 重量級依賴）。
-
----
-
-## 3. 關鍵約束（實作前必須先解決的前提）🔴
-
-這三項不是純技術問題，會直接決定可行性，**建議在 Phase 2 開工前由用戶 / IT 拍板**：
-
-| # | 約束 | 說明 | 影響 |
-|---|------|------|------|
-| C1 | **Azure VNet 網路egress** | DEV/生產是 VNet 私有端點鎖定的 App Service，目前所有 AI 呼叫走 Azure OpenAI 內部。呼叫公網的 OpenAI/Anthropic/Google API 需開放 outbound 路由 | 非 app code 可解決，需 infra 配置 |
-| C2 | **憑證加密 vs SP 權限** | Provider API key 須加密儲存。理想用 Azure Key Vault，但既有記錄顯示部署 SP 僅 Contributor、**不能用 Key Vault / Managed Identity** | 只能用 app 層 `aes-256-gcm` + env 主金鑰（`CONFIG_ENCRYPTION_KEY`），需接受此技術債 |
-| C3 | **資料落地 / 合規** | Freight invoice 可能含 PII / 商業敏感資料。送往**不同**供應商有資料落地與合規問題 | 需 IT / security 正式 sign-off，屬業務決定非技術決定 |
+### 非目標（Out of Scope — 防 scope creep）
+- ❌ 不做用量計費 / billing 對帳（另立治理 Epic）。
+- ❌ 不做自動 A/B 路由 / 自動 failover。
+- ❌ 不改動三層映射 Tier 1/2 邏輯（只換 Tier 3 的 LLM 呼叫底層）。
+- ❌ 不引入 LangChain 等重量級 orchestration framework。
+- ❌ 不建重量級合規審批 workflow（見 §6 決定）。
 
 ---
 
-## 4. 架構設計
+## 3. 架構設計
 
-### 4.1 核心抽象：`LlmProviderAdapter`
+### 3.1 關鍵洞察 — OpenAI-compatible 收斂（大幅降低 D2 成本）
+
+多數主流 provider 都提供 **OpenAI-compatible chat completions 端點**，可用**既有** `openai` SDK（改 `baseURL` + `apiKey`）呼叫，**零新依賴**：
+
+| Provider | 接法 | 端點 | 新依賴 |
+|----------|------|------|--------|
+| Azure OpenAI | `AzureOpenAI`（既有 SDK）或既有 fetch | 私有端點 | 無 |
+| OpenAI | `openai` SDK（官方 baseURL） | `api.openai.com/v1` | 無 |
+| xAI Grok | `openai` SDK + 自訂 baseURL | `api.x.ai/v1` | 無 |
+| Google Gemini | `openai` SDK + compat baseURL | `generativelanguage.googleapis.com/v1beta/openai/` | 無 |
+| 其他 OpenAI-compatible（自建 / DeepSeek / Mistral…） | `openai` SDK + 自訂 baseURL | 各自 | 無 |
+| **Anthropic Claude** | **`@anthropic-ai/sdk`（Messages API）** | `api.anthropic.com` | **`@anthropic-ai/sdk`（H2）** |
+
+> 結論：**一個 `OpenAICompatibleAdapter`** 覆蓋 Azure/OpenAI/Grok/Gemini/自建；**只有 Anthropic** 因訊息格式（system 為 top-level、content blocks、vision base64 source、structured output 走 tool-use）不同，需專用 `AnthropicAdapter`。這也天然支援 D2 的「等」。
+
+### 3.2 架構圖
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │  呼叫方（收斂後統一走這裡）                                        │
-│  extraction Stage 1-3 / term-classification / gpt-vision / ...     │
+│  extraction Stage 1-3 / term-classification / gpt-vision /         │
+│  ai-term-validator / gpt-mini-extractor / unified-gpt-extraction   │
 └───────────────────────────┬──────────────────────────────────────┘
                             │ LlmChatRequest（provider-agnostic）
                             ▼
               ┌──────────────────────────────┐
-              │      LlmGatewayService        │  ← 依配置選 provider+model
-              │  (resolve provider & model,   │     讀 LlmModelConfigService
-              │   pick adapter, 重試, 計時)    │
+              │      LlmGatewayService        │  依配置解析 provider+model
+              │  resolve(provider,model) →     │  讀 LlmModelConfigService（CHANGE-099 延伸）
+              │  pick adapter → 重試 → 計時     │  憑證解密（aes-256-gcm）
               └───────────────┬──────────────┘
-                              │ 分派到對應 adapter
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-┌────────────────┐  ┌────────────────┐  ┌────────────────┐
-│ AzureOpenAI    │  │ OpenAI         │  │ Anthropic      │
-│ Adapter        │  │ Adapter        │  │ Adapter        │  … 可擴充
-│ (Phase 1:      │  │ (Phase 2)      │  │ (Phase 2/3)    │
-│  包現有 fetch)  │  │                │  │                │
-└───────┬────────┘  └───────┬────────┘  └───────┬────────┘
-        │ Azure REST         │ openai SDK        │ @anthropic-ai/sdk
-        ▼                    ▼                   ▼
-   Azure OpenAI          OpenAI API          Anthropic API
+                    ┌─────────┴──────────┐
+                    ▼                    ▼
+        ┌────────────────────────┐  ┌────────────────────┐
+        │ OpenAICompatibleAdapter │  │  AnthropicAdapter   │
+        │ (openai SDK, 可配 baseURL)│  │ (@anthropic-ai/sdk) │
+        │ Azure/OpenAI/Grok/Gemini │  │  Claude             │
+        └───────────┬────────────┘  └─────────┬──────────┘
+                    ▼                          ▼
+        各 provider 的 chat/completions      Anthropic Messages API
 ```
 
-### 4.2 統一請求 / 回應型別（草案）
+### 3.3 統一型別與 Adapter 介面（草案）
 
 ```typescript
-// provider-agnostic 請求（各 adapter 負責轉成自家 wire format）
 interface LlmChatRequest {
   systemPrompt: string;
   userPrompt: string;
-  imageBase64Array: string[];          // vision 輸入
+  imageBase64Array: string[];            // vision 輸入
   imageDetailMode?: 'auto' | 'low' | 'high';
-  jsonSchema?: Record<string, unknown>; // 結構化輸出（能力不足者降級）
+  jsonSchema?: Record<string, unknown>;  // 結構化輸出（能力不足者降級）
   maxTokens: number;
-  temperature?: number;                 // 不支援者忽略
+  temperature?: number;                   // 不支援者忽略
 }
 
 interface LlmChatResponse {
@@ -142,54 +139,61 @@ interface LlmChatResponse {
   error?: string;
 }
 
+/** Gateway 解析後餵給 adapter 的完整模型描述（含解密後憑證） */
+interface ResolvedLlmModel {
+  provider: {
+    type: LlmProviderType;
+    baseUrl?: string;
+    apiKey: string;        // 已解密
+    apiVersion?: string;   // Azure 專用
+  };
+  modelKey: string;        // Azure=deployment name；OpenAI/其他=model id
+  capability: LlmModelCapability;
+}
+
 interface LlmProviderAdapter {
-  readonly providerType: LlmProviderType;   // AZURE_OPENAI | OPENAI | ANTHROPIC | ...
-  chatCompletion(req: LlmChatRequest, model: LlmModelDescriptor): Promise<LlmChatResponse>;
-  testConnection(model: LlmModelDescriptor): Promise<{ ok: boolean; message?: string }>;
+  readonly providerType: LlmProviderType;
+  chatCompletion(req: LlmChatRequest, model: ResolvedLlmModel): Promise<LlmChatResponse>;
+  testConnection(model: ResolvedLlmModel): Promise<{ ok: boolean; message?: string }>;
 }
 ```
 
-> **關鍵設計取捨**：能力差異（image detail / json_schema / tool use / token 上限 / temperature）由 `LlmModelDescriptor.capability` 描述，adapter 內按能力**降級**（如不支援 json_schema → 退回 json_object），與現在 `gpt-caller` 的 fallback 行為一致。
+> **能力降級**：`capability`（image detail / json_schema / vision / temperature / maxTokens）由模型設定描述，adapter 內按能力降級（如不支援 json_schema → 退回 json_object），與現行 `gpt-caller` fallback 行為一致。
 
-### 4.3 收斂策略（降低風險的關鍵）
+### 3.4 收斂策略（行為零變遷移）
 
-Phase 1 先讓 `AzureOpenAIAdapter` **完整包住現有 `gpt-caller` 的 fetch 邏輯**（含 `2024-12-01-preview`、`response_format` fallback、重試），行為**逐位元不變**；`GptCallerService.callModel` 內部改呼叫 gateway，對外簽章不變 → extraction 三階段零感知。其餘 5 處 SDK client 之後逐一遷移（每次一個，獨立可驗證）。
+Story 23.1 讓 `OpenAICompatibleAdapter` 的 Azure 路徑**完整重現現行 `gpt-caller` fetch 行為**（含 `2024-12-01-preview`、`response_format` fallback、重試、逾時）；`GptCallerService.callModel` 內部改呼叫 gateway，**對外簽章不變** → extraction 三階段零感知。其餘 5 處 client 於 Story 23.4 逐一遷移（每次一個、獨立可驗證，附 golden test 比對輸出）。
 
 ---
 
-## 5. 資料模型（兩方案對比 — 需用戶決策 D1）
-
-### 方案 A：延續 CHANGE-099，純 `SystemConfig`（key-value + JSON）
-
-- provider 清單 / 模型清單 / 憑證都塞進 `SystemConfig` 的 value（JSON）。
-- ✅ 免 migration、避開 Azure schema drift；憑證直接用 `isEncrypted`。
-- ❌ provider→model 是天然一對多關聯，硬塞 JSON 難查詢、難做 UI 列表、難加 index、難做外鍵完整性。多 provider 後會很痛。
-
-### 方案 B：新增 Prisma models（**推薦**，但觸發 H1）
+## 4. 資料模型（D1 定案：新 Prisma model）
 
 ```prisma
 enum LlmProviderType {
   AZURE_OPENAI
   OPENAI
   ANTHROPIC
-  GOOGLE_GENAI
-  CUSTOM_OPENAI_COMPATIBLE
+  GOOGLE_GEMINI
+  XAI_GROK
+  OPENAI_COMPATIBLE   // 泛用：任何 OpenAI-compatible 端點（自建 / 其他）
 }
 
 model LlmProvider {
-  id            String          @id @default(cuid())
-  name          String          // 顯示名稱，如 "Azure OpenAI (Prod)"
-  providerType  LlmProviderType
-  endpoint      String?         // Azure 需要；OpenAI/Anthropic 可選（預設官方）
-  apiVersion    String?         // Azure 專用
-  apiKeyEnc     String?         // aes-256-gcm 加密後的 API key（複用 CONFIG_ENCRYPTION_KEY）
-  isEncrypted   Boolean         @default(true)
-  isEnabled     Boolean         @default(true)
-  extraConfig   Json?           // provider 專屬設定（如 Azure resource、region）
-  models        LlmModel[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  updatedBy     String?
+  id                 String          @id @default(cuid())
+  name               String          @unique      // 顯示名稱，如 "OpenAI (Prod)"
+  providerType       LlmProviderType
+  baseUrl            String?         // Azure/自建必填；OpenAI/Anthropic 可留空用官方預設
+  apiVersion         String?         // Azure 專用
+  apiKeyEnc          String?         // aes-256-gcm 加密後的 API key
+  isEncrypted        Boolean         @default(true)
+  isEnabled          Boolean         @default(true)
+  isDefault          Boolean         @default(false) // 全域預設 provider（fallback 用）
+  allowSensitiveData Boolean         @default(false) // 合規：是否允許處理敏感發票資料（§6）
+  extraConfig        Json?           // provider 專屬（Azure resource、region 等）
+  models             LlmModel[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  updatedBy          String?
   @@index([providerType])
   @@index([isEnabled])
 }
@@ -198,35 +202,69 @@ model LlmModel {
   id             String       @id @default(cuid())
   providerId     String
   provider       LlmProvider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  modelKey       String       // 呼叫用識別（Azure=deployment name；OpenAI=model id）
+  modelKey       String       // 呼叫識別（Azure=deployment name；OpenAI=model id）
   label          String       // 顯示名稱
   capability     Json         // { maxTokens, supportsTemperature, temperature?, defaultImageDetail, supportsJsonSchema, supportsVision }
   isEnabled      Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   @@unique([providerId, modelKey])
   @@index([isEnabled])
 }
 ```
 
-- 「各環節用哪個 provider+model」：延續 CHANGE-099，仍存 `SystemConfig(AI_MODEL/GLOBAL)`，但 value 改存 `LlmModel.id`（而非裸 model key），fallback 規則不變。
-- 憑證加解密：**複用** `system-config.service.ts` 的 `aes-256-gcm` 邏輯（建議抽出共用 `src/lib/llm-credential-crypto.ts` 或直接沿用 `src/lib/encryption.ts`），金鑰 `CONFIG_ENCRYPTION_KEY`（fail-closed）。
-
-> **Migration 注意**：方案 B 需 `prisma migrate`。Azure DEV 有 schema drift 史（見 memory），部署時比照既有做法（VNet 內 `db push` / gated reset）。這也是 D1 需拍板的原因之一。
-
----
-
-## 6. 分階段 Roadmap（建議漸進落地）
-
-| Phase | 範圍 | 觸發約束 | 風險 | 可獨立交付價值 |
-|-------|------|----------|------|----------------|
-| **Phase 1 — 抽象層收斂（仍只 Azure）** | 建 `LlmProviderAdapter` + `AzureOpenAIAdapter`（包現有 fetch）+ `LlmGatewayService`；extraction 三階段改走 gateway；統一 API version / env 讀取 | H1 | **低**（行為不變，純內部重構 + 收斂） | 消除 7 處重複、統一設定、為多 provider 鋪路 |
-| **Phase 2 — Provider 資料模型 + 憑證管理 + 第 2 家 provider** | 方案 B 的 Prisma models + 加密憑證 + `OpenAIAdapter`（或 Anthropic）+ 後台 Provider 管理頁；先解 C1/C2/C3 | H1+H2+H4 | **中高**（vendor / 網路 / 合規） | 真正「多 provider 可選」 |
-| **Phase 3 — 全面遷移 + 治理** | 其餘 5 處 SDK client 全遷到 gateway；連線測試 / 健康檢查 / 用量與成本觀測；每環節 provider+model 指派 UI | H1 | 中 | 全站統一治理、可觀測 |
-
-> **強烈建議**：**先只做 Phase 1**。它風險最低、行為零變、且不需要動 vendor / 網路 / 合規（不觸發 H2/H4），做完就已大幅改善可維護性；之後再視業務是否真的要接第二家 provider 決定 Phase 2。
+- **各環節指派**：延續 CHANGE-099 存 `SystemConfig(AI_MODEL/GLOBAL)`，但 value 改存 **`LlmModel.id`**（唯一決定 provider+model）。
+- **Fallback 鏈（向後相容，行為零變）**：指派缺失/無效 → 該環節預設模型 → `isDefault` provider → 硬編 Azure 預設（`gpt-5-nano`/`gpt-5.2`，即 CHANGE-099 現行行為）。
+- **憑證加解密**：複用 `system-config.service.ts` 的 `aes-256-gcm` 邏輯（建議抽共用 `src/lib/llm-credential-crypto.ts`），金鑰 `CONFIG_ENCRYPTION_KEY`（fail-closed）。
+- **Migration 注意**：Azure DEV 有 schema drift 史 → 部署照既有 gated 流程（VNet 內 `db push` / `FORCE_SCHEMA_RESET`）。
+- **資料播種**：migration 後以既有 `AZURE_OPENAI_*` env 建一筆 `isDefault` 的 Azure provider + 2 個既有模型（無痛升級，用戶原設定即刻可用）。
 
 ---
 
-## 7. API 設計草案（Phase 2）
+## 5. 依賴策略（H2）
+
+| Provider | SDK | 狀態 |
+|----------|-----|------|
+| Azure OpenAI / OpenAI / xAI Grok / Google Gemini（compat） / 自建 | `openai@^6.15.0` | **既有，無新依賴** |
+| Anthropic Claude | `@anthropic-ai/sdk` | **新增（唯一 H2 觸發，Story 23.3 安裝時確認版本）** |
+| Google Gemini（native，選用） | `@google/generative-ai` | **暫不引入**；先用 compat 端點，除非 compat 能力不足才評估 |
+
+> 設計刻意讓 H2 面積收斂到**一個套件**。
+
+---
+
+## 6. D4 決定（VNet egress / 資料合規）— AI 定案並記錄
+
+用戶授權由我決定。決定如下：
+
+### C1 — VNet egress
+- **視為部署/infra 前置，非 code 阻塞**。App code 對網路拓撲無感（只發 HTTPS 到配置的 provider 端點）。
+- Azure OpenAI（私有端點）維持預設可用；啟用**非 Azure** provider 前，infra 須開通 App Service outbound egress。
+- 系統對無法連線的 provider **明確報錯**（不靜默失敗）；`testConnection` 提供後台即時驗證。
+- DEV 可先開 egress 供測試。此前置寫入 §10 與部署 runbook。
+
+### C3 — 資料合規
+- **Azure OpenAI 維持全域預設 baseline**（資料留在既有 Azure tenant = 合規安全）；不主動改變現有資料流。
+- `LlmProvider.allowSensitiveData`（預設 `false`）：後台配置**非 Azure** provider 時，UI 顯示明確合規警示，需 globalAdmin 主動勾選確認「知悉發票資料將離開 Azure 邊界」。
+- 實際 sign-off 屬**組織/營運層 gate**：在 §10 標為「啟用非 Azure provider 於生產前的前置」，責任浮現給 IT/security，**不建重量級審批 workflow**（避免 over-engineering）。
+
+---
+
+## 7. 各處理環節接入（收斂範圍）
+
+| 環節 | 檔案 | 遷移 Story |
+|------|------|-----------|
+| extraction Stage 1-3 | `gpt-caller.service.ts`（→ gateway，簽章不變） | 23.1 |
+| Vision OCR / 文件分類 | `gpt-vision.service.ts` | 23.4 |
+| 術語分類（Tier 3） | `term-classification.service.ts` | 23.4 |
+| AI 術語驗證 | `ai-term-validator.service.ts` | 23.4 |
+| V2 輕量提取 | `extraction-v2/gpt-mini-extractor.service.ts` | 23.4 |
+| V3 單次提取 | `unified-gpt-extraction.service.ts` | 23.4 |
+| 測試/比較 API route（2 處） | `prompt-configs/test`、`test/extraction-compare` | 23.4（低優先，可選） |
+
+---
+
+## 8. API 設計（Story 23.2）
 
 | 端點 | 方法 | 權限 | 用途 |
 |------|------|------|------|
@@ -234,68 +272,74 @@ model LlmModel {
 | `/api/v1/llm-providers` | POST | globalAdmin | 新增 provider（憑證加密存） |
 | `/api/v1/llm-providers/[id]` | PATCH / DELETE | globalAdmin | 更新 / 刪除 |
 | `/api/v1/llm-providers/[id]/test` | POST | globalAdmin | 連線測試（`testConnection`） |
-| `/api/v1/llm-providers/[id]/models` | GET/POST | 登入 / globalAdmin | 管理該 provider 的模型清單 |
+| `/api/v1/llm-providers/[id]/models` | GET/POST | 登入 / globalAdmin | 管理該 provider 模型清單 |
 | `/api/v1/model-configs`（既有，CHANGE-099） | GET/PUT | 登入 / globalAdmin | 各環節 provider+model 指派（value 改存 `LlmModel.id`） |
 
-- 全部採 Zod 驗證 + RFC 7807 top-level 錯誤格式（新 API 慣例）。
+- 全採 Zod 驗證 + RFC 7807 top-level 錯誤格式。
 - 憑證**永不回傳明文**（讀取一律 mask，比照 `maskSensitiveValue`）。
+- `OPENAI_COMPATIBLE` / 自訂 `baseUrl` 僅 globalAdmin 可設（防 SSRF）。
 
 ---
 
-## 8. UI 草案（Phase 2/3）
+## 9. UI 設計（Story 23.2）
 
-- 新後台頁 `admin/llm-providers`：Provider 列表（類型 / endpoint / 啟用狀態 / 連線測試按鈕）+ 新增/編輯對話框（憑證欄位遮罩輸入，比照 `ConfigEditDialog`）。
-- 既有 `admin/model-settings`（CHANGE-099）擴充：Stage 下拉來源從「全域白名單」改為「已啟用 provider 的已啟用模型」。
-- 三語言 i18n（en/zh-TW/zh-CN），新 namespace（如 `llmProviders`）需註冊 `src/i18n/request.ts`。
+- 新後台頁 `admin/llm-providers`：Provider 列表（類型/endpoint/啟用/預設/連線測試）+ 新增/編輯對話框（憑證遮罩輸入，比照 `ConfigEditDialog`；非 Azure 顯示 §6 合規警示勾選）。
+- 既有 `admin/model-settings`（CHANGE-099）擴充：各環節模型下拉來源從「全域白名單」改為「已啟用 provider 的已啟用模型」。
+- 三語言 i18n（en/zh-TW/zh-CN），新 namespace `llmProviders` 需註冊 `src/i18n/request.ts`。
 
 ---
 
-## 9. 安全考量
+## 10. 安全與合規
 
 | 風險 | 緩解 |
 |------|------|
-| Provider API key 外洩 | `aes-256-gcm` 加密存 DB（`CONFIG_ENCRYPTION_KEY`, fail-closed）；API 回傳 mask；不 log 憑證 |
-| 明文憑證進 log / commit | 沿用 H4 紀律；grep gate；`isEncrypted` 旗標 |
-| 敏感發票資料送外部 provider | C3 合規 sign-off；可加 provider 層級「允許處理敏感資料」開關 |
-| 惡意 endpoint（SSRF） | `CUSTOM_OPENAI_COMPATIBLE` 需 endpoint 白名單 / 僅 globalAdmin 可設 |
+| Provider API key 外洩 | `aes-256-gcm` 加密存 DB（`CONFIG_ENCRYPTION_KEY`, fail-closed）；API mask；不 log 憑證 |
+| 明文憑證進 log / commit | H4 紀律；grep gate；`isEncrypted` 旗標 |
+| 敏感發票資料送外部 provider | Azure 為預設 baseline；`allowSensitiveData` 旗標 + UI 確認；**生產啟用非 Azure provider 前需 IT/security sign-off（組織層前置）** |
+| SSRF（惡意 endpoint） | 自訂 `baseUrl` 僅 globalAdmin；可加 endpoint 白名單 |
+| VNet egress 未開 → 非 Azure provider 不可用 | 部署前置（§6 C1）；`testConnection` 即時驗證；明確報錯 |
 
 ---
 
-## 10. 待用戶決策問題清單（Open Questions）
+## 11. 實作 Story 拆分（已承諾序列，非 Phase 閘門）
 
-| # | 問題 | 選項 | 建議 |
-|---|------|------|------|
-| **D1** | 資料模型走方案 A（config）還是 B（Prisma models）？ | A 免 migration / B 結構清晰 | **B**（provider→model 是關聯實體），接受 migration 成本 |
-| **D2** | 第一個要接的非 Azure provider 是哪家？ | OpenAI 直連 / Anthropic / Google / 自建 OpenAI-compatible | 依業務；OpenAI 直連改動最小（可複用 `openai` SDK） |
-| **D3** | 是否先只做 Phase 1（低風險收斂），暫緩 Phase 2？ | 是 / 否 | **是**（先拿可維護性紅利，vendor/合規之後再議） |
-| **D4** | C1（VNet egress）/ C3（合規）誰負責拍板？ | IT / security | 需在 Phase 2 前確認 |
+> D3 定案：不做「僅 Azure」的閘門式 Phase 1；以下為 build order，全部承諾交付。
 
----
-
-## 11. 測試策略概要
-
-- **Unit**：各 adapter 的 request 轉換 / 回應解析 / 能力降級；`LlmGatewayService` 的 provider+model 解析與 fallback。
-- **Integration**：gateway → adapter → mock provider 的端到端；憑證加解密 round-trip。
-- **E2E（Playwright）**：Provider 管理頁 CRUD + 連線測試 + model-settings 指派。
-- **回歸**：Phase 1 完成後，extraction 三階段輸出需與遷移前**逐位元一致**（golden test）。
+| Story | 範圍 | 觸發約束 | 依賴 |
+|-------|------|----------|------|
+| **23.1 抽象層 + 資料模型 + Gateway** | `LlmProvider`/`LlmModel` Prisma model + migration + `LlmProviderAdapter` 介面 + `LlmGatewayService` + `OpenAICompatibleAdapter`（Azure 路徑重現現行行為）+ extraction 三階段接 gateway（簽章不變）+ Azure provider 播種 | H1 | 無 |
+| **23.2 憑證管理 + Provider 管理 API + UI** | 憑證加解密（複用 aes-256-gcm）+ `/api/v1/llm-providers` CRUD/test + `admin/llm-providers` 頁 + `model-settings` 擴充 + i18n | H1+H4 | 23.1 |
+| **23.3 Anthropic adapter + 多 provider 能力** | `@anthropic-ai/sdk`（H2）+ `AnthropicAdapter`（Messages API / vision / tool-use 結構化輸出）+ OpenAI/Grok/Gemini 端點驗證 + 各 provider capability 對應 | H1+H2 | 23.1 |
+| **23.4 全面遷移 + 各環節指派 + 測試/觀測** | 其餘 5 處 client 遷 gateway（golden test 比對）+ 各環節 provider+model 指派 UI + token/成本觀測 hook + 完整測試 | H1 | 23.1–23.3 |
 
 ---
 
-## 12. 風險與技術債務
+## 12. 測試策略
+
+- **Unit**：各 adapter 的 request 轉換 / 回應解析 / 能力降級；`LlmGatewayService` 的 provider+model 解析與 fallback 鏈；憑證加解密 round-trip。
+- **Integration**：gateway → adapter → mock provider 端到端；provider CRUD + test API。
+- **E2E（Playwright）**：`admin/llm-providers` CRUD + 連線測試 + `model-settings` 指派 + 合規警示勾選。
+- **回歸（關鍵）**：每次遷移後，該環節輸出需與遷移前**逐位元一致**（golden test）；extraction 三階段為最高優先。
+
+---
+
+## 13. 風險與技術債務
 
 | 項目 | 說明 |
 |------|------|
-| 技術債（C2） | 無 Key Vault，憑證靠 app 層加密 + env 主金鑰，主金鑰輪替需人工流程 |
-| Schema drift（方案 B） | Azure DEV 有前科，migration 需照既有 gated 流程 |
-| Vendor 能力落差 | 各 provider 的 vision / json_schema / tool use 支援不一，降級邏輯需逐一驗證 |
-| 遷移風險 | 5 處 SDK client 遷移需逐一回歸，避免行為漂移 |
+| 技術債（無 Key Vault） | 憑證靠 app 層 `aes-256-gcm` + env 主金鑰（SP 僅 Contributor）；主金鑰輪替需人工流程 |
+| Schema drift | 方案 B migration 需照 Azure DEV 既有 gated 流程 |
+| Vendor 能力落差 | 各 provider vision / json_schema / tool-use 支援不一；降級邏輯需逐一驗證 |
+| 遷移風險 | 7 處呼叫點逐一遷移，golden test 防行為漂移 |
+| 合規 sign-off 未落實即啟用非 Azure | 組織層前置；UI 警示 + `allowSensitiveData` 為技術護欄，非替代 sign-off |
 
 ---
 
 ## 版本資訊
 
 - **建立日期**：2026-07-09
-- **版本**：0.1.0（提案草案）
-- **狀態**：🟡 Draft，待用戶審批；**未寫入 `sprint-status.yaml`**
-- **依據**：用戶 2026-07-09 需求 + 現況盤點（Explore agent，附實測檔案位置）
+- **版本**：0.2.0（D1–D4 決策已定，實作規格草案）
+- **狀態**：🟢 決策已定；待排入 sprint 進實作；**未寫入 `sprint-status.yaml`**
+- **依據**：用戶 2026-07-09 需求 + D1–D4 定案 + 現況盤點（附實測檔案位置）
 - **格式依據**：`docs/04-implementation/tech-specs/epic-22-enterprise-security/tech-spec-story-22-1.md`
+- **變更**：v0.1.0 → v0.2.0：D1–D4 open questions 全數 resolved；架構改為 OpenAI-compatible + Anthropic 雙 adapter（H2 收斂至單一套件）；資料模型定案為 Prisma model；移除 Phase 閘門改 Story 序列；新增 §6 D4 決定。
