@@ -1,19 +1,23 @@
 # Epic 23 — AI 助手接手指引（Onboarding / Handoff）
 
 > **這份文件是什麼**：給**任何新 AI 助手**（新 session / 新電腦 / 新 worktree）快速進入 Epic 23 狀況的**單一入口**。讀完這份 + 下方連結的文件，就能無縫接續，不必回溯對話歷史。
-> **最後更新**：2026-07-09 ｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
+> **最後更新**：2026-07-09（規格 v0.4.0，三輪審視後）｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
 
 ---
 
 ## 0. 先讀這裡（30 秒進入狀況）
 
 - **在做什麼**：把目前硬綁 Azure OpenAI、散落 7 處的 LLM 呼叫，經 **Vercel AI SDK** 收斂為統一 gateway，並讓用戶在後台自行配置多家 LLM provider（OpenAI / Gemini / Claude / Grok 等）與模型。
-- **現在到哪**：**規劃已完成並收斂**（Tech Spec v0.3.1，經兩輪獨立審視），🟡 **Draft 提案、尚未進實作**。
-- **下一步**：在 worktree `feature/epic-23-multi-llm-provider` 開 **Story 23.1**（Gateway + Prisma model + `@ai-sdk/azure` 接上 extraction 三階段）。
-- **權威文件**（同目錄）：
-  - `tech-spec-epic-23-overview.md` — **主規格 v0.3.1**（架構/資料模型/介面/Story/風險，實作照這份）
-  - `design-review-v0.2.0.md` — 設計審視（**為何**這些決策；兩輪查證證據）
-  - `README.md` — Epic 導覽 + 換電腦接續步驟
+- **現在到哪**：規劃 **Tech Spec v0.4.0**，經**三輪**獨立審視，🟡 **Draft 提案、尚未進實作**（一行 code 都還沒寫）。
+- **🔴🔴 三輪審視揪出兩顆炸彈（必讀 `senior-review-v0.3.1.md`）**：
+  1. **信心度路由會靜默失準** — 路由分數 65% 來自模型自評 confidence + 硬編 90/70 閾值（`confidence-v3-1.service.ts:112-119`）→ 換 provider 即使提取一樣準，路由也會壞（漏審/人工爆量）、且不報錯。**必須 per-model 重新校準才能安全換模型。**
+  2. **營運骨架缺失/斷裂** — 成本歸帳斷裂（`logUsage` 零呼叫端）、無 provider 韌性/failover、無出站限流。多 provider 核心賣點零地基。
+- **下一步（待用戶決策 D8）**：建議先做 1-2 天 **spike**（真實文件量準確率 + confidence 分佈）再定投資規模；之後才進 Story 23.1。
+- **權威文件**（同目錄，閱讀順序）：
+  1. `senior-review-v0.3.1.md` — **三輪資深審視**（兩顆炸彈 + 營運/憑證缺口 + 重構 roadmap + D7–D11）← **先讀這份**
+  2. `tech-spec-epic-23-overview.md` — **主規格 v0.4.0**（架構/資料模型/介面/Story/風險，實作照這份）
+  3. `design-review-v0.2.0.md` — 一/二輪審視（介面 G1–G10 + AI SDK API 查證）
+  4. `README.md` — Epic 導覽 + 換電腦接續步驟
 
 ---
 
@@ -37,6 +41,9 @@
 | D4 | VNet egress = infra 前置；Azure 為**預設合規基準** + `allowSensitiveData` 護欄 + 組織 sign-off |
 | D5 | 用 **Vercel AI SDK**（`ai` + `@ai-sdk/*`），**非**自建 adapter |
 | D6 | **低風險環節**（分類/驗證）先開放他家；**核心提取（Stage 3）**切非 Azure 前需**準確率回歸**通過 |
+| D7 | 真正動機 = **備援/避免鎖定 + 能力 + 彈性**（**非省成本**）→ provider 韌性/failover 列為正式目標 |
+
+> **待用戶拍板（D8–D11，見 `senior-review-v0.3.1.md` §7）**：D8 是否先 spike｜D9 confidence per-model 校準做法｜D10 scope 是否縮減｜D11 營運骨架納入本 Epic 還是拆獨立。**進實作前這些應先有方向。**
 
 ## 4. 架構藍圖
 
@@ -51,16 +58,23 @@
 
 ## 5. 待完成工作（Roadmap — 全部未開工）
 
-| Story | 範圍 | 約束 |
-|-------|------|------|
-| **23.1** | Gateway + `LlmProvider`/`LlmModel` model + migration + `@ai-sdk/azure` 接 extraction 三階段 + Azure provider 播種 | H1+H2 |
-| 23.2 | 憑證加密 + Provider 管理 API（`/api/v1/llm-providers`）+ 後台 UI（`admin/llm-providers`）+ i18n | H1+H4 |
-| 23.3 | 接上多 provider（OpenAI/Claude/Gemini/Grok）+ 各能力/降級 + 準確率回歸框架 | H1+H2 |
-| 23.4 | 其餘 5 處呼叫點遷移 + 各環節指派 UI + 跨 provider 成本計價 + 測試/觀測 | H1 |
+> ⚠️ v0.4.0 已把三輪審視的硬缺口納入各 Story。建議先 **Phase 0 spike**（D8）再開工。
 
-**現在該做**：Story 23.1。
+| Story | 範圍（含三輪審視補強） | 約束 |
+|-------|------|------|
+| **23.1** | Gateway + model(+`keyVersion`) + **抽共用加密模組** + `@ai-sdk/azure` 接 extraction + 播種 + **主管線用量持久化 + 結構化 logging + feature flag/shadow mode** | H1+H2 |
+| 23.2 | 憑證（gateway 解密硬錯誤）+ Provider 管理 API（回遮罩）+ **AuditLog + 遮罩歷史** + 後台 UI + i18n | H1+H4 |
+| 23.3 | 多 provider 接上 + **per-model confidence 校準（P0）** + 準確率回歸框架 + **circuit breaker/failover** | H1+H2 |
+| 23.4 | 其餘 5 處遷移 + per-環節指派 UI + 出站限流 + 成本計價（低優先）+ 測試/觀測 | H1 |
+
+**現在該做**：先 spike（D8），再 Story 23.1。
 
 ## 6. 🔴 需要注意的地方（踩過的坑 / 紅旗）
+
+**🔴🔴 最高風險（三輪審視，實作前提）**：
+- **信心度路由 per-model 校準（P0）**：勿假設換模型只影響準確率——路由分數 65% 是模型自評 confidence + 硬編 90/70，換模型會靜默錯誤路由。換任何非 Azure 模型做核心提取前，**必須**用校準集重定 per-model 閾值（overview §6.1）。
+- **營運骨架先補**：用量持久化（`logUsage` 目前零呼叫端）、結構化 logging、provider circuit breaker/failover、出站限流——多 provider 的地基，Story 23.1/23.3 已納入（overview §11.5）。
+- **憑證真實安全等級**：GCM 健全但**只防 DB 外洩**（無 Key Vault，進得了容器即拿到明文）；gateway 解密失敗**必須硬錯誤**（現行 `decryptIfNeeded` 會 fail-open 回原始密文）；加密 helper 要抽共用模組；provider 變更要掛審計（overview §11）。
 
 **AI SDK 正確用法**（v0.3.0 曾寫錯，已修，別再犯）：
 - 「要 JSON 但無 schema」→ **`generateObject({ output: 'no-schema' })`**（`generateText` **沒有**裸 JSON mode）。
@@ -115,6 +129,6 @@ CHANGE-099 現有雛形：`src/lib/constants/llm-models.ts`（白名單）、`sr
 
 ## 9. 建議的接手動作
 
-1. 讀本檔 → `tech-spec-epic-23-overview.md`（v0.3.1）→（想懂決策脈絡）`design-review-v0.2.0.md`。
+1. 讀本檔 → **`senior-review-v0.3.1.md`（兩顆炸彈 + D7–D11）** → `tech-spec-epic-23-overview.md`（v0.4.0）→（想懂脈絡）`design-review-v0.2.0.md`。
 2. 與用戶確認要不要開工 Story 23.1；開工前逐項確認 H1/H2/H4。
 3. 依 overview §3–§4 實作 Gateway + 資料模型，先讓 Azure 路徑等價（行為驗證），再接其他 provider。
