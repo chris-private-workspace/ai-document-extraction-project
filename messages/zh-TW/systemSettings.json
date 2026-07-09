@@ -160,6 +160,34 @@
     "lastUpdated": "最後更新：{date}",
     "linkBadge": "外部頁面"
   },
+  "modelSettings": {
+    "pageTitle": "LLM 模型設定",
+    "pageDescription": "為文件處理各階段選擇要使用的 LLM 模型",
+    "cardTitle": "階段模型選擇",
+    "cardDescription": "為公司識別、格式匹配與欄位提取三個階段各指定一個模型",
+    "stages": {
+      "stage1": "階段 1 — 公司識別",
+      "stage1Description": "識別文件所屬的貨運承攬業者／公司",
+      "stage2": "階段 2 — 格式匹配",
+      "stage2Description": "比對文件格式以套用對應設定",
+      "stage3": "階段 3 — 欄位提取",
+      "stage3Description": "從文件中提取結構化欄位資料"
+    },
+    "capability": {
+      "maxTokens": "最大 Token 數：{value}",
+      "temperature": "支援溫度調整",
+      "noTemperature": "不支援溫度調整",
+      "jsonSchema": "支援 JSON Schema",
+      "noJsonSchema": "不支援 JSON Schema",
+      "imageDetail": "影像細節：{value}"
+    },
+    "selectPlaceholder": "選擇模型",
+    "readOnlyNotice": "僅全域管理員可修改模型設定，目前為唯讀檢視。",
+    "loadError": "載入模型設定失敗",
+    "saveSuccess": "模型設定已儲存",
+    "saveError": "儲存模型設定失敗",
+    "save": "儲存設定"
+  },
   "actions": {
     "save": "儲存變更",
     "reset": "重設為預設值",

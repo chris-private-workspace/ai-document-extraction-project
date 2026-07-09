@@ -47,6 +47,7 @@ import type {
   FormatConfigSource,
 } from '@/types/extraction-v3.types';
 import { GptCallerService, type GptCallResult } from './gpt-caller.service';
+import { LlmModelConfigService } from '@/services/llm-model-config.service';
 // CHANGE-026: PromptConfig 整合
 import { loadStage2PromptConfig, type StagePromptConfig } from '../prompt-assembly.service';
 import {
@@ -373,7 +374,9 @@ Focus on the visual layout, table structure, and distinctive formatting elements
     tokenUsage: { input: number; output: number; total: number };
     model: string;
   }> {
-    const result: GptCallResult = await GptCallerService.callNano(
+    const modelKey = await LlmModelConfigService.getStageModel('stage2');
+    const result: GptCallResult = await GptCallerService.callModel(
+      modelKey,
       prompt.system,
       prompt.user,
       images

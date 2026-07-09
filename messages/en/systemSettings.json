@@ -160,6 +160,34 @@
     "lastUpdated": "Last updated: {date}",
     "linkBadge": "External Page"
   },
+  "modelSettings": {
+    "pageTitle": "LLM Model Settings",
+    "pageDescription": "Choose the LLM model to use for each document processing stage",
+    "cardTitle": "Stage Model Selection",
+    "cardDescription": "Assign a model to each of the company identification, format matching and field extraction stages",
+    "stages": {
+      "stage1": "Stage 1 — Company Identification",
+      "stage1Description": "Identify the forwarder/company the document belongs to",
+      "stage2": "Stage 2 — Format Matching",
+      "stage2Description": "Match the document format to apply the corresponding configuration",
+      "stage3": "Stage 3 — Field Extraction",
+      "stage3Description": "Extract structured field data from the document"
+    },
+    "capability": {
+      "maxTokens": "Max tokens: {value}",
+      "temperature": "Temperature supported",
+      "noTemperature": "Temperature not supported",
+      "jsonSchema": "JSON Schema supported",
+      "noJsonSchema": "JSON Schema not supported",
+      "imageDetail": "Image detail: {value}"
+    },
+    "selectPlaceholder": "Select a model",
+    "readOnlyNotice": "Only global administrators can change model settings. This is a read-only view.",
+    "loadError": "Failed to load model settings",
+    "saveSuccess": "Model settings saved",
+    "saveError": "Failed to save model settings",
+    "save": "Save Settings"
+  },
   "actions": {
     "save": "Save Changes",
     "reset": "Reset to Default",
