@@ -80,17 +80,23 @@ describe('resolveDeploymentName', () => {
   });
 });
 
-describe('gpt-5.4 系列（新增選項）', () => {
+describe('CHANGE-100: gpt-5.4-mini / gpt-5.4-nano 白名單新增', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('gpt-5.4-nano / gpt-5.4-mini 均在白名單內', () => {
-    expect(isValidLlmModel('gpt-5.4-nano')).toBe(true);
+  it('gpt-5.4-mini 在白名單、能力對標 gpt-5.2', () => {
     expect(isValidLlmModel('gpt-5.4-mini')).toBe(true);
+    const mini = getLlmModelOption('gpt-5.4-mini');
+    expect(mini?.capability.maxTokens).toBe(8192);
+    expect(mini?.capability.supportsTemperature).toBe(true);
+    expect(mini?.capability.temperature).toBe(0.1);
+    expect(mini?.capability.defaultImageDetail).toBe('auto');
+    expect(mini?.capability.supportsJsonSchema).toBe(true);
   });
 
-  it('gpt-5.4-nano：比照 nano（4096、不支援 temperature、圖片 low、無 json_schema）', () => {
+  it('gpt-5.4-nano 在白名單、能力對標 gpt-5-nano', () => {
+    expect(isValidLlmModel('gpt-5.4-nano')).toBe(true);
     const nano = getLlmModelOption('gpt-5.4-nano');
     expect(nano?.capability.maxTokens).toBe(4096);
     expect(nano?.capability.supportsTemperature).toBe(false);
@@ -98,24 +104,18 @@ describe('gpt-5.4 系列（新增選項）', () => {
     expect(nano?.capability.supportsJsonSchema).toBe(false);
   });
 
-  it('gpt-5.4-mini：8192、不支援自訂 temperature、圖片 auto、支援 json_schema', () => {
+  it('部署名預設等於模型名（env 未設空值時）', () => {
+    vi.stubEnv('AZURE_OPENAI_GPT54_MINI_DEPLOYMENT_NAME', '');
+    vi.stubEnv('AZURE_OPENAI_GPT54_NANO_DEPLOYMENT_NAME', '');
     const mini = getLlmModelOption('gpt-5.4-mini');
-    expect(mini?.capability.maxTokens).toBe(8192);
-    expect(mini?.capability.supportsTemperature).toBe(false);
-    expect(mini?.capability.defaultImageDetail).toBe('auto');
-    expect(mini?.capability.supportsJsonSchema).toBe(true);
+    const nano = getLlmModelOption('gpt-5.4-nano');
+    expect(mini && resolveDeploymentName(mini)).toBe('gpt-5.4-mini');
+    expect(nano && resolveDeploymentName(nano)).toBe('gpt-5.4-nano');
   });
 
-  it('env 未設時回落到 Azure DEV 預設部署名', () => {
-    vi.stubEnv('AZURE_OPENAI_NANO_DEPLOYMENT_NAME', '');
-    vi.stubEnv('AZURE_OPENAI_DEPLOYMENT_NAME', '');
-    const nano = getLlmModelOption('gpt-5.4-nano');
+  it('env 覆蓋優先於預設部署名', () => {
+    vi.stubEnv('AZURE_OPENAI_GPT54_MINI_DEPLOYMENT_NAME', 'my-mini-deploy');
     const mini = getLlmModelOption('gpt-5.4-mini');
-    expect(nano && resolveDeploymentName(nano)).toBe(
-      'gpt-5.4-nano-aidocprocessing',
-    );
-    expect(mini && resolveDeploymentName(mini)).toBe(
-      'gpt-5.4-mini-aidocprocessing',
-    );
+    expect(mini && resolveDeploymentName(mini)).toBe('my-mini-deploy');
   });
 });

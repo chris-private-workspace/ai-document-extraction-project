@@ -79,30 +79,30 @@ export const AVAILABLE_LLM_MODELS: LlmModelOption[] = [
     },
   },
   {
+    // CHANGE-100: 部署名 = 模型名（gpt-5.4-mini），共用現有 endpoint + API key；能力對標 gpt-5.2
+    key: 'gpt-5.4-mini',
+    label: 'GPT-5.4 Mini（中階・平衡）',
+    deploymentEnvVar: 'AZURE_OPENAI_GPT54_MINI_DEPLOYMENT_NAME',
+    defaultDeploymentName: 'gpt-5.4-mini',
+    capability: {
+      maxTokens: 8192,
+      supportsTemperature: true,
+      temperature: 0.1,
+      defaultImageDetail: 'auto',
+      supportsJsonSchema: true,
+    },
+  },
+  {
+    // CHANGE-100: 部署名 = 模型名（gpt-5.4-nano），共用現有 endpoint + API key；能力對標 gpt-5-nano
     key: 'gpt-5.4-nano',
     label: 'GPT-5.4 Nano（快速・低成本）',
-    // 沿用既有 nano env 變數；Azure DEV 已將其指向 gpt-5.4-nano 部署
-    deploymentEnvVar: 'AZURE_OPENAI_NANO_DEPLOYMENT_NAME',
-    defaultDeploymentName: 'gpt-5.4-nano-aidocprocessing',
+    deploymentEnvVar: 'AZURE_OPENAI_GPT54_NANO_DEPLOYMENT_NAME',
+    defaultDeploymentName: 'gpt-5.4-nano',
     capability: {
       maxTokens: 4096,
       supportsTemperature: false,
       defaultImageDetail: 'low',
       supportsJsonSchema: false,
-    },
-  },
-  {
-    key: 'gpt-5.4-mini',
-    label: 'GPT-5.4 Mini（平衡・支援結構化輸出）',
-    // 沿用既有 full env 變數；Azure DEV 已將其指向 gpt-5.4-mini 部署
-    deploymentEnvVar: 'AZURE_OPENAI_DEPLOYMENT_NAME',
-    defaultDeploymentName: 'gpt-5.4-mini-aidocprocessing',
-    // reasoning 模型：不支援自訂 temperature，但支援 json_schema 結構化輸出（適合 Stage 3）
-    capability: {
-      maxTokens: 8192,
-      supportsTemperature: false,
-      defaultImageDetail: 'auto',
-      supportsJsonSchema: true,
     },
   },
 ];

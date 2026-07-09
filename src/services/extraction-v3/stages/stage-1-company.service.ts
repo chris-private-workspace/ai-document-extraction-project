@@ -254,10 +254,23 @@ export class Stage1CompanyService {
 
     return {
       system: `You are an invoice issuer identification specialist.
-Your task is to identify the company that issued this invoice.
+Your task is to identify the single company that ISSUED this invoice (the issuer/from party),
+typically a logistics company or freight forwarder shown in the logo/letterhead.
+Never pick the customer/buyer (Bill To / Consignee / recipient).
 
 Known companies:
 ${companyList}
+
+Rules:
+- Multi-entity groups: a large logistics group may show several related legal entities on the
+  same document (e.g. "XXX (HONG KONG) LIMITED" vs "XXX (REGION) PACIFIC OPERATIONS LIMITED").
+  Pick ONLY the one legal entity that actually issued this invoice, based on the logo/letterhead/
+  invoice header; do not blend, merge or rewrite words from different entities into a new name.
+- Use the full legal name exactly as printed (keep region words in parentheses and suffixes like
+  LIMITED/LTD); do not abbreviate, translate or invent.
+- If the issuer matches one of the known companies above, set matchedKnownCompany to that exact
+  known-company name; otherwise null.
+- If several similar related entities are hard to tell apart, lower the confidence.
 
 Identification methods (in priority order):
 1. LOGO - Company logo on the document
@@ -267,12 +280,12 @@ Identification methods (in priority order):
 
 Response format (JSON):
 {
-  "companyName": "string - identified company name",
+  "companyName": "string - full legal name of the issuing company",
   "identificationMethod": "LOGO" | "HEADER" | "ADDRESS" | "TAX_ID",
   "confidence": number (0-100),
-  "matchedKnownCompany": "string | null - if matched to known company"
+  "matchedKnownCompany": "string | null - exact known-company name if matched"
 }`,
-      user: 'Identify the issuing company from this invoice image.',
+      user: 'Identify the single issuing company (not the customer / Bill To) from this invoice image.',
     };
   }
 

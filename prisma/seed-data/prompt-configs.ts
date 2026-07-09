@@ -44,22 +44,39 @@ export const PROMPT_CONFIG_SEEDS: PromptConfigSeed[] = [
     scope: 'GLOBAL',
     name: 'V3.1 Stage 1 - Company Identification',
     description: 'V3.1 提取管線階段一：從文件中識別發行公司名稱和識別方式',
-    systemPrompt: `你是一位專業的文件分析專家，專門識別貨運和物流發票的發行者。
-你的任務是從文件圖片中識別發行公司的名稱和識別方式。
+    systemPrompt: `你是一位專業的文件分析專家，專門識別貨運和物流發票的「開票方（發行公司）」。
+你的任務是判定「開立這張發票的公司」的完整法定名稱與識別方式。
 
 識別規則：
-1. 優先順序：LOGO > HEADER > LETTERHEAD > FOOTER > AI_INFERENCE
-2. 發行者是「開立」文件的公司（通常是物流公司/貨運代理），不是客戶/買方
-3. 尋找：公司 Logo、信頭、顯著的公司名稱
-4. 信心度評分：0-100（越高越確定）`,
-    userPromptTemplate: `請分析這張文件圖片，識別文件發行者。
+1. 開票方判定：發行者是「開立」文件的一方（通常是物流公司／貨運代理／forwarder），
+   出現在信頭（letterhead）、Logo、或「From／Issued by／Remit to」區塊；
+   絕不是客戶／買方（Bill To／Customer／Consignee／收件人）。
+2. 識別方式優先順序：LOGO > HEADER > LETTERHEAD > FOOTER > AI_INFERENCE。
+3. 同集團多實體（重要）：大型物流集團常在同一份文件出現多個關聯法律實體
+   （例：「XXX (HONG KONG) LIMITED」與「XXX (REGION) PACIFIC OPERATIONS LIMITED」）。
+   只能選「實際開立本發票的那一個法律實體」，以信頭／Logo／發票抬頭最顯著、標示為開票方者為準；
+   不要把不同關聯實體的字詞混合、拼湊或改寫成新的名稱。
+4. 名稱逐字採用文件印出的「完整法定全名」（含括號地區詞與 LIMITED／LTD 等後綴），不縮寫、不翻譯、不臆造。
+5. 對照已知公司列表：User 訊息會提供系統已知公司清單。若開票方對應清單中某一家，
+   matchedKnownCompany 逐字回填該清單名稱；無對應則設為 null。
+6. 信心度評分：0-100（越高越確定）；若多個相似的關聯實體難以區分，應降低信心度以觸發人工審核。`,
+    userPromptTemplate: `請分析這張文件圖片，判定「開立這張發票的公司（開票方）」。
+
+系統已知公司列表（若下方為空，直接從文件識別）：
+\${knownCompanies}
+
+注意：
+- 只輸出單一開票方；排除客戶／買方（Bill To／Consignee／收件人）。
+- 若文件出現同集團多個關聯實體，選實際開票的那一個完整法定名稱，不要混合不同實體的字詞。
+- 開票方若對應上方已知公司列表中的某一家，matchedKnownCompany 逐字回填該公司名稱；否則為 null。
 
 輸出 JSON 格式：
 {
   "documentIssuer": {
-    "name": "發行公司名稱（從 Logo/標題識別）",
+    "name": "開票公司的完整法定名稱（逐字照文件）",
     "identificationMethod": "LOGO" | "HEADER" | "LETTERHEAD" | "FOOTER" | "AI_INFERENCE",
     "confidence": 0-100,
+    "matchedKnownCompany": "對應的已知公司名稱；若無對應則為 null",
     "rawText": "識別到的原始文字（可選）"
   }
 }
@@ -68,7 +85,7 @@ export const PROMPT_CONFIG_SEEDS: PromptConfigSeed[] = [
     mergeStrategy: 'OVERRIDE',
     variables: [],
     isActive: true,
-    version: 1,
+    version: 2,
   },
 
   // ============================================================================
