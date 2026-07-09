@@ -121,7 +121,9 @@ export function decryptConfigValue(encrypted: string): string {
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
 
-  const decipher = createDecipheriv(ENCRYPTION_ALGORITHM, key, iv);
+  const decipher = createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, {
+    authTagLength: 16, // GCM tag 固定 16 bytes（加密端 getAuthTag 產生）；拒絕較短 tag（Semgrep gcm-no-tag-length）
+  });
   decipher.setAuthTag(authTag);
 
   let decrypted = decipher.update(data, 'hex', 'utf8');
