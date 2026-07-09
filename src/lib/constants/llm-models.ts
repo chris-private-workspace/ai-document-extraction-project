@@ -78,6 +78,33 @@ export const AVAILABLE_LLM_MODELS: LlmModelOption[] = [
       supportsJsonSchema: true,
     },
   },
+  {
+    key: 'gpt-5.4-nano',
+    label: 'GPT-5.4 Nano（快速・低成本）',
+    // 沿用既有 nano env 變數；Azure DEV 已將其指向 gpt-5.4-nano 部署
+    deploymentEnvVar: 'AZURE_OPENAI_NANO_DEPLOYMENT_NAME',
+    defaultDeploymentName: 'gpt-5.4-nano-aidocprocessing',
+    capability: {
+      maxTokens: 4096,
+      supportsTemperature: false,
+      defaultImageDetail: 'low',
+      supportsJsonSchema: false,
+    },
+  },
+  {
+    key: 'gpt-5.4-mini',
+    label: 'GPT-5.4 Mini（平衡・支援結構化輸出）',
+    // 沿用既有 full env 變數；Azure DEV 已將其指向 gpt-5.4-mini 部署
+    deploymentEnvVar: 'AZURE_OPENAI_DEPLOYMENT_NAME',
+    defaultDeploymentName: 'gpt-5.4-mini-aidocprocessing',
+    // reasoning 模型：不支援自訂 temperature，但支援 json_schema 結構化輸出（適合 Stage 3）
+    capability: {
+      maxTokens: 8192,
+      supportsTemperature: false,
+      defaultImageDetail: 'auto',
+      supportsJsonSchema: true,
+    },
+  },
 ];
 
 /** 各 Stage 的預設模型 key（配置缺失/無效時的向後相容 fallback） */
