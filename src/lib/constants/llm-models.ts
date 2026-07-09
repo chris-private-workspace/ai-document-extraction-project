@@ -78,6 +78,33 @@ export const AVAILABLE_LLM_MODELS: LlmModelOption[] = [
       supportsJsonSchema: true,
     },
   },
+  {
+    // CHANGE-100: 部署名 = 模型名（gpt-5.4-mini），共用現有 endpoint + API key；能力對標 gpt-5.2
+    key: 'gpt-5.4-mini',
+    label: 'GPT-5.4 Mini（中階・平衡）',
+    deploymentEnvVar: 'AZURE_OPENAI_GPT54_MINI_DEPLOYMENT_NAME',
+    defaultDeploymentName: 'gpt-5.4-mini',
+    capability: {
+      maxTokens: 8192,
+      supportsTemperature: true,
+      temperature: 0.1,
+      defaultImageDetail: 'auto',
+      supportsJsonSchema: true,
+    },
+  },
+  {
+    // CHANGE-100: 部署名 = 模型名（gpt-5.4-nano），共用現有 endpoint + API key；能力對標 gpt-5-nano
+    key: 'gpt-5.4-nano',
+    label: 'GPT-5.4 Nano（快速・低成本）',
+    deploymentEnvVar: 'AZURE_OPENAI_GPT54_NANO_DEPLOYMENT_NAME',
+    defaultDeploymentName: 'gpt-5.4-nano',
+    capability: {
+      maxTokens: 4096,
+      supportsTemperature: false,
+      defaultImageDetail: 'low',
+      supportsJsonSchema: false,
+    },
+  },
 ];
 
 /** 各 Stage 的預設模型 key（配置缺失/無效時的向後相容 fallback） */

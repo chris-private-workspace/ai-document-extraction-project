@@ -79,3 +79,43 @@ describe('resolveDeploymentName', () => {
     expect(full && resolveDeploymentName(full)).toBe('gpt-5-2-vision');
   });
 });
+
+describe('CHANGE-100: gpt-5.4-mini / gpt-5.4-nano 白名單新增', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('gpt-5.4-mini 在白名單、能力對標 gpt-5.2', () => {
+    expect(isValidLlmModel('gpt-5.4-mini')).toBe(true);
+    const mini = getLlmModelOption('gpt-5.4-mini');
+    expect(mini?.capability.maxTokens).toBe(8192);
+    expect(mini?.capability.supportsTemperature).toBe(true);
+    expect(mini?.capability.temperature).toBe(0.1);
+    expect(mini?.capability.defaultImageDetail).toBe('auto');
+    expect(mini?.capability.supportsJsonSchema).toBe(true);
+  });
+
+  it('gpt-5.4-nano 在白名單、能力對標 gpt-5-nano', () => {
+    expect(isValidLlmModel('gpt-5.4-nano')).toBe(true);
+    const nano = getLlmModelOption('gpt-5.4-nano');
+    expect(nano?.capability.maxTokens).toBe(4096);
+    expect(nano?.capability.supportsTemperature).toBe(false);
+    expect(nano?.capability.defaultImageDetail).toBe('low');
+    expect(nano?.capability.supportsJsonSchema).toBe(false);
+  });
+
+  it('部署名預設等於模型名（env 未設空值時）', () => {
+    vi.stubEnv('AZURE_OPENAI_GPT54_MINI_DEPLOYMENT_NAME', '');
+    vi.stubEnv('AZURE_OPENAI_GPT54_NANO_DEPLOYMENT_NAME', '');
+    const mini = getLlmModelOption('gpt-5.4-mini');
+    const nano = getLlmModelOption('gpt-5.4-nano');
+    expect(mini && resolveDeploymentName(mini)).toBe('gpt-5.4-mini');
+    expect(nano && resolveDeploymentName(nano)).toBe('gpt-5.4-nano');
+  });
+
+  it('env 覆蓋優先於預設部署名', () => {
+    vi.stubEnv('AZURE_OPENAI_GPT54_MINI_DEPLOYMENT_NAME', 'my-mini-deploy');
+    const mini = getLlmModelOption('gpt-5.4-mini');
+    expect(mini && resolveDeploymentName(mini)).toBe('my-mini-deploy');
+  });
+});
