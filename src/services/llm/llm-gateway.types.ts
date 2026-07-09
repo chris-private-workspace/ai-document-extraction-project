@@ -62,6 +62,16 @@ export interface LlmCallInput {
   providerOptions?: Record<string, Record<string, unknown>>;
   /** 呼叫逾時（毫秒；省略時預設 5 分鐘，對齊現行 gpt-caller） */
   abortTimeoutMs?: number;
+  /**
+   * 用量記帳 / 日誌歸屬（step 5）。
+   * `documentId` 提供時，gateway 反查 `document.cityCode` 並寫 `ApiUsageLog`（補「logUsage 零呼叫端」）；
+   * 缺 `documentId` 時只做結構化 log、不持久化用量。
+   */
+  usageContext?: {
+    documentId?: string;
+    /** 記帳操作標籤（如 `extraction-stage3`）；省略時記為 `llm-gateway` */
+    operation?: string;
+  };
 }
 
 /** Token 使用量 */

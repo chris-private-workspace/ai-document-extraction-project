@@ -88,6 +88,8 @@ export interface GptCallInput {
   imageDetailMode?: ImageDetailMode;
   /** JSON Schema（可選） */
   jsonSchema?: Record<string, unknown>;
+  /** 用量記帳 / 日誌歸屬（Epic 23 step 5）：經 gateway 時透傳給 LlmGatewayService */
+  usageContext?: { documentId?: string; operation?: string };
 }
 
 /**
@@ -344,6 +346,7 @@ export class GptCallerService {
       temperature: capability.supportsTemperature ? capability.temperature : undefined,
       maxRetries: this.config.retryCount,
       abortTimeoutMs: this.config.timeout,
+      usageContext: input.usageContext,
     });
 
     return {
@@ -541,6 +544,8 @@ export class GptCallerService {
       imageDetailMode?: ImageDetailMode;
       jsonSchema?: Record<string, unknown>;
       config?: GptCallerConfig;
+      /** 用量記帳 / 日誌歸屬（Epic 23 step 5）：經 gateway 時透傳 */
+      usageContext?: { documentId?: string; operation?: string };
     }
   ): Promise<GptCallResult> {
     const service = new GptCallerService(options?.config);
@@ -551,6 +556,7 @@ export class GptCallerService {
       imageBase64Array,
       imageDetailMode: options?.imageDetailMode,
       jsonSchema: options?.jsonSchema,
+      usageContext: options?.usageContext,
     });
   }
 

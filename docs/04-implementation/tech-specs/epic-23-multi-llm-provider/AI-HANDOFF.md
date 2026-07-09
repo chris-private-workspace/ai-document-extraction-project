@@ -1,14 +1,14 @@
 # Epic 23 — AI 助手接手指引（Onboarding / Handoff）
 
 > **這份文件是什麼**：給**任何新 AI 助手**（新 session / 新電腦 / 新 worktree）快速進入 Epic 23 狀況的**單一入口**。讀完這份 + 下方連結的文件，就能無縫接續，不必回溯對話歷史。
-> **最後更新**：2026-07-09（規格 v0.4.0；Phase 0 spike 完成；**Story 23.1 step 1–4 完成**）｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
+> **最後更新**：2026-07-09（規格 v0.4.0；Phase 0 spike 完成；**Story 23.1 step 1–5 完成，僅剩 step 4b shadow**）｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
 
 ---
 
 ## 0. 先讀這裡（30 秒進入狀況）
 
 - **在做什麼**：把目前硬綁 Azure OpenAI、散落 7 處的 LLM 呼叫，經 **Vercel AI SDK** 收斂為統一 gateway，並讓用戶在後台自行配置多家 LLM provider（OpenAI / Gemini / Claude / Grok 等）與模型。
-- **現在到哪**：**Tech Spec v0.4.0** + **Phase 0 spike（Azure 基準）已完成**（見 `phase-0-spike-report.md`）；🔴 **炸彈①在真實資料確認**（同模型內 confidence 92–99 幾乎恆定、與正確性脫鉤，42/42 全 AUTO_APPROVE）。非 Azure 對比待 key。**Story 23.1 進行中**：step 1（資料模型 `LlmProvider`/`LlmModel`/`StageModelAssignment` + 播種）、step 2（抽共用加密模組 `src/lib/config-encryption.ts`）、step 3（`LlmGatewayService`，`src/services/llm/`，只接 `@ai-sdk/azure`）、step 4（extraction 接 gateway：專屬 flag `FEATURE_LLM_GATEWAY_ENABLED` 全域硬切換，切入 `gpt-caller.service.call()` 單一 chokepoint，15 unit test）**已完成**；剩 **step 4b**（shadow mode + 百分比灰度 + image detail/wire 等價驗證）、step 5（用量持久化 + 結構化 logging）。flag 預設 OFF → 管線仍走既有直接 fetch、行為零變。
+- **現在到哪**：**Tech Spec v0.4.0** + **Phase 0 spike（Azure 基準）已完成**（見 `phase-0-spike-report.md`）；🔴 **炸彈①在真實資料確認**（同模型內 confidence 92–99 幾乎恆定、與正確性脫鉤，42/42 全 AUTO_APPROVE）。非 Azure 對比待 key。**Story 23.1 進行中**：step 1（資料模型 `LlmProvider`/`LlmModel`/`StageModelAssignment` + 播種）、step 2（抽共用加密模組 `src/lib/config-encryption.ts`）、step 3（`LlmGatewayService`，`src/services/llm/`，只接 `@ai-sdk/azure`）、step 4（extraction 接 gateway：專屬 flag `FEATURE_LLM_GATEWAY_ENABLED` 全域硬切換，切入 `gpt-caller.service.call()` 單一 chokepoint）、step 5（gateway 觀測性：`aiLogger` 結構化 log + `usageContext.documentId`→反查 cityCode→`aiCostService.logUsage` 寫 `ApiUsageLog`，fire-and-forget，Stage3 已串）**已完成**（共 20 unit test）；**僅剩 step 4b**（shadow mode + 百分比灰度 + image detail/wire 等價 + §6.1 per-model 校準）。flag 預設 OFF → 管線仍走既有直接 fetch、行為零變。
 - **🔴🔴 三輪審視揪出兩顆炸彈（必讀 `senior-review-v0.3.1.md`）**：
   1. **信心度路由會靜默失準** — 路由分數 65% 來自模型自評 confidence + 硬編 90/70 閾值（`confidence-v3-1.service.ts:112-119`）→ 換 provider 即使提取一樣準，路由也會壞（漏審/人工爆量）、且不報錯。**必須 per-model 重新校準才能安全換模型。**
   2. **營運骨架缺失/斷裂** — 成本歸帳斷裂（`logUsage` 零呼叫端）、無 provider 韌性/failover、無出站限流。多 provider 核心賣點零地基。

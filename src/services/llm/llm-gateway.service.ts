@@ -32,6 +32,9 @@ import type { LlmProviderType } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
 import { decryptConfigValue } from '@/lib/config-encryption';
+import { aiLogger } from '@/services/logging/logger.service';
+import { aiCostService } from '@/services/ai-cost.service';
+import type { ApiProviderType } from '@/types/ai-cost';
 
 import type {
   LlmCallInput,
@@ -223,6 +226,21 @@ function withJsonInstruction(messages: ModelMessage[]): ModelMessage[] {
   ];
 }
 
+/**
+ * `LlmProviderType` → `ApiProvider`（ApiUsageLog 記帳用）。
+ * 未映射者回 `null`（非 Azure provider 待 Story 23.3 擴 `ApiProvider` enum）。
+ */
+function toApiProvider(providerType?: LlmProviderType): ApiProviderType | null {
+  switch (providerType) {
+    case 'AZURE_OPENAI':
+      return 'AZURE_OPENAI';
+    case 'OPENAI':
+      return 'OPENAI';
+    default:
+      return null;
+  }
+}
+
 // ============================================================================
 // 服務
 // ============================================================================
@@ -234,66 +252,153 @@ function withJsonInstruction(messages: ModelMessage[]): ModelMessage[] {
 export class LlmGatewayService {
   /**
    * 統一 LLM 呼叫。任何解析/呼叫錯誤都回 `success:false`（不拋、不吞呼叫端業務 fallback）。
+   * 呼叫後寫**結構化 log**（logger.service）+ 選擇性**用量持久化**（`ApiUsageLog`，需 `usageContext.documentId`）；
+   * 觀測性失敗**絕不**影響回傳結果（step 5，fire-and-forget）。
    */
   async call(input: LlmCallInput): Promise<LlmCallResult> {
     const start = Date.now();
-    let providerType: LlmProviderType | undefined;
+    let resolved: ResolvedModel | undefined;
+    let result: LlmCallResult;
 
     try {
       const prepared = await this.prepare(input);
-      providerType = prepared.resolved.providerType;
-
-      const settings = this.buildSettings(prepared);
-
-      // 純文字
-      if (prepared.output.mode === 'text') {
-        const r = await generateText(settings);
-        return this.success(input.modelId, providerType, start, {
-          text: r.text,
-          usage: r.usage,
-          finishReason: r.finishReason,
-        });
-      }
-
-      // json / object → generateObject，失敗走 G10 降級
-      try {
-        const r =
-          prepared.output.mode === 'object'
-            ? await generateObject({
-                ...settings,
-                schema: jsonSchema(prepared.output.jsonSchema),
-                ...(prepared.output.name ? { schemaName: prepared.output.name } : {}),
-              })
-            : await generateObject({ ...settings, output: 'no-schema' });
-
-        return this.success(input.modelId, providerType, start, {
-          text: safeStringify(r.object),
-          object: r.object,
-          usage: r.usage,
-          finishReason: r.finishReason,
-        });
-      } catch {
-        // §3.6/§3.10 降級：改用 generateText + JSON 指示，呼叫端自行 parse
-        const r = await generateText({
-          ...settings,
-          messages: withJsonInstruction(prepared.aiMessages),
-        });
-        return this.success(input.modelId, providerType, start, {
-          text: r.text,
-          usage: r.usage,
-          finishReason: r.finishReason,
-        });
-      }
+      resolved = prepared.resolved;
+      result = await this.dispatch(prepared, input, start);
     } catch (error) {
-      return {
+      result = {
         success: false,
         text: '',
         usage: { input: 0, output: 0, total: 0 },
         modelId: input.modelId,
-        providerType,
+        providerType: resolved?.providerType,
         durationMs: Date.now() - start,
         error: error instanceof Error ? error.message : String(error),
       };
+    }
+
+    await this.recordObservability(input, result, resolved);
+    return result;
+  }
+
+  /** 依 output 模式派送 generateText / generateObject（含 G10 降級） */
+  private async dispatch(
+    prepared: PreparedCall,
+    input: LlmCallInput,
+    start: number,
+  ): Promise<LlmCallResult> {
+    const providerType = prepared.resolved.providerType;
+    const settings = this.buildSettings(prepared);
+
+    // 純文字
+    if (prepared.output.mode === 'text') {
+      const r = await generateText(settings);
+      return this.success(input.modelId, providerType, start, {
+        text: r.text,
+        usage: r.usage,
+        finishReason: r.finishReason,
+      });
+    }
+
+    // json / object → generateObject，失敗走 G10 降級
+    try {
+      const r =
+        prepared.output.mode === 'object'
+          ? await generateObject({
+              ...settings,
+              schema: jsonSchema(prepared.output.jsonSchema),
+              ...(prepared.output.name ? { schemaName: prepared.output.name } : {}),
+            })
+          : await generateObject({ ...settings, output: 'no-schema' });
+
+      return this.success(input.modelId, providerType, start, {
+        text: safeStringify(r.object),
+        object: r.object,
+        usage: r.usage,
+        finishReason: r.finishReason,
+      });
+    } catch {
+      // §3.6/§3.10 降級：改用 generateText + JSON 指示，呼叫端自行 parse
+      const r = await generateText({
+        ...settings,
+        messages: withJsonInstruction(prepared.aiMessages),
+      });
+      return this.success(input.modelId, providerType, start, {
+        text: r.text,
+        usage: r.usage,
+        finishReason: r.finishReason,
+      });
+    }
+  }
+
+  /**
+   * 觀測性（step 5）：結構化 log + 選擇性用量持久化。**絕不**因失敗影響 LLM 結果。
+   * - log：每次呼叫寫 `logger.service`（`LogSource.AI`），標 provider/model/deployment/tokens/latency。
+   * - 持久化：僅當 `usageContext.documentId` 提供且 provider 可映射 `ApiProvider` 時，
+   *   反查 `document.cityCode` → `aiCostService.logUsage`（補「logUsage 零呼叫端」的營運斷裂）。
+   */
+  private async recordObservability(
+    input: LlmCallInput,
+    result: LlmCallResult,
+    resolved?: ResolvedModel,
+  ): Promise<void> {
+    const details = {
+      provider: result.providerType,
+      modelKey: resolved?.modelKey,
+      deployment: resolved?.deploymentName,
+      modelId: input.modelId,
+      tokensInput: result.usage.input,
+      tokensOutput: result.usage.output,
+      totalTokens: result.usage.total,
+    };
+    const label = resolved?.modelKey ?? input.modelId;
+
+    try {
+      if (result.success) {
+        await aiLogger.info(`LLM gateway 呼叫成功: ${label}`, {
+          details,
+          duration: result.durationMs,
+          methodName: 'call',
+        });
+      } else {
+        await aiLogger.warn(`LLM gateway 呼叫失敗: ${label}`, {
+          details: { ...details, error: result.error },
+          duration: result.durationMs,
+          methodName: 'call',
+        });
+      }
+    } catch {
+      // 結構化 log 失敗不影響結果（避免二次 log 造成級聯，直接吞）
+    }
+
+    // 用量持久化：需 documentId（反查 cityCode）+ 可映射 provider
+    const apiProvider = toApiProvider(result.providerType);
+    const documentId = input.usageContext?.documentId;
+    if (!apiProvider || !documentId) return;
+
+    try {
+      const doc = await prisma.document.findUnique({
+        where: { id: documentId },
+        select: { cityCode: true },
+      });
+      if (!doc) return;
+      await aiCostService.logUsage({
+        documentId,
+        cityCode: doc.cityCode,
+        provider: apiProvider,
+        operation: input.usageContext?.operation ?? 'llm-gateway',
+        tokensInput: result.usage.input,
+        tokensOutput: result.usage.output,
+        responseTime: result.durationMs,
+        success: result.success,
+        errorMessage: result.error,
+        metadata: {
+          modelKey: resolved?.modelKey,
+          deployment: resolved?.deploymentName,
+          modelId: input.modelId,
+        },
+      });
+    } catch {
+      // 用量持久化失敗不影響結果
     }
   }
 

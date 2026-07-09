@@ -27,15 +27,26 @@ vi.mock('@ai-sdk/azure', () => {
   return { createAzure: vi.fn(() => provider) };
 });
 
-// Mock Prisma（gateway 只用 llmModel.findUnique / findFirst）
+// Mock Prisma（gateway 用 llmModel.findUnique / findFirst；step 5 用 document.findUnique 反查 cityCode）
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     llmModel: { findUnique: vi.fn(), findFirst: vi.fn() },
+    document: { findUnique: vi.fn() },
   },
+}));
+
+// Mock 觀測性（step 5）：結構化 log + 用量持久化
+vi.mock('@/services/logging/logger.service', () => ({
+  aiLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@/services/ai-cost.service', () => ({
+  aiCostService: { logUsage: vi.fn() },
 }));
 
 import { generateText, generateObject } from 'ai';
 import { prisma } from '@/lib/prisma';
+import { aiLogger } from '@/services/logging/logger.service';
+import { aiCostService } from '@/services/ai-cost.service';
 import { llmGatewayService } from '@/services/llm';
 import type { LlmMessage } from '@/services/llm';
 
@@ -274,6 +285,101 @@ describe('LlmGatewayService', () => {
       const id = await llmGatewayService.resolveModelIdByKey('nonexistent');
 
       expect(id).toBeNull();
+    });
+  });
+
+  describe('觀測性（step 5：結構化 log + 用量持久化）', () => {
+    it('should write a structured info log on success (no persistence without documentId)', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: USER_MSG,
+        output: { mode: 'text' },
+      });
+
+      expect(aiLogger.info).toHaveBeenCalledTimes(1);
+      expect(aiCostService.logUsage).not.toHaveBeenCalled();
+    });
+
+    it('should write a warn log on failure', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(null as never);
+
+      await llmGatewayService.call({ modelId: 'nope', messages: USER_MSG });
+
+      expect(aiLogger.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('should persist ApiUsageLog with cityCode resolved from documentId', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(prisma.document.findUnique).mockResolvedValue({ cityCode: 'HKG' } as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: USER_MSG,
+        output: { mode: 'text' },
+        usageContext: { documentId: 'doc-1', operation: 'extraction-stage3' },
+      });
+
+      expect(aiCostService.logUsage).toHaveBeenCalledTimes(1);
+      const arg = vi.mocked(aiCostService.logUsage).mock.calls[0][0];
+      expect(arg.documentId).toBe('doc-1');
+      expect(arg.cityCode).toBe('HKG');
+      expect(arg.provider).toBe('AZURE_OPENAI');
+      expect(arg.operation).toBe('extraction-stage3');
+      expect(arg.tokensInput).toBe(10);
+      expect(arg.tokensOutput).toBe(20);
+      expect(arg.success).toBe(true);
+    });
+
+    it('should skip persistence when documentId is provided but document not found', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(prisma.document.findUnique).mockResolvedValue(null as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: USER_MSG,
+        output: { mode: 'text' },
+        usageContext: { documentId: 'missing' },
+      });
+
+      expect(aiCostService.logUsage).not.toHaveBeenCalled();
+    });
+
+    it('should not fail the call when usage persistence throws (fire-and-forget)', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(prisma.document.findUnique).mockResolvedValue({ cityCode: 'HKG' } as never);
+      vi.mocked(aiCostService.logUsage).mockRejectedValue(new Error('db down'));
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      const r = await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: USER_MSG,
+        output: { mode: 'text' },
+        usageContext: { documentId: 'doc-1' },
+      });
+
+      expect(r.success).toBe(true);
+      expect(r.text).toBe('ok');
     });
   });
 });

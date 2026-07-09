@@ -199,7 +199,8 @@ export class Stage3ExtractionService {
         prompt,
         input.imageBase64Array,
         config.outputSchema,
-        input.options?.imageDetailMode || config.imageDetailMode
+        input.options?.imageDetailMode || config.imageDetailMode,
+        input.documentId
       );
 
       // 4. CHANGE-042: 解析和驗證結果（傳入 fieldDefinitions 以支援動態映射）
@@ -1000,7 +1001,8 @@ Respond in valid JSON format matching the provided schema.`;
     prompt: { system: string; user: string },
     images: string[],
     outputSchema: Record<string, unknown>,
-    imageDetailMode: 'auto' | 'low' | 'high'
+    imageDetailMode: 'auto' | 'low' | 'high',
+    documentId?: string
   ): Promise<{
     response: string;
     tokenUsage: { input: number; output: number; total: number };
@@ -1015,6 +1017,8 @@ Respond in valid JSON format matching the provided schema.`;
       {
         imageDetailMode: imageDetailMode as ImageDetailMode,
         jsonSchema: outputSchema, // CHANGE-042 Phase 2: JSON Schema for structured output
+        // Epic 23 step 5：經 gateway 時據此寫 ApiUsageLog（documentId 反查 cityCode）
+        usageContext: { documentId, operation: 'extraction-stage3' },
       }
     );
 
