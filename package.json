@@ -43,6 +43,7 @@
   },
   "homepage": "https://github.com/laitim2001/ai-document-extraction-project#readme",
   "dependencies": {
+    "@ai-sdk/azure": "^4.0.9",
     "@auth/prisma-adapter": "^2.11.1",
     "@azure/ai-form-recognizer": "^5.1.0",
     "@azure/identity": "^4.13.0",
@@ -79,6 +80,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@upstash/redis": "^1.35.8",
+    "ai": "^7.0.18",
     "bcryptjs": "^3.0.3",
     "canvas": "^3.2.0",
     "class-variance-authority": "^0.7.1",

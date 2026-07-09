@@ -258,6 +258,8 @@ model LlmModel {
 | `@ai-sdk/xai` | Grok（native provider） |
 
 > 不再需要自建 adapter，也不需裸 `@anthropic-ai/sdk`（由 `@ai-sdk/anthropic` 取代）。安裝時確認各套件版本並記入 CHANGE/Story。
+>
+> **Story 23.1 step 3 實裝（2026-07-09）**：本 step gateway 只接 Azure，故只裝 `ai@7.0.18` + `@ai-sdk/azure@4.0.9`（後者已 transitive 帶入 `@ai-sdk/openai`/`provider`/`provider-utils`）；其餘 native provider 套件（`@ai-sdk/anthropic`/`google`/`xai`）延後至 Story 23.3 擴充時再裝。`ai@7` engines 要求 **node>=22** → CI `quality-checks.yml`/`security-deps.yml` 的 node 20→22（Dockerfile 已 node:26，本機 v25）；zod `^4.2.1` 滿足 peer `^3.25.76 || ^4.1.8`。`package-lock.json` 於 **node:22 容器**以 `--package-lock-only` 重生（FIX-075：避免 Windows 生成缺 Linux 條目；實測純新增、無原生 churn、`npm ci --dry-run` 通過）。
 
 ---
 
