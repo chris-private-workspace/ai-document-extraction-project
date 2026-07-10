@@ -101,6 +101,11 @@ export interface LlmCallResult {
   finishReason?: string;
   durationMs: number;
   error?: string;
+  /**
+   * Story 23.3 韌性：本次結果由 failover 提供時填入（原 provider 熔斷/失敗 → 切 isDefault provider）。
+   * 未觸發 failover 時為 undefined。
+   */
+  failover?: { fromProviderId: string; reason: string };
 }
 
 /** 組裝後單一內容部位的去敏快照（§3.8 wire 等價比對用） */

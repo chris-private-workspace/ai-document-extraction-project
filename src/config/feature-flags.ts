@@ -459,3 +459,56 @@ export function shouldUseLlmGateway(fileId?: string): boolean {
   // 無 fileId 時退回隨機分流
   return Math.random() * 100 < percentage;
 }
+
+// ============================================================================
+// LLM Gateway Resilience (Epic 23 - Story 23.3 韌性骨架)
+// ============================================================================
+
+/**
+ * LLM Gateway 韌性設定（circuit breaker + failover）。
+ * @description
+ *   對應 tech-spec §11.5「provider 韌性（D7 備援）」。整體僅在 gateway 路徑內生效
+ *   （gateway 本身受 `FEATURE_LLM_GATEWAY_ENABLED` 控制）。
+ */
+export interface LlmResilienceConfig {
+  /** circuit breaker 開關（預設 on / opt-out；`FEATURE_LLM_CIRCUIT_BREAKER='false'` 關閉） */
+  circuitBreakerEnabled: boolean;
+  /** 連續失敗達此數即開路 */
+  failureThreshold: number;
+  /** OPEN → HALF_OPEN 冷卻（毫秒） */
+  cooldownMs: number;
+  /** HALF_OPEN 期間允許的試探數 */
+  halfOpenMax: number;
+  /**
+   * failover 開關（預設 off / opt-in；`FEATURE_LLM_FAILOVER='true'` 啟用）。
+   * 保守預設：failover 會改切到 isDefault provider，影響路由（§11.5「可選 failover」）。
+   * ⚠️ 目前僅 Azure（isDefault）wired，跨 provider failover 實際生效需非 Azure wired（Story 23.3 核心）。
+   */
+  failoverEnabled: boolean;
+}
+
+/**
+ * 從環境變數取得 LLM Gateway 韌性設定。
+ *
+ * @description
+ *   環境變數：
+ *   - FEATURE_LLM_CIRCUIT_BREAKER: circuit breaker 開關（預設 on，'false' 關閉）
+ *   - LLM_CIRCUIT_FAILURE_THRESHOLD: 開路的連續失敗數（預設 5）
+ *   - LLM_CIRCUIT_COOLDOWN_MS: OPEN → HALF_OPEN 冷卻毫秒（預設 30000）
+ *   - LLM_CIRCUIT_HALF_OPEN_MAX: HALF_OPEN 試探數（預設 1）
+ *   - FEATURE_LLM_FAILOVER: failover 開關（預設 off，'true' 啟用）
+ *
+ * @returns {LlmResilienceConfig} 韌性設定
+ */
+export function getLlmResilienceConfig(): LlmResilienceConfig {
+  return {
+    circuitBreakerEnabled: process.env.FEATURE_LLM_CIRCUIT_BREAKER !== 'false',
+    failureThreshold: parseInt(
+      process.env.LLM_CIRCUIT_FAILURE_THRESHOLD ?? '5',
+      10
+    ),
+    cooldownMs: parseInt(process.env.LLM_CIRCUIT_COOLDOWN_MS ?? '30000', 10),
+    halfOpenMax: parseInt(process.env.LLM_CIRCUIT_HALF_OPEN_MAX ?? '1', 10),
+    failoverEnabled: process.env.FEATURE_LLM_FAILOVER === 'true',
+  };
+}

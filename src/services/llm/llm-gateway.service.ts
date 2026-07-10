@@ -35,6 +35,9 @@ import { decryptConfigValue } from '@/lib/config-encryption';
 import { aiLogger } from '@/services/logging/logger.service';
 import { aiCostService } from '@/services/ai-cost.service';
 import type { ApiProviderType } from '@/types/ai-cost';
+import { getLlmResilienceConfig } from '@/config/feature-flags';
+import type { LlmResilienceConfig } from '@/config/feature-flags';
+import { llmCircuitBreaker } from './llm-circuit-breaker';
 
 import type {
   LlmAssembledMessage,
@@ -83,6 +86,7 @@ interface StoredCapability {
 
 /** 解析後的 provider + 模型（含解密憑證，僅存活於單次呼叫記憶體） */
 interface ResolvedModel {
+  providerId: string;
   providerType: LlmProviderType;
   modelKey: string;
   deploymentName: string;
@@ -290,27 +294,163 @@ export class LlmGatewayService {
    */
   async call(input: LlmCallInput): Promise<LlmCallResult> {
     const start = Date.now();
-    let resolved: ResolvedModel | undefined;
-    let result: LlmCallResult;
+    const resilience = getLlmResilienceConfig();
 
+    // Phase 1：解析 + 組裝（config / 解析錯誤 → **不**計入熔斷）
+    let prepared: PreparedCall;
     try {
-      const prepared = await this.prepare(input);
-      resolved = prepared.resolved;
-      result = await this.dispatch(prepared, input, start);
+      prepared = await this.prepare(input);
     } catch (error) {
-      result = {
-        success: false,
-        text: '',
-        usage: { input: 0, output: 0, total: 0 },
-        modelId: input.modelId,
-        providerType: resolved?.providerType,
-        durationMs: Date.now() - start,
-        error: error instanceof Error ? error.message : String(error),
-      };
+      const result = this.buildErrorResult(input.modelId, undefined, start, error);
+      await this.recordObservability(input, result, undefined);
+      return result;
     }
 
+    // Phase 2：熔斷閘 + dispatch + failover（Story 23.3 §11.5）
+    const { result, resolved } = await this.dispatchWithResilience(
+      prepared,
+      input,
+      start,
+      resilience,
+    );
     await this.recordObservability(input, result, resolved);
     return result;
+  }
+
+  /**
+   * 熔斷閘 → dispatch → 記錄成敗 → 失敗時 failover（tech-spec §11.5「provider 韌性」）。
+   * 熔斷開路即 **fail-fast**（不空燒 retry，直擊「provider 掛掉整批空燒 retry」）。
+   */
+  private async dispatchWithResilience(
+    prepared: PreparedCall,
+    input: LlmCallInput,
+    start: number,
+    resilience: LlmResilienceConfig,
+  ): Promise<{ result: LlmCallResult; resolved: ResolvedModel }> {
+    const providerId = prepared.resolved.providerId;
+
+    // 熔斷開路 → fail-fast → 嘗試 failover
+    if (resilience.circuitBreakerEnabled && !llmCircuitBreaker.canRequest(providerId)) {
+      const fo = await this.tryFailover(input, prepared.resolved, start, resilience, 'CIRCUIT_OPEN');
+      if (fo) return fo;
+      const result = this.buildErrorResult(
+        input.modelId,
+        prepared.resolved,
+        start,
+        new LlmGatewayError(`Provider 熔斷開路: ${providerId}`, 'CIRCUIT_OPEN'),
+      );
+      return { result, resolved: prepared.resolved };
+    }
+
+    // dispatch（API 失敗＝provider 健康問題，計入熔斷）
+    const result = await this.safeDispatch(prepared, input, start);
+    if (resilience.circuitBreakerEnabled) {
+      if (result.success) llmCircuitBreaker.recordSuccess(providerId);
+      else llmCircuitBreaker.recordFailure(providerId);
+    }
+
+    // 主要失敗 → failover
+    if (!result.success) {
+      const fo = await this.tryFailover(input, prepared.resolved, start, resilience, 'PRIMARY_FAILED');
+      if (fo) return fo;
+    }
+    return { result, resolved: prepared.resolved };
+  }
+
+  /** dispatch 包成不拋（API 例外 → success:false），供熔斷記錄與 failover 判斷 */
+  private async safeDispatch(
+    prepared: PreparedCall,
+    input: LlmCallInput,
+    start: number,
+  ): Promise<LlmCallResult> {
+    try {
+      return await this.dispatch(prepared, input, start);
+    } catch (error) {
+      return this.buildErrorResult(input.modelId, prepared.resolved, start, error);
+    }
+  }
+
+  /**
+   * failover 骨架（§11.5「可選 failover 切 isDefault」；opt-in `FEATURE_LLM_FAILOVER`）。
+   * 僅在能於 isDefault provider 找到對應模型（**跨 provider**）時觸發；
+   * ⚠️ 目前僅 Azure（isDefault）wired → 同 provider 不 failover（回 null，維持原結果）。
+   * 非 Azure provider wired 後（Story 23.3 核心）全面生效。
+   */
+  private async tryFailover(
+    input: LlmCallInput,
+    original: ResolvedModel,
+    start: number,
+    resilience: LlmResilienceConfig,
+    reason: string,
+  ): Promise<{ result: LlmCallResult; resolved: ResolvedModel } | null> {
+    if (!resilience.failoverEnabled) return null;
+
+    const targetModelId = await this.resolveFailoverTarget(original);
+    if (!targetModelId) return null;
+
+    const foInput = { ...input, modelId: targetModelId };
+    let foPrepared: PreparedCall;
+    try {
+      foPrepared = await this.prepare(foInput);
+    } catch {
+      return null; // failover 目標解析不到 → 放棄，維持原結果
+    }
+
+    const foProviderId = foPrepared.resolved.providerId;
+    if (resilience.circuitBreakerEnabled && !llmCircuitBreaker.canRequest(foProviderId)) {
+      return null; // failover 目標也熔斷 → 放棄
+    }
+
+    const foResult = await this.safeDispatch(foPrepared, foInput, start);
+    if (resilience.circuitBreakerEnabled) {
+      if (foResult.success) llmCircuitBreaker.recordSuccess(foProviderId);
+      else llmCircuitBreaker.recordFailure(foProviderId);
+    }
+    foResult.failover = { fromProviderId: original.providerId, reason };
+    return { result: foResult, resolved: foPrepared.resolved };
+  }
+
+  /**
+   * 解析 failover 目標 modelId：isDefault 且已啟用 provider 下、同 `modelKey` 的模型
+   * （無同 key 則取該 provider 任一已啟用模型）；與原 provider 相同即回 `null`（無跨 provider 可切）。
+   */
+  private async resolveFailoverTarget(original: ResolvedModel): Promise<string | null> {
+    const def = await prisma.llmProvider.findFirst({
+      where: { isDefault: true, isEnabled: true },
+      select: { id: true },
+    });
+    if (!def || def.id === original.providerId) return null;
+
+    const sameKey = await prisma.llmModel.findFirst({
+      where: { providerId: def.id, isEnabled: true, modelKey: original.modelKey },
+      select: { id: true },
+    });
+    if (sameKey) return sameKey.id;
+
+    const anyModel = await prisma.llmModel.findFirst({
+      where: { providerId: def.id, isEnabled: true },
+      orderBy: { label: 'asc' },
+      select: { id: true },
+    });
+    return anyModel?.id ?? null;
+  }
+
+  /** 組成失敗結果（統一，供解析錯誤 / 熔斷開路 / dispatch 例外共用） */
+  private buildErrorResult(
+    modelId: string,
+    resolved: ResolvedModel | undefined,
+    start: number,
+    error: unknown,
+  ): LlmCallResult {
+    return {
+      success: false,
+      text: '',
+      usage: { input: 0, output: 0, total: 0 },
+      modelId,
+      providerType: resolved?.providerType,
+      durationMs: Date.now() - start,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 
   /** 依 output 模式派送 generateText / generateObject（含 G10 降級） */
@@ -531,6 +671,7 @@ export class LlmGatewayService {
     const apiKey = this.resolveApiKey(provider);
 
     return {
+      providerId: provider.id,
       providerType: provider.providerType,
       modelKey: model.modelKey,
       deploymentName,
