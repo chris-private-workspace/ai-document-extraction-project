@@ -66,6 +66,12 @@ hierarchical-terms-report.xlsx
 # Playwright MCP cache
 .playwright-mcp/
 
+# Playwright E2E（Epic 23 - Story 23.2）
+/test-results/
+/playwright-report/
+/blob-report/
+tests/e2e/.auth/
+
 # Sample/Archive folders
 docs/Doc Sample/
 
