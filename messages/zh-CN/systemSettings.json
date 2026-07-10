@@ -186,7 +186,9 @@
     "loadError": "加载模型设置失败",
     "saveSuccess": "模型设置已保存",
     "saveError": "保存模型设置失败",
-    "save": "保存设置"
+    "save": "保存设置",
+    "accuracyWarningTitle": "准确率回归风险",
+    "accuracyWarning": "此为核心提取环节。非 Azure 模型需先通过准确率回归与 per-model 置信度重新校准（Story 23.3）才可使用。此选择会保存，但在此之前管线仍以 Azure 执行。"
   },
   "actions": {
     "save": "保存更改",

@@ -71,6 +71,7 @@ const namespaces = [
   'changeHistory',
   'ruleSimulation',
   'cityAccess',
+  'llmProviders',
 ] as const
 
 export type Namespace = (typeof namespaces)[number]

@@ -5,15 +5,15 @@
  * @description
  *   為文件處理 Stage 1-3（公司識別 / 格式匹配 / 欄位提取）各選擇一個 LLM 模型。
  *
- *   - 下拉選項來自 GET /api/v1/model-configs 回傳的 models（label 顯示、key 當值），
- *     不硬編模型清單。
- *   - 載入時帶入目前 selection；儲存呼叫 PUT。
- *   - 下拉旁顯示該模型能力提示（maxTokens、temperature、json_schema、影像細節）。
+ *   - Epic 23 step 3b：下拉選項來自 GET /api/v1/model-configs 回傳的 models
+ *     （**已啟用 provider 的已啟用模型**，依 provider 分組；value = LlmModel.id），不硬編白名單。
+ *   - 核心環節（Stage 3）× 非 Azure 模型 → 顯示準確率回歸警示（D6：切非 Azure 前需準確率回歸）。
+ *   - 載入時帶入目前 selection；儲存呼叫 PUT（寫 StageModelAssignment）。
  *   - 非 globalAdmin 進入時為唯讀檢視（停用下拉與儲存，並顯示提示）。
  *
  * @module src/app/[locale]/(dashboard)/admin/model-settings/client
  * @since CHANGE-099 - LLM 模型選擇管理
- * @lastModified 2026-07-09
+ * @lastModified 2026-07-10
  *
  * @dependencies
  *   - next-auth/react - Session（判斷 isGlobalAdmin）
@@ -25,8 +25,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useSession } from 'next-auth/react'
-import { Check, Cpu, Loader2, X } from 'lucide-react'
+import { AlertTriangle, Check, Cpu, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert'
 import {
   Card,
   CardContent,
@@ -38,7 +43,9 @@ import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -57,6 +64,12 @@ import {
 /** 三個階段的識別碼（對應 API selection 欄位） */
 const STAGE_KEYS = ['stage1', 'stage2', 'stage3'] as const
 type StageKey = (typeof STAGE_KEYS)[number]
+
+/** 核心環節（切非 Azure 前需準確率回歸；D6） */
+const CORE_STAGES: readonly StageKey[] = ['stage3']
+
+/** Azure provider 類型（其餘視為非 Azure，觸發核心環節警示） */
+const AZURE_PROVIDER_TYPE = 'AZURE_OPENAI'
 
 // ============================================================
 // Sub-components
@@ -101,11 +114,13 @@ function CapabilityHints({ model }: { model: LlmModel | undefined }) {
           ? t('modelSettings.capability.jsonSchema')
           : t('modelSettings.capability.noJsonSchema')}
       </span>
-      <span>
-        {t('modelSettings.capability.imageDetail', {
-          value: capability.defaultImageDetail,
-        })}
-      </span>
+      {capability.defaultImageDetail && (
+        <span>
+          {t('modelSettings.capability.imageDetail', {
+            value: capability.defaultImageDetail,
+          })}
+        </span>
+      )}
     </div>
   )
 }
@@ -140,16 +155,37 @@ export function ModelSettingsClient() {
   // --- Derived ---
   const models = useMemo(() => data?.models ?? [], [data])
 
-  const modelByKey = useMemo(() => {
+  const modelById = useMemo(() => {
     const map = new Map<string, LlmModel>()
-    for (const m of models) map.set(m.key, m)
+    for (const m of models) map.set(m.id, m)
     return map
+  }, [models])
+
+  /** 依 provider 分組（保留 API 回傳順序：預設 provider 優先） */
+  const modelGroups = useMemo(() => {
+    const groups: { providerName: string; models: LlmModel[] }[] = []
+    const indexByProvider = new Map<string, number>()
+    for (const m of models) {
+      let idx = indexByProvider.get(m.providerName)
+      if (idx === undefined) {
+        idx = groups.length
+        indexByProvider.set(m.providerName, idx)
+        groups.push({ providerName: m.providerName, models: [] })
+      }
+      groups[idx].models.push(m)
+    }
+    return groups
   }, [models])
 
   const hasChanges = useMemo(() => {
     if (!data?.selection || !selection) return false
     return STAGE_KEYS.some((key) => selection[key] !== data.selection[key])
   }, [data, selection])
+
+  const allStagesSelected = useMemo(
+    () => !!selection && STAGE_KEYS.every((key) => !!selection[key]),
+    [selection],
+  )
 
   // --- Handlers ---
   const handleStageChange = (stage: StageKey, value: string) => {
@@ -210,7 +246,11 @@ export function ModelSettingsClient() {
         </CardHeader>
         <CardContent className="space-y-6">
           {STAGE_KEYS.map((stage) => {
-            const selectedModel = modelByKey.get(selection[stage])
+            const selectedModel = modelById.get(selection[stage])
+            const showAccuracyWarning =
+              CORE_STAGES.includes(stage) &&
+              !!selectedModel &&
+              selectedModel.providerType !== AZURE_PROVIDER_TYPE
             return (
               <div key={stage} className="space-y-2">
                 <Label>{t(`modelSettings.stages.${stage}`)}</Label>
@@ -228,14 +268,30 @@ export function ModelSettingsClient() {
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {models.map((model) => (
-                      <SelectItem key={model.key} value={model.key}>
-                        {model.label}
-                      </SelectItem>
+                    {modelGroups.map((group) => (
+                      <SelectGroup key={group.providerName}>
+                        <SelectLabel>{group.providerName}</SelectLabel>
+                        {group.models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>
                 <CapabilityHints model={selectedModel} />
+                {showAccuracyWarning && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>
+                      {t('modelSettings.accuracyWarningTitle')}
+                    </AlertTitle>
+                    <AlertDescription>
+                      {t('modelSettings.accuracyWarning')}
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
             )
           })}
@@ -244,7 +300,9 @@ export function ModelSettingsClient() {
             <div className="flex justify-end">
               <Button
                 onClick={handleSave}
-                disabled={!hasChanges || updateMutation.isPending}
+                disabled={
+                  !hasChanges || !allStagesSelected || updateMutation.isPending
+                }
               >
                 {updateMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -79,6 +79,7 @@
     "pipelineSettings": "Pipeline Settings",
     "systemSettings": "System Settings",
     "modelSettings": "Model Settings",
+    "llmProviders": "LLM Providers",
     "settings": "Settings"
   },
   "user": {

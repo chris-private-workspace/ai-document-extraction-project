@@ -1,0 +1,88 @@
+{
+  "pageTitle": "LLM 供應商",
+  "pageDescription": "設定文件處理所用的 LLM 供應商與其加密憑證。",
+  "readOnlyNotice": "您目前為唯讀檢視。僅全域管理員可新增、編輯或刪除供應商。",
+  "addProvider": "新增供應商",
+  "empty": "尚未設定任何供應商。",
+  "loadError": "載入供應商失敗，請重試。",
+  "columns": {
+    "name": "名稱",
+    "type": "類型",
+    "baseUrl": "Base URL",
+    "apiKey": "憑證",
+    "sensitiveData": "敏感資料",
+    "status": "狀態",
+    "actions": "操作"
+  },
+  "badges": {
+    "default": "預設",
+    "hasKey": "已設定",
+    "noKey": "未設定",
+    "enabled": "已啟用",
+    "disabled": "已停用"
+  },
+  "actions": {
+    "test": "測試連線",
+    "edit": "編輯",
+    "delete": "刪除"
+  },
+  "types": {
+    "AZURE_OPENAI": "Azure OpenAI",
+    "OPENAI": "OpenAI",
+    "ANTHROPIC": "Anthropic（Claude）",
+    "GOOGLE_GEMINI": "Google Gemini",
+    "XAI_GROK": "xAI（Grok）",
+    "OPENAI_COMPATIBLE": "OpenAI 相容"
+  },
+  "form": {
+    "createTitle": "新增供應商",
+    "editTitle": "編輯供應商",
+    "createDescription": "註冊新的 LLM 供應商。API key 會先加密再儲存。",
+    "editDescription": "更新供應商設定。API key 留空則保留既有憑證。",
+    "name": "名稱",
+    "namePlaceholder": "例如：Azure OpenAI（正式環境）",
+    "providerType": "供應商類型",
+    "providerTypePlaceholder": "選擇供應商類型",
+    "baseUrl": "Base URL",
+    "baseUrlPlaceholder": "https://your-resource.openai.azure.com",
+    "baseUrlDescription": "選填。Azure 為資源端點；留空則使用環境預設值。",
+    "apiVersion": "API 版本",
+    "apiVersionPlaceholder": "2024-12-01-preview",
+    "apiVersionDescription": "Azure 專用的 API 版本。",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "輸入 API key",
+    "apiKeyEditPlaceholder": "留空則保留既有憑證",
+    "apiKeyCurrent": "目前憑證：{preview}",
+    "apiKeyDescription": "憑證加密儲存，且不會再次顯示。",
+    "isEnabled": "啟用",
+    "isEnabledDescription": "可供使用。",
+    "isDefault": "預設",
+    "isDefaultDescription": "未指定供應商時的後備選擇。",
+    "allowSensitiveDataLabel": "允許敏感資料",
+    "allowSensitiveData": "允許將發票資料送往此供應商。非 Azure 供應商需經組織核准。",
+    "complianceWarningTitle": "合規提醒",
+    "complianceWarning": "非 Azure 供應商會將發票資料送出 Azure 合規基準之外。啟用敏感資料前，請確認已開通 VNet egress 並取得組織資安核准。",
+    "submit": "儲存",
+    "cancel": "取消"
+  },
+  "delete": {
+    "title": "刪除供應商",
+    "description": "確定刪除供應商「{name}」及其所有模型嗎？此操作無法復原。",
+    "confirm": "刪除",
+    "cancel": "取消"
+  },
+  "test": {
+    "success": "連線成功。",
+    "failed": "連線失敗。",
+    "unsupported": "此供應商類型尚未支援完整連線測試。",
+    "statusCode": "HTTP 狀態：{code}"
+  },
+  "messages": {
+    "created": "已建立供應商。",
+    "updated": "已更新供應商。",
+    "deleted": "已刪除供應商。",
+    "createError": "建立供應商失敗。",
+    "updateError": "更新供應商失敗。",
+    "deleteError": "刪除供應商失敗。"
+  }
+}

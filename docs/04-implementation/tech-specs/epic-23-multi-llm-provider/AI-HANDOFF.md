@@ -1,7 +1,7 @@
 # Epic 23 — AI 助手接手指引（Onboarding / Handoff）
 
 > **這份文件是什麼**：給**任何新 AI 助手**（新 session / 新電腦 / 新 worktree）快速進入 Epic 23 狀況的**單一入口**。讀完這份 + 下方連結的文件，就能無縫接續，不必回溯對話歷史。
-> **最後更新**：2026-07-10（規格 v0.4.0；Phase 0 spike 完成；**Story 23.1 step 1–5 + step 4b 完成**，僅剩「harness 實跑等價」+ §6.1 per-model 校準（歸 23.3））｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
+> **最後更新**：2026-07-10（規格 v0.4.0；Phase 0 spike 完成；**Story 23.1 step 1–5 + 4b 完成**；**Story 23.2 step 1–3 完成**：憑證/Provider CRUD 服務 + 管理 API（`/api/v1/llm-providers`）+ 後台頁 `admin/llm-providers`（列表/新增/編輯遮罩憑證/連線測試/非 Azure 合規勾選）+ `model-settings` id-based 擴充（`StageModelAssignment` 為指派真實來源、下拉改 DB 已啟用 provider 模型、非 Azure 核心環節準確率回歸警示；**Azure key-bridge 保留、非 Azure 實際執行留 23.3**）。仍剩：harness 實跑等價 + §6.1 per-model 校準（歸 23.3）+ Story 23.2 模型管理 UI／E2E（延後））｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
 
 ---
 

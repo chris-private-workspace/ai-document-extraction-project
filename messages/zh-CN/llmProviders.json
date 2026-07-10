@@ -1,0 +1,88 @@
+{
+  "pageTitle": "LLM 供应商",
+  "pageDescription": "配置文档处理所用的 LLM 供应商及其加密凭证。",
+  "readOnlyNotice": "您当前为只读查看。仅全局管理员可新增、编辑或删除供应商。",
+  "addProvider": "新增供应商",
+  "empty": "尚未配置任何供应商。",
+  "loadError": "加载供应商失败，请重试。",
+  "columns": {
+    "name": "名称",
+    "type": "类型",
+    "baseUrl": "Base URL",
+    "apiKey": "凭证",
+    "sensitiveData": "敏感数据",
+    "status": "状态",
+    "actions": "操作"
+  },
+  "badges": {
+    "default": "默认",
+    "hasKey": "已设置",
+    "noKey": "未设置",
+    "enabled": "已启用",
+    "disabled": "已停用"
+  },
+  "actions": {
+    "test": "测试连接",
+    "edit": "编辑",
+    "delete": "删除"
+  },
+  "types": {
+    "AZURE_OPENAI": "Azure OpenAI",
+    "OPENAI": "OpenAI",
+    "ANTHROPIC": "Anthropic（Claude）",
+    "GOOGLE_GEMINI": "Google Gemini",
+    "XAI_GROK": "xAI（Grok）",
+    "OPENAI_COMPATIBLE": "OpenAI 兼容"
+  },
+  "form": {
+    "createTitle": "新增供应商",
+    "editTitle": "编辑供应商",
+    "createDescription": "注册新的 LLM 供应商。API key 会先加密再存储。",
+    "editDescription": "更新供应商设置。API key 留空则保留现有凭证。",
+    "name": "名称",
+    "namePlaceholder": "例如：Azure OpenAI（生产环境）",
+    "providerType": "供应商类型",
+    "providerTypePlaceholder": "选择供应商类型",
+    "baseUrl": "Base URL",
+    "baseUrlPlaceholder": "https://your-resource.openai.azure.com",
+    "baseUrlDescription": "选填。Azure 为资源端点；留空则使用环境默认值。",
+    "apiVersion": "API 版本",
+    "apiVersionPlaceholder": "2024-12-01-preview",
+    "apiVersionDescription": "Azure 专用的 API 版本。",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "输入 API key",
+    "apiKeyEditPlaceholder": "留空则保留现有凭证",
+    "apiKeyCurrent": "当前凭证：{preview}",
+    "apiKeyDescription": "凭证加密存储，且不会再次显示。",
+    "isEnabled": "启用",
+    "isEnabledDescription": "可供使用。",
+    "isDefault": "默认",
+    "isDefaultDescription": "未指定供应商时的后备选择。",
+    "allowSensitiveDataLabel": "允许敏感数据",
+    "allowSensitiveData": "允许将发票数据发送至此供应商。非 Azure 供应商需经组织核准。",
+    "complianceWarningTitle": "合规提醒",
+    "complianceWarning": "非 Azure 供应商会将发票数据发送出 Azure 合规基准之外。启用敏感数据前，请确认已开通 VNet egress 并取得组织安全核准。",
+    "submit": "保存",
+    "cancel": "取消"
+  },
+  "delete": {
+    "title": "删除供应商",
+    "description": "确定删除供应商“{name}”及其所有模型吗？此操作无法撤销。",
+    "confirm": "删除",
+    "cancel": "取消"
+  },
+  "test": {
+    "success": "连接成功。",
+    "failed": "连接失败。",
+    "unsupported": "此供应商类型尚未支持完整连接测试。",
+    "statusCode": "HTTP 状态：{code}"
+  },
+  "messages": {
+    "created": "已创建供应商。",
+    "updated": "已更新供应商。",
+    "deleted": "已删除供应商。",
+    "createError": "创建供应商失败。",
+    "updateError": "更新供应商失败。",
+    "deleteError": "删除供应商失败。"
+  }
+}

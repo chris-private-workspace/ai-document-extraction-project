@@ -79,6 +79,7 @@
     "pipelineSettings": "管线设置",
     "systemSettings": "系统设置",
     "modelSettings": "模型设置",
+    "llmProviders": "LLM 供应商",
     "settings": "设置"
   },
   "user": {

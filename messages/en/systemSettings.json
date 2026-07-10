@@ -186,7 +186,9 @@
     "loadError": "Failed to load model settings",
     "saveSuccess": "Model settings saved",
     "saveError": "Failed to save model settings",
-    "save": "Save Settings"
+    "save": "Save Settings",
+    "accuracyWarningTitle": "Accuracy regression risk",
+    "accuracyWarning": "This is a core extraction stage. Non-Azure models require an accuracy regression pass and per-model confidence recalibration (Story 23.3) before use. The selection is saved, but the pipeline keeps running on Azure until then."
   },
   "actions": {
     "save": "Save Changes",

@@ -186,7 +186,9 @@
     "loadError": "載入模型設定失敗",
     "saveSuccess": "模型設定已儲存",
     "saveError": "儲存模型設定失敗",
-    "save": "儲存設定"
+    "save": "儲存設定",
+    "accuracyWarningTitle": "準確率回歸風險",
+    "accuracyWarning": "此為核心提取環節。非 Azure 模型需先通過準確率回歸與 per-model 信心度重新校準（Story 23.3）才可使用。此選擇會儲存，但在此之前管線仍以 Azure 執行。"
   },
   "actions": {
     "save": "儲存變更",
