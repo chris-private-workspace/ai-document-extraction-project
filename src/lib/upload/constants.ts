@@ -42,8 +42,14 @@ export const UPLOAD_CONFIG = {
   /** 最大文件大小顯示文字 */
   MAX_FILE_SIZE_DISPLAY: '10MB',
 
-  /** 每批次最大文件數量 */
-  MAX_FILES_PER_BATCH: 20,
+  /**
+   * 每批次最大文件數量
+   *
+   * FIX-106: 由 20 降為 15。上傳後所有文件會在 upload/route.ts 被同時投入處理，
+   * 20 份曾使 App Service 記憶體達 95%、事件迴圈凍結，導致 pg 連線握手逾時。
+   * 此值僅降低峰值，未移除觸發機制 —— 治本需限制併發處理數。
+   */
+  MAX_FILES_PER_BATCH: 15,
 
   /** UI 顯示用的接受格式標籤 */
   ACCEPT_LABEL: 'PDF, JPG, PNG',
