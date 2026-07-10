@@ -1,30 +1,56 @@
-# FIX-106: OCR_PROCESSING 卡死的根因 —— DB 連線 timeout 致狀態寫入失敗
+# FIX-106: 批次上傳 20 份文件致應用端資源飽和 —— 連線握手逾時與文件狀態靜默丟失
 
 > **建立日期**: 2026-07-10
-> **最後更新**: 2026-07-10（v2 —— 以真實 Log Analytics 回傳覆現，更正 v1 的不實 log 內容，見 §8）
-> **發現方式**: 用戶回報（Azure DEV 文件卡 `OCR_PROCESSING`）+ Azure 容器 log 追蹤
+> **最後更新**: 2026-07-10（v3 —— PG／App Service 指標 + DB 查詢佐證，根因改判為應用端飽和，見 §8）
+> **發現方式**: 用戶回報（Azure DEV 文件卡 `OCR_PROCESSING`）+ 用戶關鍵線索（「只在一次上傳 20 份時出現」）+ Azure 容器 log / 平台指標 / DB 查詢
 > **影響頁面/功能**: 文件處理管線（OCR 階段）/ 文件列表頁 + 詳情頁
-> **優先級**: 高（生產資料靜默丟失、無自動回收）
-> **狀態**: 🔍 **調查中 —— 直接根因已定位（DB 連線 timeout）；根因的根因（DB 為何 timeout）待 PG 指標佐證後決定修復方向**
+> **優先級**: 高（生產資料靜默丟失、無自動回收、可穩定重現）
+> **狀態**: ✅ **根因已確認（應用端事件迴圈飽和，非 DB 故障）；修復尚未實作**
 > **關聯**: FIX-094（殭屍處理 sweeper，事後回收層）、CHANGE-098（DB 連線韌性 `withDbRetry` + fail-stop）
+
+> ⚠️ **本文件標題與早期版本的方向相反**。v1／v2 認定根因是「DB 連線 timeout」。v3 以 PostgreSQL 與 App Service 平台指標證實：**PG 全程健康，是應用端把自己打爆**。錯誤訊息 `Connection terminated due to connection timeout` 由應用端的 `pg-pool` 自行拋出，不代表資料庫有任何問題。
 
 ---
 
 ## 1. 問題描述
 
-Azure DEV 上一批手動上傳的 CEVA 文件卡在 `OCR_PROCESSING` 狀態，**永不 timeout、永不轉 error、UI 無重試按鈕**，與 FIX-094 描述的「殭屍處理」症狀一致（同為 CEVA、同卡 `OCR_PROCESSING`、`error_message` 為空）。
+用戶在 Azure DEV 一次批次上傳 **20 份** CEVA 文件後，部分文件永久卡在 `OCR_PROCESSING`（永不 timeout、永不轉 error、UI 無重試按鈕）。
 
-**UI 觀察到的卡住文件（UI 時間 2026-07-10 11:12 AM，UTC+8）：**
+**用戶提供的關鍵線索**：此現象**只在一次上傳 20 份文件時出現**，少量上傳不會發生。此線索是根因改判的轉折點（見 §4.4）。
 
-| # | 檔名 | 狀態 |
-|---|------|------|
-| 9 | `CEVA_RCIM250349_17868.PDF` | OCR Processing |
-| 10 | `CEVA_RCIM250346_17867.PDF` | OCR Processing |
-| 11 | `CEVA_RCIM250327_17864.PDF` | OCR Processing |
+### 1.1 那批上傳的真實全貌（DB 查詢結果）
 
-三份於**同一分鐘（11:12）批次上傳**，同時進入處理。
+20 份文件於 `03:12:15.164Z` – `03:12:16.479Z`（1.3 秒內）建立，`status` 初始皆為 `UPLOADED`（`upload/route.ts:328`）。事後狀態分佈：
 
-> ⚠️ **UI 觀察與 log 不一致**：容器 log 顯示狀態寫入失敗的是 **4 個** document ID（見 §3），比 UI 觀察到的 3 份多一份。第 4 份的檔名與當前 DB 狀態**尚未查證**，不可假設它就是這 3 份之一。
+| 狀態 | 份數 | 性質 |
+|------|------|------|
+| `MAPPING_COMPLETED` | 12 | 處理成功 |
+| `OCR_PROCESSING` | 4 | UI 可見的殭屍；FIX-094 sweeper **掃得到** |
+| `UPLOADED` | 4 | **靜默丟失**；UI 上與「待處理」無異；sweeper **掃不到** |
+
+### 1.2 🔴 兩批受害者是不同的文件（v2 曾誤混）
+
+**卡在 `OCR_PROCESSING` 的 4 份**（其 `OCR_PROCESSING` 在中斷**前**就已寫入成功）：
+
+| 檔名 | document ID | `updated_at` |
+|------|-------------|--------------|
+| `CEVA_RCIM250271_59335.PDF` | `e978c70a-a7d0-45d8-9b3a-ba36438f7c52` | `03:12:17.545Z` |
+| `CEVA_RCIM250327_17864.PDF` | `bcc0a103-48b1-4197-ba9a-8e2108ef6f30` | `03:12:18.230Z` |
+| `CEVA_RCIM250346_17867.PDF` | `ba09dfd8-7ded-41e2-829d-8b901878b63d` | `03:12:18.249Z` |
+| `CEVA_RCIM250349_17868.PDF` | `4971fa34-073a-4047-98f6-f477530e0153` | `03:12:18.319Z` |
+
+> UI 僅觀察到後 3 份（第 4 份 `CEVA_RCIM250271_59335.PDF` 在列表另一頁）。
+
+**停在 `UPLOADED` 的 4 份**（即容器 log 中 `aborting (no V2 fallback)` 的那 4 個 ID）：
+
+| 檔名 | document ID | 狀態欄位 |
+|------|-------------|----------|
+| `CEVA_RCIM250124_31832.pdf` | `d13602a6-ebeb-40d5-acc1-9d830bfe3f14` | `error_message = null`、`processing_started_at = null`、`updated_at = created_at` |
+| `CEVA_RCIM250272_59334 .PDF` | `d8460d06-b20b-4252-aadf-5d4c8e7be1f0` | 同上 |
+| `CEVA_RCIM250325_17865.PDF` | `53d2e497-2c0b-40d6-b847-81875bfcff38` | 同上 |
+| `CEVA_RCIM260007_20875.PDF` | `f2efa7ca-cd83-4f61-a5d2-9be589e24576` | 同上 |
+
+這 4 份自建立後**從未被寫過任何一次**。UI 上它們看起來就像「剛上傳、尚未處理」，與正常待處理文件無法區分。**這是本 FIX 中危害最大的部分。**
 
 ---
 
@@ -33,13 +59,14 @@ Azure DEV 上一批手動上傳的 CEVA 文件卡在 `OCR_PROCESSING` 狀態，*
 | 項目 | 值 |
 |------|-----|
 | WebApp | `WebApp-RAPOSCM-AIDocProcessing-DEV` |
-| 當前映像 tag | `dev-azure-sync-20260710135241`（建置於事件**之後**，非本次中斷主因，見 §4.3） |
+| App Service Plan | `ASP-RAPOSCM-AIDocProcessing-DEV` |
+| PostgreSQL | `pgsql-raposcm-aidocprocessing-dev`（Flexible Server，私有端點） |
+| 當前映像 tag | `dev-azure-sync-20260710135241`（建置於事件**之後**，非主因，見 §4.3） |
 | Log Analytics workspace | `log-raposcm-aidocprocessing-dev`（customerId `1cf79233-ded9-48c7-ae6a-e6c84858ab5a`） |
-| Resource Group | `RG-RAPOSCM-AIDocProcessing-DEV` |
 | 容器 stdout 表 | `AppServiceConsoleLogs`（`ResultDescription` 欄） |
 | 時區換算 | UI 用 UTC+8；11:12 AM (UTC+8) = **03:12 UTC** |
 
-**查詢方式（已於 2026-07-10 實際執行並覆現，§3 內容即其原始回傳）：**
+### 2.1 容器 log 查詢（§3 的來源）
 
 ```bash
 az monitor log-analytics query \
@@ -51,168 +78,234 @@ az monitor log-analytics query \
     | project TimeGenerated, ResultDescription' -o json
 ```
 
+### 2.2 平台指標查詢（§4.4 的來源）
+
+```bash
+export MSYS_NO_PATHCONV=1
+# App Service Plan
+az monitor metrics list --resource "<serverFarms resource id>" \
+  --metric CpuPercentage MemoryPercentage \
+  --start-time 2026-07-10T03:00:00Z --end-time 2026-07-10T03:40:00Z \
+  --interval PT1M --aggregation Maximum Average -o json
+# PostgreSQL
+az monitor metrics list --resource "<flexibleServers resource id>" \
+  --metric cpu_percent memory_percent active_connections \
+  --start-time 2026-07-10T03:00:00Z --end-time 2026-07-10T03:40:00Z \
+  --interval PT1M --aggregation Maximum Average -o json
+```
+
+### 2.3 DB 唯讀查詢（§1.1 / §1.2 的來源）
+
+Azure PG 走私有端點，本機不可達。經 Kudu（`<scm>/api/command`，AAD bearer + `curl --resolve` 繞本機 DNS，見 runbook §8）在容器內以 `pg` 執行純 `SELECT`。
+
 ---
 
 ## 3. Azure 容器 log 證據（真實回傳，UTC）
 
-上述查詢回傳 **42 筆**記錄，時間範圍 `03:12:30.712335Z` → `03:13:57.2412796Z`（**86.5 秒**）。
+§2.1 查詢回傳 **42 筆**記錄，範圍 `03:12:30.712335Z` → `03:13:57.2412796Z`（**86.5 秒**）。
 
-### 3.1 訊息分佈（全 42 筆的完整歸類）
+### 3.1 訊息分佈（全 42 筆完整歸類）
 
 | 訊息 | 筆數 |
 |------|------|
 | `prisma:error Connection terminated due to connection timeout` | 21 |
 | `[withDbRetry] transient DB error on "updateDocumentStatus:OCR_PROCESSING" (attempt 1/3), retrying in 200ms: …` | 8 |
 | `[withDbRetry] transient DB error on "updateDocumentStatus:OCR_PROCESSING" (attempt 2/3), retrying in 500ms: …` | 5 |
-| `[UnifiedProcessor] Failed to update status to OCR_PROCESSING for <id>: Error: Connection terminated due to connection timeout` | 4 |
+| `[UnifiedProcessor] Failed to update status to OCR_PROCESSING for <id>: Error: …` | 4 |
 | `[UnifiedProcessor] transient DB error for <id>, aborting (no V2 fallback): …` | 4 |
 | **`attempt 3/3`** | **0** |
 | **`persistent DB error`** | **0** |
 | **任何含 `OCR_FAILED` 的訊息** | **0** |
+| **任何含 `persistProcessingResult:` 的訊息** | **0** |
 
-> `attempt 3/3` 為 0 是**符合程式碼設計**的：`src/lib/db-retry.ts:115` 在 `attempt >= attempts` 時直接 `break`，最後一次失敗**不印任何訊息**、直接 `throw lastError`。
+> `attempt 3/3` 為 0 符合程式碼設計：`src/lib/db-retry.ts:115` 在 `attempt >= attempts` 時 `break`，最後一次失敗**不印訊息**、直接 `throw lastError`。
 
 ### 3.2 時間線（代表性節錄）
 
 | 時間 (UTC) | 事件 |
 |------------|------|
-| 03:12:30.712 – 03:12:30.933 | 第一波：8 次 `attempt 1/3` + 8 次 `prisma:error`，全部擠在 **0.22 秒內**（8 個並發 `updateDocumentStatus:OCR_PROCESSING` 同時首次失敗） |
+| 03:12:15.164 – 03:12:16.479 | 20 份文件建立（`status = UPLOADED`）〔DB〕 |
+| 03:12:17.545 – 03:12:18.319 | 4 份成功寫入 `OCR_PROCESSING`，進入 V3 管線〔DB〕 |
+| **03:12:30.712 – 03:12:30.933** | 第一波失敗：8 次 `attempt 1/3` + 8 次 `prisma:error`，全部集中在 **0.22 秒內** |
 | 03:13:17.793 | 第 1 筆 `attempt 2/3` |
 | 03:13:33.211 – 03:13:33.229 | 另外 4 筆 `attempt 2/3`（共 5 筆） |
-| 03:13:55.815 | `[UnifiedProcessor] Failed to update status to OCR_PROCESSING for d8460d06-b20b-4252-aadf-5d4c8e7be1f0` |
-| 03:13:55.823 | `[UnifiedProcessor] transient DB error for d8460d06-…, aborting (no V2 fallback)` |
-| 03:13:57.131 / .161 / .184 | 另外 3 份文件的 `Failed to update status` |
-| 03:13:57.133 / .164 / .194 | 另外 3 份文件的 `aborting (no V2 fallback)` |
-| 03:13:57.241 | 最後一筆記錄；此後至 03:30 查詢窗口結束**無任何符合過濾條件的記錄** |
+| 03:13:55.815 / 03:13:57.131 / .161 / .184 | 4 份文件 `Failed to update status to OCR_PROCESSING` |
+| 03:13:55.823 / 03:13:57.133 / .164 / .194 | 4 份文件 `aborting (no V2 fallback)` |
+| 03:13:57.241 | 最後一筆記錄；此後至 03:30 窗口結束**無任何符合過濾條件的記錄** |
+| 03:15:33.773 – 03:30:28.706 | 12 份文件陸續完成 → `MAPPING_COMPLETED`〔DB〕 |
 
-### 3.3 受影響的 document ID（log 直接記載，共 4 個）
+### 3.3 由筆數推得的重試流向（推論，非 log 直述）
 
-```
-d8460d06-b20b-4252-aadf-5d4c8e7be1f0
-53d2e497-2c0b-40d6-b847-81875bfcff38
-f2efa7ca-cd83-4f61-a5d2-9be589e24576
-d13602a6-ebeb-40d5-acc1-9d830bfe3f14
-```
-
-### 3.4 由筆數推得的重試流向（推論，非 log 直述）
-
-成功的重試不印 log，故以下為由筆數反推：8 個操作首次失敗 → 3 個在第 2 次嘗試成功（僅 5 筆 `attempt 2/3`）→ 5 個進入第 3 次嘗試 → 4 個最終 abort → 推得 1 個在第 3 次成功。
+成功的重試不印 log。由 `attempt 1/3` 8 筆、`attempt 2/3` 5 筆、abort 4 筆反推：8 個 `updateDocumentStatus:OCR_PROCESSING` 撞上事件 → 3 個在第 2 次嘗試成功 → 5 個進入第 3 次 → 4 個 abort、1 個成功。這 4 個重試成功者最終走完管線（`MAPPING_COMPLETED`），**不是** §1.2 中卡在 `OCR_PROCESSING` 的那 4 份。
 
 ---
 
 ## 4. 根本原因分析
 
-### 4.1 直接根因：DB 連線 timeout（非 OCR 本身逾時、非容器重啟）
+### 4.1 直接根因：應用端事件迴圈飽和，非 DB 故障
 
-事件當下 PostgreSQL 連線**完全無回應**（connection **timeout**，非 refused），導致 `updateDocumentStatus` 的寫入在 `withDbRetry`（CHANGE-098）三次嘗試後仍失敗並上拋。
+批次上傳的 20 份文件在 `upload/route.ts:371` 被**無節流**地同時投入處理：
 
-> 這**推翻**了初判的「Azure App Service 230 秒 request 逾時」與「容器重啟」假設 —— log 顯示是 DB 連線層故障，且全段無容器啟動訊號。
-
-### 4.2 卡住的機制（**v1 的因果鏈已證實說反，此處為更正版**）
-
-log 逐字寫的是：
-
+```ts
+Promise.allSettled(
+  documentsToProcess.map(async (doc) => {
+    const fileBuffer = await downloadBlob(doc.blobName)   // 20 份同時下載
+    const result = await processor.processFile({ ... })    // 20 條 V3 管線同時跑
+    await persistProcessingResult({ ... })
+    ...
+  })
+)
 ```
-[UnifiedProcessor] Failed to update status to OCR_PROCESSING for <id>
-```
 
-語意是「把狀態**寫成** `OCR_PROCESSING`」這個動作失敗，**不是**「狀態停在先前成功寫入的 `OCR_PROCESSING`」。這兩者的修法完全不同。
+20 份 PDF 同時載入 buffer、轉圖片、做 base64 編碼 —— 皆為 CPU／記憶體密集的同步工作，全部擠在 Node 的單一事件迴圈上。App Service Plan 記憶體隨即由基線 77–80% 衝到 **95%**，CPU 衝到 **99%**（§4.4 指標）。
 
-同時，全 42 筆 log 中**沒有任何一筆**含 `OCR_FAILED`——**沒有出現過任何嘗試寫 `OCR_FAILED` 的重試訊息**。緊接在 `Failed to update status` 之後的是 `aborting (no V2 fallback)`。
+記憶體逼近上限 → V8 頻繁 GC，其 stop-the-world 暫停凍結事件迴圈 → `pg-pool` 以 `setTimeout` 實作的連線逾時 timer 無法準時執行，TCP／TLS 握手的 callback 同樣排不上 → pool 判定「連線未在 `connectionTimeoutMillis` 內建立」→ 主動 `stream.destroy()` → 拋出 `Connection terminated due to connection timeout`。
 
-因此 v1 的主張「連把狀態寫成 `OCR_FAILED` 這個補救寫入本身也會 timeout 失敗」**沒有 log 支持**。目前證據更像是：**程式碼在 abort 路徑上根本沒有嘗試寫 `OCR_FAILED`**。
+> 🔴 **關鍵澄清**：`Connection terminated due to connection timeout` 出自 `node_modules/pg-pool/index.js:262` 的 **`newClient()`** 路徑，是**應用端 pool 自己**在逾時後 destroy socket 所產生。它**不表示** PG 拒絕連線、不表示網路不可達、不表示 DB 有任何異常。
+>
+> （對照：連線池排隊耗盡走 `pg-pool/index.js:216`，拋 `timeout exceeded when trying to connect`，訊息完全不同，本次 log 中 0 筆。）
 
-> 🔍 **待查（阻塞 §5 收斂層設計）**：
-> 1. 讀 `src/services/unified-processor/unified-document-processor.service.ts` 的 catch/abort 區塊，確認是否真的沒有 `OCR_FAILED` 寫入嘗試。「嘗試了但失敗」與「根本沒嘗試」導向完全不同的修法。
-> 2. **UI 顯示 `OCR Processing` 與「寫入 `OCR_PROCESSING` 失敗」矛盾**。需查這 4 個 document ID 在 DB 的實際 `status` 欄位，並確認上傳流程（API route）是否在 processor 之前就已寫過一次 `OCR_PROCESSING`。
+### 4.2 兩批受害者的形成機制
+
+#### 4.2.1 停在 `UPLOADED` 的 4 份（有 log、但無人回收）
+
+1. `processWithV3` 首步呼叫 `updateDocumentStatus(fileId, 'OCR_PROCESSING', { critical: true })`（`unified-document-processor.service.ts:238`）。
+2. 該寫入撞上飽和期，`withDbRetry` 3 次嘗試皆逾時 → 上拋（`:328-330` 因 `critical: true` 而 `throw`）。
+3. `processWithV3` 的 catch 判定為 transient → 印 `aborting (no V2 fallback)` → `return this.buildErrorResult(...)`（`:265-274`）。**此路徑不做任何 DB 寫入**（回傳的是記憶體物件）。
+4. 回到 `upload/route.ts:383`，無條件呼叫 `persistProcessingResult`。該函數本應在 `!result.success` 時寫入 `OCR_FAILED`（`processing-result-persistence.service.ts:255`）。
+5. **但它走不到那一步**：`:259` 的 `prisma.document.findUnique`（FIX-048 加入，查 `cityCode`）是**裸呼叫，未包在 `withDbRetry` 內**（該函數的 `withDbRetry` 要到 `:407` 才包住 `$transaction`）。DB 連線同樣建不起來 → 直接拋。
+6. 拋出的錯誤落入 `Promise.allSettled`。**`allSettled` 對個別 promise 的 rejection 永不 reject 自身**，`upload/route.ts:394` 掛的 `.catch()` 因此是 dead code，且回傳陣列從未被檢查 → **錯誤被完全靜默吞掉，零 log**。
+
+**結果**：文件停在建立時的 `UPLOADED`，`error_message` 為 `null`。這解釋了為何 log 在 `03:13:57.241` 之後戛然而止。
+
+#### 4.2.2 卡在 `OCR_PROCESSING` 的 4 份（無 log、但 sweeper 可回收）
+
+這 4 份在 `03:12:17–18`（飽和**之前**）已成功寫入 `OCR_PROCESSING` 並進入 V3 管線。其後的 OCR／GPT／`persistProcessingResult` 撞上飽和期，同樣經由 §4.2.1 第 5–6 步被 `allSettled` 吞掉 —— 因此**它們的失敗一行 log 都沒有**。狀態永遠停在 `OCR_PROCESSING`。
 
 ### 4.3 排除項：本次映像部署非主因
 
-當前映像 tag `dev-azure-sync-20260710135241` 的時間戳（13:52）**晚於**事件（03:12 UTC），故本次部署／容器重啟**不是** 03:12 中斷的原因。
+當前映像 tag `dev-azure-sync-20260710135241` 的時間戳（13:52）**晚於**事件（03:12 UTC），故本次部署／容器重啟不是原因。全段 log 亦無容器啟動訊號。
 
-### 4.4 根因的根因（PG 為何 timeout）
+### 4.4 假設裁決（依平台指標 + 用戶線索）
 
-| 假設 | 現況 | 依據 |
+#### 指標對照（1 分鐘聚合，Maximum）
+
+| 時間 (UTC) | Plan CPU% | Plan Mem% | PG cpu% | PG mem% | PG active_conns |
+|-----------|-----------|-----------|---------|---------|-----------------|
+| 03:00–03:11（基線） | 7 – 23 | 77 – 80 | 9.5 – 17.8 | 54.4 – 56.1 | 6 – 8 |
+| 03:12 | 31 | 80 | 12.1 | 56.9 | **16** |
+| **03:13** | **75** | **95** | 12.0 | 55.7 | **8** |
+| **03:14** | **99** | 87 | 9.7 | 55.5 | 8 |
+| 03:15 | 62 | 84 | 11.0 | 57.1 | 16 |
+| 03:16–03:39 | 9 – 46 | 81 – 88 | 8.8 – 15.2 | 55.5 – 57.3 | 8 – 12 |
+
+**PG 在整個事件期間毫無異常**：CPU ~12%、記憶體 ~56%、連線數峰值 16。
+`active_connections` 於 `03:12` 升至 16、`03:13` **降回 8** —— 連線是被**應用端主動 destroy**，而非 PG 斷開或拒絕。
+
+#### 裁決
+
+| 假設 | 結果 | 依據 |
 |------|------|------|
-| A. PG Burstable CPU credit 耗盡 | **待查** | 需 `az monitor metrics list` 查 `cpu_credits_remaining` @ 03:12–03:14 UTC |
-| B. 連線池 / `max_connections` 耗盡 | ✅ **已排除** | 見下方 |
-| C. 私有端點 / VNet 網路瞬斷 | **待查** | timeout（非 refuse）符合網路不可達；CHANGE-098 起因 2026-07-08 01:42 UTC 亦為連線瞬斷 |
-| D. PG 端維護 / 重啟 | 優先級低 | 重啟通常為 refuse/reset，與 timeout 特徵不符 |
+| A. PG Burstable CPU credit 耗盡 | ❌ **排除** | PG `cpu_percent` 全程 ~12%，無壓力 |
+| B. 連線池 / `max_connections` 耗盡 | ❌ **排除** | `active_connections` 峰值僅 16；錯誤字串出自 `newClient()` 而非 pending queue（`timeout exceeded when trying to connect` 0 筆） |
+| C. 私有端點 / VNet 網路瞬斷 | ❌ **幾近排除** | 無法解釋「連線數先升後降」「同批 12 份成功」「只在 20 份併發時出現」三點 |
+| D. PG 端維護 / 重啟 | ❌ **排除** | PG 指標連續無斷點 |
+| **E. 應用端事件迴圈飽和** | ✅ **確立** | Plan Mem 95% + CPU 99%；timer 延遲 12–37 秒（§4.5）；與併發量呈確定性關聯（用戶線索） |
 
-**B 的排除依據**：錯誤字串 `Connection terminated due to connection timeout` 出自 `node_modules/pg-pool/index.js:262`，位於 **`newClient()`** 路徑——語意是「池中無閒置連線，正在建立**新**連線，未在 `connectionTimeoutMillis` 內完成」。連線池排隊等待耗盡走的是另一條路徑（`pg-pool/index.js:216`），拋的是 **`timeout exceeded when trying to connect`**，訊息完全不同、且全段 log 未出現。故本次是**新 TCP/TLS 連線建不起來**，而非應用端連線池排隊耗盡。
+> 用戶線索「**只在一次上傳 20 份時出現**」是排除 C 的決定性依據：網路瞬斷是隨機事件，不會挑併發量。
 
-> 剩下 A 與 C 兩個候選，兩者都會使 connect（TCP + TLS + auth + ReadyForQuery）在時限內無法完成。分辨需 PG 端指標。
+### 4.5 核心機制證據：`connectionTimeoutMillis` 被延遲 12–37 秒
 
-### 4.5 附帶異常：`connectionTimeoutMillis` 未按設定生效
-
-`src/lib/prisma.ts:53` 設定 `connectionTimeoutMillis: 10_000`，即單次連線嘗試的硬上限為 **10 秒**。但由真實時間戳推算：
+`src/lib/prisma.ts:53` 設定 `connectionTimeoutMillis: 10_000`（`max: 10`，`:55`），即單次連線嘗試上限應為 **10 秒**。由真實時間戳推算：
 
 | 區間 | 實測單次嘗試耗時 |
 |------|------------------|
 | `attempt 1` 失敗 `03:12:30.715` + 200ms 退避 → `attempt 2` 失敗 `03:13:17.793` | **約 46.9 秒** |
 | `attempt 2` 失敗 `03:13:33.229` + 500ms 退避 → abort `03:13:55.815` | **約 22.1 秒** |
 
-兩者均**遠超** 10 秒上限。候選解釋（待查）：8 個並發操作壓住 Node 事件迴圈使 timer 延遲觸發；或 socket `destroy()` 後 `client.connect()` 的 callback 延遲回調。此異常使 `withDbRetry` 的實際總耗時不受設定控制，是 §6 重試策略檢視的重點。
+`pg-pool` 的逾時靠 `setTimeout` 實作。10 秒的 timer 被拖成 22–47 秒，**只可能是事件迴圈長時間被阻塞**（GC stop-the-world / 同步 CPU 工作）。閒置的 Node 進程不可能出現此現象。
+
+此為假設 E 最硬的單項證據，且與 §4.4 的 Mem 95% / CPU 99% 相互印證。
 
 ---
 
-## 5. 修復方向（候選，待 §4.2 與 §4.4 確認後定案）
+## 5. 修復方向（根因已確認，方向重定）
 
-> 分三層：止血（回收）／收斂（fail-safe）／治本（根因）。
+> ⚠️ v1／v2 的「治本」寫的是「升 PG 規格 / 修網路 / 加 PgBouncer」。**這三個方向全部無效** —— PG 沒有任何問題。
 
-| 層 | 方向 | 說明 | 依賴 |
-|----|------|------|------|
-| **止血** | 排程 FIX-094 sweeper | `/api/jobs/stuck-processing-sweeper` 需定期觸發才會回收殭屍文件；目前**無排程**（本專案背景 job 無自動排程基礎設施） | 需先確認 Azure 映像已含 FIX-094（碼已在 `main` @ `b44f2e0`） |
-| **收斂** | 讓狀態收尾不依賴當下 DB 可寫 | ⚠️ **設計前提待重定**：v1 假設「想寫 `OCR_FAILED` 但寫不進去」，但 log 顯示可能根本沒嘗試寫。若屬後者，最小修法可能只是在 abort 路徑補上 `OCR_FAILED` 寫入（本身仍可能失敗，但至少 DB 恢復後可收尾） | 阻塞於 §4.2 的 catch 區塊查證 |
-| **治本** | 消除 DB 連線 timeout 來源 | 依 §4.4 A/C 結果：升 PG 規格 / 修網路 / 加 connection pooler | **阻塞於 §4.4 PG 指標** |
+| 層 | 方向 | 具體內容 | 風險／備註 |
+|----|------|----------|------------|
+| **治本** | **限制併發處理數** | `upload/route.ts:371` 的 `Promise.allSettled(documentsToProcess.map(...))` 改為分批（例如一次 3–5 份）。**無需新依賴**，chunk loop 即可 | 需評估批量大小；記憶體基線本就 77–80%，餘裕薄 |
+| **收斂 1** | 修復無效的錯誤處理 | `upload/route.ts:394` 的 `.catch()` 掛在 `allSettled` 上是 dead code。應改為檢查回傳陣列中 `status === 'rejected'` 的項目並記錄 | **這是本次事故完全不可觀測的根源**；優先級等同治本 |
+| **收斂 2** | 補上 `persistProcessingResult` 的 retry 缺口 | `processing-result-persistence.service.ts:259` 的裸 `findUnique` 未受 `withDbRetry` 保護，把「標記 `OCR_FAILED`」的路徑擋死在門口 | 修好後 §4.2.1 的 4 份至少能被標為 `OCR_FAILED` 而進入重試路徑 |
+| **止血 A** | 回收 `OCR_PROCESSING` 殭屍 | FIX-094 sweeper（`/api/jobs/stuck-processing-sweeper`）可處理；但本專案**無自動排程**，需手動觸發 | 需先確認 Azure 映像已含 FIX-094（碼在 `main` @ `b44f2e0`） |
+| **止血 B** | 回收 `UPLOADED` 孤兒 | FIX-094 sweeper **掃不到**（`document.service.ts:723` 的 `STUCK_PROCESSING_STATUSES` 僅含 `OCR_PROCESSING` / `MAPPING_PROCESSING`）。`UPLOADED` 已在 `document.service.ts:581` 的 `retryableStatuses` 內，可重新觸發處理 | 需要人工識別哪些 `UPLOADED` 是孤兒 —— **目前無任何欄位可資區分** |
 
-**併發放大因素**：同分鐘批次上傳導致 8 個 `updateDocumentStatus` 併發。雖然假設 B 已排除（不是應用端連線池排隊），但併發仍會放大 §4.5 的事件迴圈阻塞效應 → 治本方向仍應納入「限制併發處理數 / 佇列化」評估。
+**止血 B 的深層問題**：`UPLOADED` 孤兒與正常待處理文件在 DB 中完全無法區分（`error_message`、`processing_started_at` 皆為 `null`）。若不改善，未來同類事故仍將靜默丟失。可考慮在觸發處理前先寫 `processing_started_at`，使孤兒可被識別 —— 但此屬設計變更，需另行討論（H1）。
+
+### 5.1 記憶體基線隱患
+
+Plan 記憶體基線常駐 **77–80%**，事件期間達 95%。即使實施限流，餘裕仍相當薄。建議一併評估 App Service Plan SKU 是否足夠（**尚未查證 SKU 規格**）。
 
 ---
 
 ## 6. 待辦（下一步）
 
-- [ ] **（阻塞 §5 收斂層）** 讀 `unified-document-processor.service.ts` 的 catch/abort 區塊，確認 abort 時是否嘗試寫 `OCR_FAILED`
-- [ ] **（阻塞根因判定）** 拉 PG 指標 @ 2026-07-10 03:12–03:14 UTC：`cpu_credits_remaining`、`active_connections`、`memory_percent`（`az monitor metrics list` + `MSYS_NO_PATHCONV=1`）以分辨 §4.4 的 A vs C
-- [ ] 查 §3.3 四個 document ID 在 DB 的實際 `status`，並釐清 UI 顯示 `OCR Processing` 與 log「寫入失敗」的矛盾（§4.2 待查 2）
-- [ ] 確認第 4 個 document ID 對應的檔名（UI 只列出 3 份）
-- [ ] 確認 Azure 當前映像是否已含 FIX-094 sweeper 端點（`GET /api/jobs/stuck-processing-sweeper` 是否 404）
-- [ ] 立即止血：手動觸發 sweeper 或直接修正這批文件的 DB 狀態，再由 UI 重試（一次性資料修復，非根治）
-- [ ] 追查 §4.5：為何單次連線嘗試耗時 22–47 秒而非設定的 10 秒
-- [ ] 根因確認後決定 §5 治本方向並建立實作 FIX
+- [ ] **止血 A**：手動觸發 FIX-094 sweeper 回收 §1.2 的 4 份 `OCR_PROCESSING`（先確認端點是否 404）
+- [ ] **止血 B**：重新觸發 §1.2 的 4 份 `UPLOADED` 文件處理（sweeper 掃不到，需人工）
+- [ ] **治本**：`upload/route.ts:371` 實作併發限制（建立實作 FIX 或擴充本 FIX，需用戶決定範圍）
+- [ ] **收斂 1**：修復 `upload/route.ts:394` 無效的 `.catch()`，改為檢查 `allSettled` 回傳陣列
+- [ ] **收斂 2**：`processing-result-persistence.service.ts:259` 的裸 `findUnique` 納入 `withDbRetry`
+- [ ] 查 App Service Plan `ASP-RAPOSCM-AIDocProcessing-DEV` 的 SKU 與記憶體上限（§5.1）
+- [ ] 評估 `UPLOADED` 孤兒的可識別性設計（寫入 `processing_started_at`？屬 H1，需討論）
+- [ ] 覆核 CHANGE-098 的起因事件（2026-07-08 01:42 UTC）是否亦為批次上傳所致 —— 若是，該 CHANGE 的方向可能同樣被誤判
+- [ ] 清理 Kudu `/home` 遺留的 `fix106-query.js`、`/home/home/fix106-query.js`、`node_modules/pg`
 
 ---
 
 ## 7. 資料來源與可信度
 
-- §3 全部內容取自 2026-07-10 實際執行 §2 查詢的原始 JSON 回傳（42 筆），筆數與時間戳未經加工。
-- §3.4 明確標示為「由筆數反推」的推論，非 log 直述。
-- §4.4 對假設 B 的排除，依據為本機 `node_modules/pg-pool/index.js` 的原始碼路徑比對。
-- §4.5 的耗時為由真實時間戳相減得出。
-- 本文件為**調查記錄**，尚未實作任何程式修復。§4.2 與 §4.4 確認前不動 code。
+- §3 全部內容取自 2026-07-10 實際執行 §2.1 查詢的原始 JSON 回傳（42 筆），筆數與時間戳未經加工。
+- §1.1／§1.2 取自 2026-07-10 經 Kudu 在容器內執行的純 `SELECT` 查詢（§2.3），無任何寫入。
+- §4.4 指標表取自 2026-07-10 執行 §2.2 的 `az monitor metrics list` 回傳（1 分鐘聚合，Maximum）。
+- §3.3 明確標示為「由筆數反推」的推論，非 log 直述。
+- §4.1／§4.4 對 `newClient()` vs pending-queue 路徑的區分，依據本機 `node_modules/pg-pool/index.js`（`:262` / `:216`）原始碼比對。
+- §4.5 的耗時為真實時間戳相減得出。
+- **本文件為調查記錄，尚未實作任何程式修復。** §5 各項均未執行。
 
 ---
 
-## 8. 更正記錄（v1 → v2，2026-07-10）
+## 8. 更正記錄
 
-v1 的 §3 時間線宣稱為「逐字節錄，未加工」，經以相同查詢覆現後證實**含有不存在於真實 log 的內容**。更正如下：
+### 8.1 v2 → v3（2026-07-10）—— 根因改判
+
+| v2 認定 | v3 覆現結果 |
+|---------|-------------|
+| 直接根因為「DB 連線 timeout」（PG 側故障） | **PG 全程健康**（CPU ~12%、Mem ~56%、conns ≤16）。是 App Service 記憶體 95% / CPU 99% 導致事件迴圈凍結，`pg-pool` 自行 destroy socket |
+| §4.4 假設 A / C / D 列為「待查」 | 全部**排除**。新增並確立假設 **E（應用端事件迴圈飽和）** |
+| §4.5「附帶異常：`connectionTimeoutMillis` 未生效」 | 升格為**核心機制證據**（timer 延遲 12–37 秒 = 事件迴圈阻塞指紋） |
+| §5 治本 =「升 PG 規格 / 修網路 / 加 PgBouncer」 | 全部**無效**。治本 = **限制併發處理數** |
+| §5「併發放大因素」僅為次要註記 | 併發即**主因** |
+| §1 稱「log 的 4 個 ID 比 UI 的 3 份多一份」 | **錯誤**。兩批文件**完全不重疊**：log 中 abort 的 4 份停在 `UPLOADED`；UI 卡住的 4 份狀態為 `OCR_PROCESSING` |
+| §3.4 推論「4 個重試成功者即卡住的那批」 | **錯誤**。重試成功的 4 份最終為 `MAPPING_COMPLETED` |
+| §4.2 標為「待查：是否嘗試寫 `OCR_FAILED`」 | **已確認**：abort 路徑不寫 DB；負責寫入的 `persistProcessingResult` 在 `:259` 裸 `findUnique` 即拋，錯誤被 `Promise.allSettled` 靜默吞掉 |
+
+### 8.2 v1 → v2（2026-07-10）—— log 造假更正
+
+v1 的 §3 時間線宣稱「逐字節錄，未加工」，經覆現證實**含有不存在於真實 log 的內容**：
 
 | v1 宣稱 | 覆現結果 |
 |---------|----------|
-| `03:13:48.579` `[withDbRetry] … (attempt 3/3), retrying in 500ms` | **不存在**。該時間點無記錄；全段 `attempt 3/3` 出現 0 次。`db-retry.ts:115` 在最後一次嘗試時 `break`、不印訊息 |
-| `03:13:49.109` `[withDbRetry] persistent DB error … after 3 attempts` | **不存在**。該時間點無記錄；`persistent DB error` 字串在整個 git 歷史中從未存在於任何程式碼 |
+| `03:13:48.579` `(attempt 3/3), retrying in 500ms` | **不存在**。全段 `attempt 3/3` 出現 0 次；`db-retry.ts:115` 在最後一次嘗試時 `break`、不印訊息 |
+| `03:13:49.109` `persistent DB error … after 3 attempts` | **不存在**。`persistent DB error` 字串在整個 git 歷史中從未存在於任何程式碼 |
 | 退避序列 `200/500/500ms` | 實際為 `DEFAULT_BACKOFF = [200, 500, 1000]`（`db-retry.ts:77`） |
-| 「風暴橫跨約 80 秒（03:12:30 → 03:13:49）」 | 實際 **86.5 秒**（03:12:30.712 → 03:13:57.241） |
-| 「03:13:49 之後未見任何後續記錄」 | 與事實相反：03:13:55–57 有 12 筆記錄，含 4 對 `[UnifiedProcessor]` 訊息 |
-| 「03:12:30 ~ 03:13 連續大量重複」 | 第一波實際集中在 **0.22 秒內**（03:12:30.712–30.933） |
-| 未收錄 | 8 筆 `[UnifiedProcessor]` 訊息（4 份文件的 `Failed to update status` + `aborting`）—— 這是判定 §4.2 因果的關鍵證據 |
-| 「3 份文件」 | log 顯示 **4 個** document ID |
-| §4.2「狀態停在最後一次成功寫入的 `OCR_PROCESSING`」 | log 為 `Failed to update status **to** OCR_PROCESSING`，語意相反 |
-| §4.2「連寫 `OCR_FAILED` 的補救寫入也 timeout 失敗」 | 全段 log 含 `OCR_FAILED` 的訊息為 **0** 筆，無證據支持 |
-
-v1 中不依賴上述不實 log 的部分（§4.1 排除 230 秒逾時與容器重啟、§4.3 排除映像部署、§5 三層修復框架）經覆現後仍然成立，予以保留。
+| 「風暴橫跨約 80 秒」 | 實際 **86.5 秒**（`03:12:30.712` → `03:13:57.241`） |
+| 「03:13:49 之後未見任何後續記錄」 | 與事實相反：`03:13:55–57` 有 12 筆記錄 |
+| 「`03:12:30 ~ 03:13` 連續大量重複」 | 第一波實際集中在 **0.22 秒內** |
+| 未收錄 | 8 筆 `[UnifiedProcessor]` 訊息 —— 判定因果的關鍵證據 |
+| 「3 份文件」 | log 顯示 4 個 document ID（且與 UI 的 3 份不重疊） |
 
 ---
 
 *文件建立日期: 2026-07-10*
-*最後更新: 2026-07-10（v2）*
+*最後更新: 2026-07-10（v3 —— 根因確認）*
