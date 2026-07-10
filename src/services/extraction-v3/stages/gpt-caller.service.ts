@@ -41,7 +41,7 @@ import type { LlmOutputSpec } from '@/services/llm';
 /**
  * GPT 模型類型
  */
-export type GptModelType = 'gpt-5-nano' | 'gpt-5.2';
+export type GptModelType = 'gpt-5.4-mini' | 'gpt-5.4-nano';
 
 /**
  * 圖片詳情模式
@@ -491,7 +491,8 @@ export class GptCallerService {
   // ============================================================================
 
   /**
-   * 快速調用 GPT-5-nano（Stage 1 & 2 使用）
+   * 快速調用（輕量・Stage 1 & 2）
+   * CHANGE-102: 舊 gpt-5-nano key 已移除，改用 gpt-5.4-nano（實際 deployment 不變）
    */
   static async callNano(
     systemPrompt: string,
@@ -501,7 +502,7 @@ export class GptCallerService {
   ): Promise<GptCallResult> {
     const service = new GptCallerService(config);
     return service.call({
-      model: 'gpt-5-nano',
+      model: 'gpt-5.4-nano',
       systemPrompt,
       userPrompt,
       imageBase64Array,
@@ -510,7 +511,8 @@ export class GptCallerService {
   }
 
   /**
-   * 快速調用 GPT-5.2（Stage 3 使用）
+   * 快速調用（高精度・Stage 3）
+   * CHANGE-102: 舊 gpt-5.2 key 已移除，改用 gpt-5.4-mini（實際 deployment 不變）
    * @param jsonSchema CHANGE-042 Phase 2: 可選 JSON Schema，啟用 structured output
    */
   static async callFull(
@@ -523,7 +525,7 @@ export class GptCallerService {
   ): Promise<GptCallResult> {
     const service = new GptCallerService(config);
     return service.call({
-      model: 'gpt-5.2',
+      model: 'gpt-5.4-mini',
       systemPrompt,
       userPrompt,
       imageBase64Array,
