@@ -13,7 +13,7 @@
  *
  * @module src/services/extraction-v3/stages/stage-1-company.service
  * @since CHANGE-024 - Three-Stage Extraction Architecture
- * @lastModified 2026-06-16
+ * @lastModified 2026-07-10
  *
  *   FIX-057：強化公司配對（resolveCompanyId）
  *   - 後備配對加入 nameVariants 精確比對 + 公司名正規化比對（移除 LTD./標點）
@@ -23,6 +23,13 @@
  *   - 強化 normalizeCompanyName：移除括號地區詞 (HK)/(Hong Kong)、取「/ 別名」前主名、移除業務描述詞 OPERATIONS
  *   - resolveCompanyId 在 JIT 前加入 findDuplicateCompany 重複防護（查所有狀態 + 保守相似度）
  *   - 解決同一張發票多次上傳因 GPT 輸出寫法飄移而每次新建重複公司的問題
+ *
+ *   CHANGE-103（組件 3：學習迴路）：精確匹配成功時把 GPT 原印法回寫 nameVariants
+ *   - resolveCompanyId 的 Step 1 / 2a / 2b 命中後呼叫 learnNameVariant
+ *   - 零誤併安全閘：僅當原印法正規化後等於既有 name/nameVariants 之一才學習
+ *     （即該印法本就被系統判為同一公司，不建立任何新的匹配關係）
+ *   - 讓 nameVariants 隨使用累積各種印法，下次同印法在 Step 1/2a 直接精確命中，
+ *     逐步消除「同公司不同印法」重複增生（FIX-057/077 之外的治本方向）
  *
  * @features
  *   - 公司識別方法：LOGO / HEADER / ADDRESS / TAX_ID / LLM_INFERRED
@@ -430,10 +437,12 @@ Response format (JSON):
           ],
           status: 'ACTIVE',
         },
-        select: { id: true, name: true },
+        select: { id: true, name: true, nameVariants: true },
       });
 
       if (company) {
+        // CHANGE-103 組件 3：學習 GPT 這次的原印法（安全閘保護，零誤併）
+        await this.learnNameVariant(company, parsed.companyName);
         return {
           companyId: company.id,
           companyName: company.name,
@@ -456,10 +465,13 @@ Response format (JSON):
             { name: { contains: candidate, mode: 'insensitive' } },
           ],
         },
-        select: { id: true, name: true },
+        select: { id: true, name: true, nameVariants: true },
       });
 
       if (dbMatch) {
+        // CHANGE-103 組件 3：學習 GPT 原印法。安全閘會擋掉「name contains」的不精確
+        // 子集命中（例：candidate="CEVA" 命中 "CEVA LOGISTICS ..." 但正規化不等 → 不學）
+        await this.learnNameVariant(dbMatch, candidate);
         return {
           companyId: dbMatch.id,
           companyName: dbMatch.name,
@@ -484,6 +496,8 @@ Response format (JSON):
         );
 
         if (matched) {
+          // CHANGE-103 組件 3：學習 GPT 原印法（此處必為正規化相等命中，安全閘必過）
+          await this.learnNameVariant(matched, candidate);
           return {
             companyId: matched.id,
             companyName: matched.name,
@@ -565,6 +579,60 @@ Response format (JSON):
       .replace(/[^a-z0-9]+/g, ' ')
       .trim()
       .replace(/\s+/g, ' ');
+  }
+
+  /**
+   * CHANGE-103 組件 3：學習迴路 — 精確匹配成功時把 GPT 原印法回寫 nameVariants
+   * @description
+   *   在 resolveCompanyId 的精確匹配（Step 1 / 2a / 2b）命中後呼叫，將 GPT 這次輸出
+   *   的公司名原印法累積進匹配公司的 nameVariants，使下次同印法能在 Step 1 / 2a 直接
+   *   精確命中，逐步吸收「同公司不同印法」而消除重複增生。
+   *
+   *   零誤併安全閘（本方法零誤併的技術保證）：
+   *   僅當 rawName 正規化後等於該公司 name / nameVariants 任一者的正規化值時才學習。
+   *   由於「正規化相等」本就是系統判定同一公司的條件（見 resolveCompanyId Step 2b），
+   *   回寫只是把既有的精確匹配快取為變體，不建立任何新的匹配關係，故不引入誤併風險。
+   *   此安全閘亦會擋掉 Step 2a「name contains」的不精確子集命中。
+   *
+   *   非致命：回寫失敗僅記警告，不影響已成立的匹配結果。
+   *
+   * @param match 已匹配公司（需含 id / name / nameVariants）
+   * @param rawName GPT 這次輸出的公司名稱原印法
+   */
+  private async learnNameVariant(
+    match: { id: string; name: string; nameVariants?: string[] },
+    rawName: string
+  ): Promise<void> {
+    const raw = rawName?.trim();
+    if (!raw) return;
+
+    const existing = [match.name, ...(match.nameVariants ?? [])];
+
+    // 去重：原印法（不分大小寫）已存在於 name / nameVariants → 無需學習
+    if (existing.some((n) => n.toLowerCase() === raw.toLowerCase())) return;
+
+    // 零誤併安全閘：正規化後須與既有某名稱相等，才視為同一公司的新印法
+    const normRaw = this.normalizeCompanyName(raw);
+    if (!normRaw) return;
+    const isSameCompany = existing.some(
+      (n) => this.normalizeCompanyName(n) === normRaw
+    );
+    if (!isSameCompany) return;
+
+    try {
+      await this.prisma.company.update({
+        where: { id: match.id },
+        data: { nameVariants: { push: raw } },
+      });
+      console.log(
+        `[Stage1] CHANGE-103 學習變體：公司 "${match.name}" ← 新印法 "${raw}"`
+      );
+    } catch (error) {
+      console.warn(
+        '[Stage1] CHANGE-103 學習變體失敗（不影響匹配）：',
+        error instanceof Error ? error.message : error
+      );
+    }
   }
 
   /**
