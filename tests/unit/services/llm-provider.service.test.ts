@@ -28,7 +28,10 @@ vi.mock('@/lib/prisma', () => {
   };
   const llmModel = {
     findMany: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
   };
   return {
     prisma: {
@@ -429,6 +432,88 @@ describe('LlmProviderService', () => {
           actor,
         ),
       ).rejects.toMatchObject({ code: 'DUPLICATE_MODEL_KEY' });
+    });
+  });
+
+  describe('updateModel / deleteModel', () => {
+    function dbModel(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'm-1',
+        providerId: 'p-1',
+        modelKey: 'gpt-5.2',
+        label: 'GPT-5.2',
+        capability: {
+          maxTokens: 8192,
+          supportsTemperature: true,
+          supportsJsonSchema: true,
+          supportsVision: true,
+        },
+        pricing: null,
+        isEnabled: true,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-02'),
+        ...overrides,
+      };
+    }
+
+    it('should update a model and audit UPDATE (resourceType LlmModel)', async () => {
+      vi.mocked(prisma.llmModel.findFirst).mockResolvedValue(dbModel() as never);
+      vi.mocked(prisma.llmModel.update).mockResolvedValue(
+        dbModel({ label: 'GPT-5.2 (v2)', isEnabled: false }) as never,
+      );
+
+      const r = await llmProviderService.updateModel(
+        'p-1',
+        'm-1',
+        { label: 'GPT-5.2 (v2)', isEnabled: false },
+        actor,
+      );
+
+      expect(r.label).toBe('GPT-5.2 (v2)');
+      expect(r.isEnabled).toBe(false);
+      const a = lastAudit();
+      expect(a.action).toBe('UPDATE');
+      expect(a.resourceType).toBe('LlmModel');
+    });
+
+    it('should throw MODEL_NOT_FOUND when updating an unknown model', async () => {
+      vi.mocked(prisma.llmModel.findFirst).mockResolvedValue(null as never);
+      await expect(
+        llmProviderService.updateModel('p-1', 'nope', { label: 'x' }, actor),
+      ).rejects.toMatchObject({ code: 'MODEL_NOT_FOUND' });
+    });
+
+    it('should map P2002 to DUPLICATE_MODEL_KEY on updateModel', async () => {
+      vi.mocked(prisma.llmModel.findFirst).mockResolvedValue(dbModel() as never);
+      vi.mocked(prisma.llmModel.update).mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('unique', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(
+        llmProviderService.updateModel('p-1', 'm-1', { modelKey: 'dup' }, actor),
+      ).rejects.toMatchObject({ code: 'DUPLICATE_MODEL_KEY' });
+    });
+
+    it('should delete a model and audit DELETE (resourceType LlmModel)', async () => {
+      vi.mocked(prisma.llmModel.findFirst).mockResolvedValue(dbModel() as never);
+      vi.mocked(prisma.llmModel.delete).mockResolvedValue(dbModel() as never);
+
+      await llmProviderService.deleteModel('p-1', 'm-1', actor);
+
+      expect(prisma.llmModel.delete).toHaveBeenCalledWith({ where: { id: 'm-1' } });
+      const a = lastAudit();
+      expect(a.action).toBe('DELETE');
+      expect(a.resourceType).toBe('LlmModel');
+    });
+
+    it('should throw MODEL_NOT_FOUND when deleting an unknown model', async () => {
+      vi.mocked(prisma.llmModel.findFirst).mockResolvedValue(null as never);
+      await expect(
+        llmProviderService.deleteModel('p-1', 'nope', actor),
+      ).rejects.toMatchObject({ code: 'MODEL_NOT_FOUND' });
     });
   });
 });

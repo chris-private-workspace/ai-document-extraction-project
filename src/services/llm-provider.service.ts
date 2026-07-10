@@ -34,6 +34,7 @@ import type { AuditChanges } from '@/types/audit';
 import type {
   CreateLlmModelInput,
   CreateLlmProviderInput,
+  UpdateLlmModelInput,
   UpdateLlmProviderInput,
 } from '@/lib/validations/llm-provider.schema';
 
@@ -333,6 +334,87 @@ export class LlmProviderService {
       changes: { after: { providerId, modelKey: created.modelKey, label: created.label } },
     });
     return this.toModelPublic(created);
+  }
+
+  /**
+   * 更新某 provider 下的模型（審計 UPDATE resourceType=LlmModel）。
+   * `capability` 提供時整欄 JSON 替換；`pricing=null` 清空。modelKey 重複→DUPLICATE_MODEL_KEY。
+   */
+  async updateModel(
+    providerId: string,
+    modelId: string,
+    input: UpdateLlmModelInput,
+    actor: LlmProviderAuditActor,
+  ): Promise<LlmModelPublic> {
+    const existing = await prisma.llmModel.findFirst({
+      where: { id: modelId, providerId },
+    });
+    if (!existing) {
+      throw new LlmProviderError(`未知模型: ${modelId}`, 'MODEL_NOT_FOUND');
+    }
+
+    const data: Prisma.LlmModelUpdateInput = {};
+    if (input.modelKey !== undefined) data.modelKey = input.modelKey;
+    if (input.label !== undefined) data.label = input.label;
+    if (input.capability !== undefined) {
+      data.capability = input.capability as Prisma.InputJsonValue;
+    }
+    if (input.pricing !== undefined) {
+      data.pricing =
+        input.pricing === null
+          ? Prisma.DbNull
+          : (input.pricing as Prisma.InputJsonValue);
+    }
+    if (input.isEnabled !== undefined) data.isEnabled = input.isEnabled;
+
+    let updated: LlmModel;
+    try {
+      updated = await prisma.llmModel.update({ where: { id: modelId }, data });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new LlmProviderError(
+          '此 provider 下已存在相同 modelKey',
+          'DUPLICATE_MODEL_KEY',
+        );
+      }
+      throw e instanceof Error ? e : new Error(String(e));
+    }
+
+    await this.writeAuditEntry({
+      action: 'UPDATE',
+      resourceType: AUDIT_RESOURCE_MODEL,
+      resourceId: updated.id,
+      resourceName: updated.label,
+      actor,
+      changes: {
+        before: { modelKey: existing.modelKey, label: existing.label, isEnabled: existing.isEnabled },
+        after: { modelKey: updated.modelKey, label: updated.label, isEnabled: updated.isEnabled },
+      },
+    });
+    return this.toModelPublic(updated);
+  }
+
+  /** 刪除某 provider 下的模型（審計 DELETE resourceType=LlmModel） */
+  async deleteModel(
+    providerId: string,
+    modelId: string,
+    actor: LlmProviderAuditActor,
+  ): Promise<void> {
+    const existing = await prisma.llmModel.findFirst({
+      where: { id: modelId, providerId },
+    });
+    if (!existing) {
+      throw new LlmProviderError(`未知模型: ${modelId}`, 'MODEL_NOT_FOUND');
+    }
+    await prisma.llmModel.delete({ where: { id: modelId } });
+    await this.writeAuditEntry({
+      action: 'DELETE',
+      resourceType: AUDIT_RESOURCE_MODEL,
+      resourceId: existing.id,
+      resourceName: existing.label,
+      actor,
+      changes: { before: { modelKey: existing.modelKey, label: existing.label } },
+    });
   }
 
   // --------------------------------------------------------------------------

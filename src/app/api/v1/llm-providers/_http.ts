@@ -67,6 +67,7 @@ export function actorFromSession(session: Session): LlmProviderAuditActor {
 export function mapServiceError(error: unknown): NextResponse {
   if (error instanceof LlmProviderError) {
     if (error.code === 'PROVIDER_NOT_FOUND') return notFound('Provider 不存在');
+    if (error.code === 'MODEL_NOT_FOUND') return notFound('模型不存在');
     if (error.code === 'DUPLICATE_NAME') {
       return problem(409, 'conflict', 'Conflict', 'Provider 名稱已存在');
     }

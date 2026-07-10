@@ -24,7 +24,8 @@
   "actions": {
     "test": "Test connection",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "manageModels": "Manage models"
   },
   "types": {
     "AZURE_OPENAI": "Azure OpenAI",
@@ -84,5 +85,78 @@
     "createError": "Failed to create provider.",
     "updateError": "Failed to update provider.",
     "deleteError": "Failed to delete provider."
+  },
+  "models": {
+    "pageTitle": "Models — {name}",
+    "pageDescription": "Manage the models available under this provider. Only enabled models appear in the model-settings stage assignment dropdown.",
+    "backToProviders": "Back to providers",
+    "readOnlyNotice": "You are viewing in read-only mode. Only global administrators can add, edit, or delete models.",
+    "addModel": "Add Model",
+    "empty": "No models configured for this provider yet.",
+    "loadError": "Failed to load models. Please try again.",
+    "columns": {
+      "label": "Label",
+      "modelKey": "Model Key",
+      "capabilities": "Capabilities",
+      "maxTokens": "Max Tokens",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "capabilities": {
+      "vision": "Vision",
+      "jsonSchema": "JSON Schema",
+      "temperature": "Temperature"
+    },
+    "actions": {
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "form": {
+      "createTitle": "Add Model",
+      "editTitle": "Edit Model",
+      "createDescription": "Register a new model under this provider.",
+      "editDescription": "Update the model configuration.",
+      "modelKey": "Model Key",
+      "modelKeyPlaceholder": "e.g. gpt-5.2 or the Azure deployment name",
+      "modelKeyDescription": "For Azure, this is the deployment name; for other providers, the model id.",
+      "label": "Label",
+      "labelPlaceholder": "e.g. GPT-5.2",
+      "maxTokens": "Max Output Tokens",
+      "supportsJsonSchema": "JSON Schema",
+      "supportsVision": "Vision",
+      "supportsTemperature": "Temperature",
+      "isEnabled": "Enabled",
+      "temperature": "Default Temperature",
+      "temperaturePlaceholder": "Leave blank if not applicable",
+      "imageDetail": "Default Image Detail",
+      "imageDetailNone": "Not set",
+      "imageDetailOptions": {
+        "auto": "Auto",
+        "low": "Low",
+        "high": "High"
+      },
+      "pricingTitle": "Pricing (optional)",
+      "pricingDescription": "Per-1K-token pricing used for cost reporting across providers.",
+      "priceInput": "Input / 1K",
+      "priceOutput": "Output / 1K",
+      "currency": "Currency",
+      "currencyPlaceholder": "e.g. USD",
+      "submit": "Save",
+      "cancel": "Cancel"
+    },
+    "delete": {
+      "title": "Delete model",
+      "description": "Delete model \"{label}\"? This cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "created": "Model created.",
+      "updated": "Model updated.",
+      "deleted": "Model deleted.",
+      "createError": "Failed to create model.",
+      "updateError": "Failed to update model.",
+      "deleteError": "Failed to delete model."
+    }
   }
 }

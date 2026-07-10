@@ -95,6 +95,19 @@ export const createLlmModelSchema = z.object({
   isEnabled: z.boolean().default(true),
 });
 
+/**
+ * 更新模型（`[id]/models/[modelId]` PATCH；皆可選）。
+ * `capability` 為整欄 JSON 替換（非 merge）：提供時須為完整能力物件，避免部分欄位遺失。
+ * `pricing` 傳 `null` 清空。
+ */
+export const updateLlmModelSchema = z.object({
+  modelKey: z.string().min(1).max(MODEL_KEY_MAX_LENGTH).optional(),
+  label: z.string().min(1).max(MODEL_LABEL_MAX_LENGTH).optional(),
+  capability: modelCapabilitySchema.optional(),
+  pricing: modelPricingSchema.nullable().optional(),
+  isEnabled: z.boolean().optional(),
+});
+
 // ============================================================================
 // Inferred types
 // ============================================================================
@@ -102,3 +115,4 @@ export const createLlmModelSchema = z.object({
 export type CreateLlmProviderInput = z.infer<typeof createLlmProviderSchema>;
 export type UpdateLlmProviderInput = z.infer<typeof updateLlmProviderSchema>;
 export type CreateLlmModelInput = z.infer<typeof createLlmModelSchema>;
+export type UpdateLlmModelInput = z.infer<typeof updateLlmModelSchema>;

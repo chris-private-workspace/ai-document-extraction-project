@@ -18,7 +18,8 @@
 
 import * as React from 'react'
 import { useTranslations } from 'next-intl'
-import { Check, KeyRound, Loader2, Pencil, PlugZap, Trash2, X } from 'lucide-react'
+import { Boxes, Check, KeyRound, Loader2, Pencil, PlugZap, Trash2, X } from 'lucide-react'
+import { Link } from '@/i18n/routing'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -145,6 +146,16 @@ export function LlmProviderList({
             {isGlobalAdmin && (
               <TableCell>
                 <div className="flex justify-end gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    title={t('actions.manageModels')}
+                  >
+                    <Link href={`/admin/llm-providers/${provider.id}/models`}>
+                      <Boxes className="h-4 w-4" />
+                    </Link>
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
