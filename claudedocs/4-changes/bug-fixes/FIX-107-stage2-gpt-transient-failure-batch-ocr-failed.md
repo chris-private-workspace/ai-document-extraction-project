@@ -4,7 +4,8 @@
 > **發現方式**: 用戶回報（Quentin Liu —— `CEVA LOGISTICS_RCEX240706_00543.pdf` 顯示 `OCR Failed / Processing Failed`）+ DB 查詢 + 容器 log
 > **影響頁面/功能**: 文件處理管線（Stage 2 格式匹配）/ 文件列表頁 + 詳情頁
 > **優先級**: 中（事故本身為外部瞬斷、已自行恢復；但暴露之系統性弱點值得處理）
-> **狀態**: 🔍 **根因已確認（Azure OpenAI 服務端瞬斷，外部因素）；資料已由重試恢復；系統性弱點待決定是否修**
+> **狀態**: 🔍 **根因已確認（Azure OpenAI 服務端瞬斷，外部因素）；資料已由重試恢復；弱點 A（重試退避）已修，B/C 待決定**
+> **最後更新**: 2026-07-13（弱點 A 已實作 —— 指數退避 + jitter，見 §5.1）
 > **關聯**: FIX-106（同為文件卡失敗但根因不同 —— 106 是應用端記憶體飽和，本 FIX 是外部 GPT 瞬斷）、FIX-094（殭屍回收）
 
 > ⚠️ **本 FIX 與 FIX-106 無關**。FIX-106 是應用端事件迴圈飽和致「靜默卡 `OCR_PROCESSING`」；本 FIX 是 Azure OpenAI 服務端一次短暫故障致「整批 Stage 2 失敗、明確標 `OCR_FAILED`」。兩者症狀不同、根因不同、修法不同。
@@ -117,20 +118,36 @@ Stage 2（格式匹配，模型 gpt-5.4-nano）的 GPT 呼叫回 `400 invalid_pr
 
 ## 5. 系統性弱點（非本次 bug，待決定是否修）
 
-| # | 弱點 | 說明 | 修法方向 |
-|---|------|------|----------|
-| A | **重試退避太短** | 3 次、1s/2s，約 3 秒打完，無法騎過數十秒級的 provider 降級 | 拉長退避（指數 + 上限）、或失敗後延遲重新入列 |
-| B | **transient GPT 失敗 → 永久 `OCR_FAILED`，只能手動重試** | 與 FIX-094/106 同主題的「無自動回收」缺口，觸發源不同（此為 Azure OpenAI） | 對 transient 分類的失敗建立延遲自動重試（需設計，H1） |
-| C | **對 `400 invalid_prompt` 一律重試** | 方向對（因其可能包 internal error），但程式無法區分「真非法 prompt」（不該重試）與「內部錯誤偽裝成 400」（該重試） | 依內層 message / code 細分可重試性 |
+| # | 弱點 | 說明 | 修法方向 | 狀態 |
+|---|------|------|----------|------|
+| A | **重試退避太短** | 3 次、1s/2s，約 3 秒打完，無法騎過數十秒級的 provider 降級 | 拉長退避（指數 + 上限）、或失敗後延遲重新入列 | ✅ **已實作**（§5.1） |
+| B | **transient GPT 失敗 → 永久 `OCR_FAILED`，只能手動重試** | 與 FIX-094/106 同主題的「無自動回收」缺口，觸發源不同（此為 Azure OpenAI） | 對 transient 分類的失敗建立延遲自動重試（需設計，H1） | ⬜ 待決定 |
+| C | **對 `400 invalid_prompt` 一律重試** | 方向對（因其可能包 internal error），但程式無法區分「真非法 prompt」（不該重試）與「內部錯誤偽裝成 400」（該重試） | 依內層 message / code 細分可重試性 | ⬜ 待決定 |
 
-> 三者皆屬既有設計弱點、非本次事故引入。是否修、修哪些，需用戶決定（涉及重試策略調整，可能觸發 H1）。
+> B/C 皆屬既有設計弱點、非本次事故引入。是否修、修哪些，需用戶決定（涉及重試策略調整，可能觸發 H1）。
+
+### 5.1 已實施：弱點 A —— 指數退避 + jitter（2026-07-13）
+
+| 項目 | 內容 |
+|------|------|
+| 改動 | `gpt-caller.service.ts`（Stage 1/2/3）+ `unified-gpt-extraction.service.ts`（V3 單次），兩處結構相同的直接 fetch 重試迴圈 |
+| Commit | `95edb86` |
+| 改法 | ① `retryCount: 2 → 4`（3 → 5 次嘗試）；② 退避由線性 `retryDelay * (attempt+1)` 改為 `min(retryDelay * 2^attempt, 15000)`，再套 equal jitter `base/2 + random(0, base/2)` |
+| 效果 | 重試窗口由**約 3 秒**（1s+2s）拉長至**約 15 秒**（基準 1/2/4/8s，加 jitter） |
+| jitter 理由 | 重試路徑為併發批次（事故當日 ~10 份同時重試）；無 jitter 會同步重試形成 retry storm。**Azure 5/29 跨區 8 小時大事故的官方根因正是 retry storm 打爆 inference load balancer** —— jitter 直接避免自身貢獻此放大 |
+| 附帶影響 | `gpt-caller` 的 Epic 23 gateway 路徑把 `retryCount` 當 `maxRetries` 傳入（`:347`），故 gateway 路徑亦多試幾次（用 AI SDK 自帶 backoff） |
+| 驗證 | `npx eslint` 通過；`npm run type-check` 剩餘 4 個錯誤全在 `src/services/llm/`（本地缺 Epic 23 套件），與本改動無關 |
+| 🔴 **侷限** | **只解決短暫 blip（幾秒~十幾秒），解決不了本次那種持續 72 秒以上的降級**（每份文件全程都在故障窗口內）。若本次事故重演，此改動未必救得回 —— 那屬弱點 B（延遲重新入列）範疇 |
+| 部署 | **尚未部署**至 Azure（手動部署），上線前不生效 |
 
 ---
 
 ## 6. 待辦
 
 - [x] ~~立即補救：重試 §3.2 的 9 份 `OCR_FAILED`~~（用戶已於 2026-07-13 重試成功，證實外部瞬斷已恢復）
-- [ ] 決定是否處理 §5 系統性弱點 A/B/C（需用戶拍板；若處理，建對應 CHANGE/FIX）
+- [x] ~~弱點 A：拉長重試退避（指數 + jitter）~~（已完成 2026-07-13，commit `95edb86`，見 §5.1；**尚未部署**）
+- [ ] 決定是否處理 §5 系統性弱點 B/C（需用戶拍板；若處理，建對應 CHANGE/FIX）
+- [ ] 部署：弱點 A 改動需一併手動部署至 Azure 才生效
 - [ ] （選）覆核近期其他 `OCR_FAILED` 是否亦為同類 GPT 瞬斷（可用 `error_message ILIKE '%internal error%'` 掃描）
 
 ---
@@ -141,7 +158,7 @@ Stage 2（格式匹配，模型 gpt-5.4-nano）的 GPT 呼叫回 `400 invalid_pr
 - §3.4 取自 2026-07-13 `AppServiceConsoleLogs`（Log Analytics，`03:15–03:17 UTC`）實際回傳。
 - §4.2 的重試參數依 `gpt-caller.service.ts:173-174`、`unified-gpt-extraction.service.ts:158-159` 及重試迴圈（`:259-289` / `:230-272`）原始碼。
 - §4.3 的公開狀態頁結論取自 2026-07-13 WebSearch / WebFetch 實際回傳。
-- 本文件為調查記錄；資料已由用戶重試恢復，**未實作任何程式修復**。
+- 本文件初為調查記錄；資料已由用戶重試恢復。已實作 **§5.1 弱點 A**（commit `95edb86`）；弱點 B/C 未執行，且改動**尚未部署**至 Azure。
 
 ---
 
