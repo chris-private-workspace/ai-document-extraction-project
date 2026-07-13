@@ -116,6 +116,45 @@ interface UploadResponse {
   }
 }
 
+/**
+ * 分批併發執行（FIX-106 治本）
+ *
+ * 將 items 切成大小為 concurrency 的批次：**每批內併發、批與批之間序列**，
+ * 藉此綁住同時進行的任務數，避免一次載入過多文件耗盡記憶體。
+ *
+ * rejected 項目在每批結束時逐一記錄（不靜默吞掉，延續 FIX-106 收斂 1）。
+ * 本函式為 fire-and-forget 用途：呼叫端不 await，但應掛 `.catch()` 作 backstop。
+ *
+ * @param items - 待處理項目（需含 id / fileName 供日誌識別）
+ * @param concurrency - 每批最大併發數
+ * @param label - 日誌標籤（如 'auto-process'）
+ * @param worker - 單一項目的處理邏輯
+ */
+async function runInBatches<T extends { id: string; fileName: string }>(
+  items: T[],
+  concurrency: number,
+  label: string,
+  worker: (item: T) => Promise<unknown>
+): Promise<void> {
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency)
+    const results = await Promise.allSettled(chunk.map(worker))
+    results.forEach((r, j) => {
+      if (r.status === 'rejected') {
+        const item = chunk[j]
+        // 格式字串使用字面常量 + %s 佔位符（Semgrep unsafe-formatstring）。
+        console.error(
+          '[upload] %s failed for %s (%s): %s',
+          label,
+          item.id,
+          item.fileName,
+          r.reason instanceof Error ? r.reason.message : String(r.reason)
+        )
+      }
+    })
+  }
+}
+
 // ===========================================
 // POST /api/documents/upload
 // ===========================================
@@ -368,8 +407,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           // 'auto' 時由 Feature Flag 決定
         }
 
-        Promise.allSettled(
-          documentsToProcess.map(async (doc) => {
+        // FIX-106 治本：分批處理（每批 PROCESS_CONCURRENCY 份），限制同時載入
+        // 記憶體的文件數。fire-and-forget，末尾 .catch() 作 backstop。
+        runInBatches(
+          documentsToProcess,
+          UPLOAD_CONFIG.PROCESS_CONCURRENCY,
+          'auto-process',
+          async (doc) => {
             const fileBuffer = await downloadBlob(doc.blobName)
             const processor = getUnifiedDocumentProcessor()
             const result = await processor.processFile({
@@ -390,48 +434,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             if (result.success && result.companyId) {
               await autoTemplateMatchingService.autoMatch(doc.id)
             }
-          })
-        )
-          .then((results) => {
-            // allSettled 不會 reject；rejected 項目必須在此逐一檢查，
-            // 否則個別文件的失敗被靜默吞掉（FIX-106 根源）。
-            results.forEach((r, i) => {
-              if (r.status === 'rejected') {
-                const doc = documentsToProcess[i]
-                console.error(
-                  '[upload] auto-process failed for %s (%s): %s',
-                  doc.id,
-                  doc.fileName,
-                  r.reason instanceof Error ? r.reason.message : String(r.reason)
-                )
-              }
-            })
-          })
-          .catch((error) => {
-            // 上面的處理邏輯本身若出錯的 backstop（此處才是真正可能 reject 的地方）
-            console.error('[upload] auto-process result handling error:', error)
-          })
+          }
+        ).catch((error) => {
+          console.error('[upload] auto-process batch error:', error)
+        })
       } else {
-        // Legacy fallback：舊版 OCR 提取
-        Promise.allSettled(
-          uploaded.map((doc) => extractDocument(doc.id))
-        )
-          .then((results) => {
-            // 同上（FIX-106）：檢查 rejected，避免靜默吞掉 extractDocument 的失敗。
-            results.forEach((r, i) => {
-              if (r.status === 'rejected') {
-                console.error(
-                  '[upload] auto-extract failed for %s (%s): %s',
-                  uploaded[i].id,
-                  uploaded[i].fileName,
-                  r.reason instanceof Error ? r.reason.message : String(r.reason)
-                )
-              }
-            })
-          })
-          .catch((error) => {
-            console.error('[upload] auto-extract result handling error:', error)
-          })
+        // Legacy fallback：舊版 OCR 提取（同樣分批，FIX-106）
+        runInBatches(
+          uploaded,
+          UPLOAD_CONFIG.PROCESS_CONCURRENCY,
+          'auto-extract',
+          (doc) => extractDocument(doc.id)
+        ).catch((error) => {
+          console.error('[upload] auto-extract batch error:', error)
+        })
       }
     }
 
