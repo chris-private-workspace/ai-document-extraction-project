@@ -51,6 +51,16 @@ export const UPLOAD_CONFIG = {
    */
   MAX_FILES_PER_BATCH: 15,
 
+  /**
+   * 自動處理管線的併發上限（FIX-106 治本）
+   *
+   * 上傳後文件在 upload/route.ts 分批投入處理，每批最多同時處理此數量。
+   * 這才是真正綁住「同時載入記憶體的 PDF 數」的旋鈕 —— MAX_FILES_PER_BATCH
+   * 只限制單次上傳份數，處理仍是全部併發。避免一次過多 buffer／圖片轉換／
+   * base64 耗盡 App Service 記憶體、凍結事件迴圈。
+   */
+  PROCESS_CONCURRENCY: 3,
+
   /** UI 顯示用的接受格式標籤 */
   ACCEPT_LABEL: 'PDF, JPG, PNG',
 } as const;
