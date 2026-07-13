@@ -391,16 +391,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               await autoTemplateMatchingService.autoMatch(doc.id)
             }
           })
-        ).catch((error) => {
-          console.error('Auto-process trigger error:', error)
-        })
+        )
+          .then((results) => {
+            // allSettled 不會 reject；rejected 項目必須在此逐一檢查，
+            // 否則個別文件的失敗被靜默吞掉（FIX-106 根源）。
+            results.forEach((r, i) => {
+              if (r.status === 'rejected') {
+                const doc = documentsToProcess[i]
+                console.error(
+                  '[upload] auto-process failed for %s (%s): %s',
+                  doc.id,
+                  doc.fileName,
+                  r.reason instanceof Error ? r.reason.message : String(r.reason)
+                )
+              }
+            })
+          })
+          .catch((error) => {
+            // 上面的處理邏輯本身若出錯的 backstop（此處才是真正可能 reject 的地方）
+            console.error('[upload] auto-process result handling error:', error)
+          })
       } else {
         // Legacy fallback：舊版 OCR 提取
         Promise.allSettled(
           uploaded.map((doc) => extractDocument(doc.id))
-        ).catch((error) => {
-          console.error('Auto-extract trigger error:', error)
-        })
+        )
+          .then((results) => {
+            // 同上（FIX-106）：檢查 rejected，避免靜默吞掉 extractDocument 的失敗。
+            results.forEach((r, i) => {
+              if (r.status === 'rejected') {
+                console.error(
+                  '[upload] auto-extract failed for %s (%s): %s',
+                  uploaded[i].id,
+                  uploaded[i].fileName,
+                  r.reason instanceof Error ? r.reason.message : String(r.reason)
+                )
+              }
+            })
+          })
+          .catch((error) => {
+            console.error('[upload] auto-extract result handling error:', error)
+          })
       }
     }
 

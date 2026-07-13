@@ -175,6 +175,22 @@ ai-document-extraction-project/
 
 ---
 
+## 🚫 工具使用強制紀律（🔴 最高級別 — 零容忍・無例外）
+
+> **來源**：2026-07-10 merge 事件——大量用 bash `echo`/`cat`/`grep` 拼裝命令 + `{ }` group 重定向，造成嚴重輸出污染（檔案內容重複、亂碼、語意注入），險些 commit 進損壞內容。
+
+**絕對禁止（無任何例外，違反即停手改正）**：
+
+1. ❌ 用 bash/shell 跑 `cat` / `head` / `tail` / `grep` / `find` / `sed` / `awk` 讀檔或搜尋 → **一律改用 Read / Grep / Glob 工具**
+2. ❌ 用 `echo` 拼裝輸出、`{ }` group 重定向、多命令混合重定向 → **只用單一命令直接重定向** `cmd > file`，再用 **Read 工具**讀
+3. ❌ 靠 bash 即時 stdout 判斷結果 → **寫檔後用 Read 工具讀**
+
+**bash/shell 唯一正當用途**：執行**無專用工具替代**的操作（git、npm、其他 CLI），輸出到檔案時**只用單一命令直接重定向、絕不混 echo**。此為正當用途，非漏洞——禁的是「有替代卻用 bash」，不是「用 bash」本身。
+
+**這不是「避免」，是「禁止」。** 本區優先級等同 §反捏造紀律（訊息結構紀律同源）。
+
+---
+
 ## 🎯 編碼核心原則 — Karpathy Guidelines（🔴 必須遵守）
 
 > **來源**：`andrej-karpathy-skills:karpathy-guidelines` plugin（`alwaysApply: true`）
