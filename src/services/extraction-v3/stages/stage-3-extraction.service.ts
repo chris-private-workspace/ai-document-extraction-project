@@ -77,6 +77,13 @@ import {
 } from '../utils/classify-normalizer';
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/** 確定性回填寫入 fields 時採用的信心度（CHANGE-094） */
+const BACKFILL_CONFIDENCE = 85;
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -1421,31 +1428,37 @@ Respond in valid JSON format matching the provided schema.`;
   }
 
   /**
-   * CHANGE-094: 確定性回填 lineItem 費用至對應 field definition key
+   * FIX-108（原 CHANGE-094）: 確定性回填 lineItem 費用至對應 field definition key
    *
    * @description
-   *   解決「費用提取非確定性」問題：GPT 對「該把費用填進 fields 的 field def key，
-   *   還是只放 lineItems」判斷不穩定（同文件不同次提取結果不同），導致 Template
-   *   Instance 費用映射時有時取不到值。
+   *   解決「費用提取非確定性」問題：GPT 把 lineItem 金額歸戶進 `fields` 時會出錯
+   *   （加總算錯、分類改寫失真），導致同一份文件每次處理的費用金額不同。
    *
-   *   本步驟在解析後以**程式化、確定性**方式，將每個 lineItem 的金額補進對應的
-   *   費用 field key（僅針對 `fieldType === 'lineItem'` 的欄位）。對照來源為
-   *   lineItem 的 `classifiedAs` 對 field def 的 `label` + `aliases`：
-   *   - 正規化後相等（exact）或詞邊界子字串（substring），見 {@link matchLabel}
-   *   - **歧義保護**：若同一 classifiedAs 同時命中多個目標（如
-   *     `"Terminal Handling Charge"` 同時是 origin 與 destination THC 的子字串），
-   *     則跳過該筆，避免填錯。
-   *   - **GPT 優先**：僅補空缺，GPT 已填的值不覆蓋（見 §設計決策 OQ#3）。
-   *   - **多筆加總**：同一 key 對應多筆 lineItem 時金額加總（OQ#4）。
+   *   本步驟以**程式化、確定性**方式，由 lineItems 導出 `fieldType === 'lineItem'`
+   *   的費用欄位值：
+   *   - **對照來源（FIX-108 修正 1）**：以 lineItem 的原始 `description` 對 field def
+   *     的 `label` + `aliases` 比對（見 {@link matchLabel}）；description 未命中時，
+   *     才退回 `classifiedAs`（向後相容 CHANGE-094，未設 aliases 的公司行為不變）。
+   *     `classifiedAs` 是 GPT 改寫過的分類名，會失真（實測 `CONTAINER SEAL FEE - FCL`
+   *     被改寫為 `Seal Charge`），故不再作為主要來源。
+   *   - **歧義保護**：同一 candidate 命中多個 def 時跳過，不誤填（沿用 CHANGE-094）。
+   *   - **多筆加總**：同一 key 對應多筆 lineItem 時金額加總。
+   *   - **覆蓋 GPT（FIX-108 修正 2）**：唯一命中時一律以程式加總為準，覆蓋 GPT 填的值
+   *     （原 CHANGE-094「GPT 已填值優先」讓錯值無法被修正，實測 THC 應為 8700，
+   *     GPT 三次分別填 3700 / 2200 / 2400）。
+   *   - **清除失真誤填（FIX-108 修正 3）**：某 charge key 若「未被任何 lineItem 認領」，
+   *     但「有 lineItem 的 classifiedAs 命中它」，且「那些 lineItem 已被別的 key 以
+   *     description 認領」→ 判定為 classifiedAs 失真造成的誤填，清為 null。
+   *     其餘一律保留（值可能來自 lineItems 以外，如發票 summary 區），不做全面清空。
    *
-   *   注意：CEVA 等 field def 的 `aliases` 多為空，第一版僅能命中 `label`
-   *   精確 / 子字串；如 `"Documentation Fee"` → `origin_document_processing_fee`
-   *   這類語意相同但詞不同者，需在 field def 補 `aliases` 才會命中。
+   *   **Rollback**：設環境變數 `STAGE3_DETERMINISTIC_BACKFILL=false` 即回到 CHANGE-094
+   *   舊行為（classifiedAs 對照 + 僅補空缺 + 不覆蓋不清除），無需重建映像。
    *
    * @param fields - 解析後的欄位 Record（會被就地修改）
    * @param lineItems - 解析後的行項目
    * @param fieldDefinitions - 當前 FieldDefinitionSet 的欄位定義
    * @since CHANGE-094
+   * @lastModified FIX-108 (2026-07-13)
    */
   private backfillLineItemCharges(
     fields: Record<string, FieldValue>,
@@ -1458,38 +1471,154 @@ Respond in valid JSON format matching the provided schema.`;
     const chargeDefs = fieldDefinitions.filter((d) => d.fieldType === 'lineItem');
     if (chargeDefs.length === 0) return;
 
-    // key → 待回填的累加金額（僅在 GPT 未填時生效）
+    // FIX-108 rollback 開關（Azure：改 App Service 設定 + 重啟即可，無需重建映像）
+    if (process.env.STAGE3_DETERMINISTIC_BACKFILL === 'false') {
+      this.backfillLineItemChargesLegacy(fields, lineItems, chargeDefs);
+      return;
+    }
+
+    const claimed = new Map<string, number>(); // charge key → lineItem 金額加總
+    const claimedItems = new Set<number>(); // 已被認領的 lineItem index
+    const classifiedHits = new Map<string, number[]>(); // charge key → 以 classifiedAs 命中它的 lineItem index
+
+    // 1. description 認領（權威來源）+ 記錄 classifiedAs 命中（供修正 3 判定誤填）
+    lineItems.forEach((li, index) => {
+      if (typeof li.amount !== 'number') return;
+
+      const byDescription = li.description
+        ? this.resolveUniqueChargeKey(li.description, chargeDefs)
+        : null;
+      if (byDescription) {
+        claimed.set(byDescription, (claimed.get(byDescription) ?? 0) + li.amount);
+        claimedItems.add(index);
+      }
+
+      const byClassified = li.classifiedAs
+        ? this.resolveUniqueChargeKey(li.classifiedAs, chargeDefs)
+        : null;
+      if (byClassified) {
+        const hits = classifiedHits.get(byClassified) ?? [];
+        hits.push(index);
+        classifiedHits.set(byClassified, hits);
+      }
+    });
+
+    // 2. classifiedAs fallback：description 未認領的 lineItem 才參與（向後相容）
+    lineItems.forEach((li, index) => {
+      if (claimedItems.has(index) || typeof li.amount !== 'number') return;
+
+      const key = li.classifiedAs
+        ? this.resolveUniqueChargeKey(li.classifiedAs, chargeDefs)
+        : null;
+      if (!key) return;
+
+      claimed.set(key, (claimed.get(key) ?? 0) + li.amount);
+      claimedItems.add(index);
+    });
+
+    // 3. 覆蓋：被認領的 charge key 一律以程式加總為準（含覆蓋 GPT 心算錯值）
+    for (const [key, sum] of claimed) {
+      fields[key] = {
+        value: sum,
+        confidence: BACKFILL_CONFIDENCE,
+        source: 'lineItem-backfill',
+      };
+    }
+
+    // 4. 清除：僅清除「可證明由 classifiedAs 失真造成的誤填」
+    const cleared: string[] = [];
+    for (const def of chargeDefs) {
+      if (claimed.has(def.key)) continue; // 有 lineItem 認領 → 不動
+      if (!this.hasFieldValue(fields[def.key])) continue; // 本來就空 → 不動
+
+      const hits = classifiedHits.get(def.key);
+      // 無 classifiedAs 命中 → 值可能來自 lineItems 以外（如 summary 區）→ 保留
+      if (!hits?.length) continue;
+      // 命中行未全數被別的 key 認領 → 無法證明是誤填 → 保留
+      if (!hits.every((index) => claimedItems.has(index))) continue;
+
+      fields[def.key] = {
+        value: null,
+        confidence: 0,
+        source: 'lineItem-backfill-cleared',
+      };
+      cleared.push(def.key);
+    }
+
+    if (claimed.size > 0 || cleared.length > 0) {
+      console.log(
+        `[Stage3] FIX-108 backfill: set ${claimed.size} charge field(s) from line items` +
+          (cleared.length > 0
+            ? `; cleared ${cleared.length} misattributed: ${cleared.join(', ')}`
+            : '')
+      );
+    }
+  }
+
+  /**
+   * 判定單一 candidate 字串唯一對應的 charge field key
+   *
+   * @description
+   *   對每個 charge def 取最強對照（exact > substring），再做唯一性裁決：
+   *   精確命中唯一 → 該 key；無精確命中且子字串命中唯一 → 該 key；
+   *   未命中或歧義（多個命中）→ null（寧可不填、不可填錯）。
+   *
+   * @param candidate - 對照候選字串（lineItem 的 description 或 classifiedAs）
+   * @param chargeDefs - `fieldType === 'lineItem'` 的欄位定義
+   * @returns 唯一命中的 field key；未命中或歧義時為 null
+   * @since FIX-108（邏輯自 CHANGE-094 backfillLineItemCharges 抽出）
+   */
+  private resolveUniqueChargeKey(
+    candidate: string,
+    chargeDefs: FieldDefinitionEntry[]
+  ): string | null {
+    const exactKeys: string[] = [];
+    const substringKeys: string[] = [];
+
+    for (const def of chargeDefs) {
+      const targets = [def.label, ...(def.aliases ?? [])];
+      let best: LabelMatchKind = null;
+      for (const target of targets) {
+        const kind = matchLabel(candidate, target);
+        if (kind === 'exact') {
+          best = 'exact';
+          break;
+        }
+        if (kind === 'substring') best = 'substring';
+      }
+      if (best === 'exact') exactKeys.push(def.key);
+      else if (best === 'substring') substringKeys.push(def.key);
+    }
+
+    if (exactKeys.length === 1) return exactKeys[0];
+    if (exactKeys.length === 0 && substringKeys.length === 1) return substringKeys[0];
+    return null;
+  }
+
+  /**
+   * CHANGE-094 原始回填行為（FIX-108 的 rollback 路徑）
+   *
+   * @description
+   *   以 `classifiedAs` 對照、僅補空缺、不覆蓋 GPT 已填值、不清除任何欄位。
+   *   僅在 `STAGE3_DETERMINISTIC_BACKFILL=false` 時使用。
+   *
+   * @param fields - 解析後的欄位 Record（會被就地修改）
+   * @param lineItems - 解析後的行項目
+   * @param chargeDefs - `fieldType === 'lineItem'` 的欄位定義
+   * @since FIX-108
+   */
+  private backfillLineItemChargesLegacy(
+    fields: Record<string, FieldValue>,
+    lineItems: LineItemV3[],
+    chargeDefs: FieldDefinitionEntry[]
+  ): void {
     const pending = new Map<string, number>();
 
     for (const li of lineItems) {
       const candidate = li.classifiedAs;
       if (!candidate || typeof li.amount !== 'number') continue;
 
-      // 對每個 charge def 判定對照種類（取最強：exact > substring）
-      const exactKeys: string[] = [];
-      const substringKeys: string[] = [];
-      for (const def of chargeDefs) {
-        const targets = [def.label, ...(def.aliases ?? [])];
-        let best: LabelMatchKind = null;
-        for (const target of targets) {
-          const kind = matchLabel(candidate, target);
-          if (kind === 'exact') {
-            best = 'exact';
-            break;
-          }
-          if (kind === 'substring') best = 'substring';
-        }
-        if (best === 'exact') exactKeys.push(def.key);
-        else if (best === 'substring') substringKeys.push(def.key);
-      }
-
-      // 唯一性裁決：精確優先；歧義（多個命中）則跳過，不誤填
-      let targetKey: string | null = null;
-      if (exactKeys.length === 1) {
-        targetKey = exactKeys[0];
-      } else if (exactKeys.length === 0 && substringKeys.length === 1) {
-        targetKey = substringKeys[0];
-      }
+      const targetKey = this.resolveUniqueChargeKey(candidate, chargeDefs);
       if (!targetKey) continue;
 
       // GPT 已填值優先：僅補空缺
@@ -1502,7 +1631,7 @@ Respond in valid JSON format matching the provided schema.`;
       if (this.hasFieldValue(fields[key])) continue;
       fields[key] = {
         value: sum,
-        confidence: 85,
+        confidence: BACKFILL_CONFIDENCE,
         source: 'lineItem-backfill',
       };
     }
