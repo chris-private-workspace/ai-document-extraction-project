@@ -4,8 +4,8 @@
 > **發現方式**: 用戶回報（Quentin Liu —— `CEVA LOGISTICS_RCEX240706_00543.pdf` 顯示 `OCR Failed / Processing Failed`）+ DB 查詢 + 容器 log
 > **影響頁面/功能**: 文件處理管線（Stage 2 格式匹配）/ 文件列表頁 + 詳情頁
 > **優先級**: 中（事故本身為外部瞬斷、已自行恢復；但暴露之系統性弱點值得處理）
-> **狀態**: 🔍 **根因已確認（Azure OpenAI 服務端瞬斷，外部因素）；資料已由重試恢復；弱點 A（重試退避）已修，B/C 待決定**
-> **最後更新**: 2026-07-13（弱點 A 已實作 —— 指數退避 + jitter，見 §5.1）
+> **狀態**: 🔍 **根因已確認（Azure OpenAI 服務端瞬斷，外部因素）；資料已由重試恢復；弱點 A（重試退避）已修並於 2026-07-14 部署至 Azure DEV，B/C 待決定**
+> **最後更新**: 2026-07-14（弱點 A 已部署 —— 映像 `dev-fix108-20260714135401`）
 > **關聯**: FIX-106（同為文件卡失敗但根因不同 —— 106 是應用端記憶體飽和，本 FIX 是外部 GPT 瞬斷）、FIX-094（殭屍回收）
 
 > ⚠️ **本 FIX 與 FIX-106 無關**。FIX-106 是應用端事件迴圈飽和致「靜默卡 `OCR_PROCESSING`」；本 FIX 是 Azure OpenAI 服務端一次短暫故障致「整批 Stage 2 失敗、明確標 `OCR_FAILED`」。兩者症狀不同、根因不同、修法不同。
@@ -138,16 +138,16 @@ Stage 2（格式匹配，模型 gpt-5.4-nano）的 GPT 呼叫回 `400 invalid_pr
 | 附帶影響 | `gpt-caller` 的 Epic 23 gateway 路徑把 `retryCount` 當 `maxRetries` 傳入（`:347`），故 gateway 路徑亦多試幾次（用 AI SDK 自帶 backoff） |
 | 驗證 | `npx eslint` 通過；`npm run type-check` 剩餘 4 個錯誤全在 `src/services/llm/`（本地缺 Epic 23 套件），與本改動無關 |
 | 🔴 **侷限** | **只解決短暫 blip（幾秒~十幾秒），解決不了本次那種持續 72 秒以上的降級**（每份文件全程都在故障窗口內）。若本次事故重演，此改動未必救得回 —— 那屬弱點 B（延遲重新入列）範疇 |
-| 部署 | **尚未部署**至 Azure（手動部署），上線前不生效 |
+| 部署 | ✅ **已部署**至 Azure DEV（2026-07-14，映像 `dev-fix108-20260714135401`），現已生效 |
 
 ---
 
 ## 6. 待辦
 
 - [x] ~~立即補救：重試 §3.2 的 9 份 `OCR_FAILED`~~（用戶已於 2026-07-13 重試成功，證實外部瞬斷已恢復）
-- [x] ~~弱點 A：拉長重試退避（指數 + jitter）~~（已完成 2026-07-13，commit `95edb86`，見 §5.1；**尚未部署**）
+- [x] ~~弱點 A：拉長重試退避（指數 + jitter）~~（已完成 2026-07-13，commit `95edb86`，見 §5.1；**已於 2026-07-14 部署，現已生效**）
 - [ ] 決定是否處理 §5 系統性弱點 B/C（需用戶拍板；若處理，建對應 CHANGE/FIX）
-- [ ] 部署：弱點 A 改動需一併手動部署至 Azure 才生效
+- [x] ~~部署：弱點 A 改動手動部署至 Azure~~（已完成 2026-07-14，映像 `dev-fix108-20260714135401`；部署記錄 `docs/07-deployment/02-azure-deployment/deployment-records/2026-07-14-dev-fix108.md`）
 - [ ] （選）覆核近期其他 `OCR_FAILED` 是否亦為同類 GPT 瞬斷（可用 `error_message ILIKE '%internal error%'` 掃描）
 
 ---
@@ -158,7 +158,7 @@ Stage 2（格式匹配，模型 gpt-5.4-nano）的 GPT 呼叫回 `400 invalid_pr
 - §3.4 取自 2026-07-13 `AppServiceConsoleLogs`（Log Analytics，`03:15–03:17 UTC`）實際回傳。
 - §4.2 的重試參數依 `gpt-caller.service.ts:173-174`、`unified-gpt-extraction.service.ts:158-159` 及重試迴圈（`:259-289` / `:230-272`）原始碼。
 - §4.3 的公開狀態頁結論取自 2026-07-13 WebSearch / WebFetch 實際回傳。
-- 本文件初為調查記錄；資料已由用戶重試恢復。已實作 **§5.1 弱點 A**（commit `95edb86`）；弱點 B/C 未執行，且改動**尚未部署**至 Azure。
+- 本文件初為調查記錄；資料已由用戶重試恢復。已實作 **§5.1 弱點 A**（commit `95edb86`），且**已於 2026-07-14 部署**至 Azure DEV（映像 `dev-fix108-20260714135401`）；弱點 B/C 仍未執行。
 
 ---
 
