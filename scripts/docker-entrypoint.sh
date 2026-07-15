@@ -66,5 +66,13 @@ if [ -n "$RUN_TEMPLATE_MAPPING_SEED" ]; then
   node prisma/seed-template-field-mappings.js || echo "[entrypoint] template mapping seed failed (non-fatal), continuing"
 fi
 
+# (選用)一次性 FIX-110 aliases 補回 —— 由 RUN_FIX110_ALIAS_BACKFILL=true 觸發,非致命。
+# FieldDefinitionSet 來自本地同步匯入,重新部署/re-import 不會帶入 FIX-110 直接寫入的
+# 9 條針對性 aliases;此步驟冪等補回（已存在則 0 筆）。補完後把旗標設回 false。
+if [ "$RUN_FIX110_ALIAS_BACKFILL" = "true" ]; then
+  echo "[entrypoint] (optional) applying FIX-110 targeted charge aliases"
+  node prisma/apply-fix110-aliases.js || echo "[entrypoint] FIX-110 alias backfill failed (non-fatal), continuing"
+fi
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js
