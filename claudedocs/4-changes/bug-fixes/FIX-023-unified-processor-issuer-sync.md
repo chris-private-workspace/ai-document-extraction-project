@@ -1,5 +1,7 @@
 # FIX-023: 統一處理流程發行者識別結果未同步到數據庫
 
+> **狀態**: ✅ 已修復
+
 ## 問題描述
 
 使用統一處理流程（UnifiedProcessor）處理文件時，`ISSUER_IDENTIFICATION` 步驟成功識別了發行者並匹配到公司，但結果沒有被同步到 `HistoricalFile` 表的相關欄位。

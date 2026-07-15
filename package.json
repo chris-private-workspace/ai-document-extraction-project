@@ -18,6 +18,8 @@
     "db:seed": "prisma db seed",
     "index:check": "node scripts/check-index-sync.js",
     "i18n:check": "npx ts-node --project scripts/tsconfig.exec.json scripts/check-i18n-completeness.ts",
+    "docs:status": "node scripts/docs-consistency.js --generate",
+    "docs:check": "node scripts/docs-consistency.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

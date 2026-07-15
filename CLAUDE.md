@@ -51,13 +51,13 @@ TIER 3: LLM Classification (AI 智能分類)     — 以上都無法匹配時用
 
 | 信心度 | 處理方式 | 說明 |
 |--------|----------|------|
-| ≥ 95% | AUTO_APPROVE | 自動通過 |
-| 80-94% | QUICK_REVIEW | 快速確認 |
-| < 80% | FULL_REVIEW | 完整審核 |
+| ≥ 90% | AUTO_APPROVE | 自動通過 |
+| 70-89% | QUICK_REVIEW | 快速確認 |
+| < 70% | FULL_REVIEW | 完整審核 |
 
 **V3.1 智能降級**：新公司 → 強制 FULL_REVIEW；新格式 → 強制 QUICK_REVIEW；DEFAULT 配置來源 → 降一級
 
-> ⚠️ **已知文檔誤差**：代碼實際閾值為 90%/70%（confidence-v3-1.service.ts 第 112-119 行），與文檔 95%/80% 不一致 — 屬 Open Question，詳見 `claudedocs/reference/known-discrepancies.md`
+> ✅ **閾值以代碼為準**（`confidence-v3-1.service.ts` 第 112-119 行）。舊版文檔曾誤記為 95%/80% —— 已於 2026-07-14 依 OQ-Q1 決議修正為 90%/70%（**改文檔、不改代碼**，以保持歷史資料的路由結果可比）。
 
 ---
 
@@ -286,7 +286,7 @@ ai-document-extraction-project/
 | Spec 缺乏 detail | **Ask user，don't guess** |
 | 兩種實作都 reasonable | 揀**更接近既有 pattern** 的一個（grep 同類功能參考） |
 | Stakeholder feedback 與 spec 衝突 | STOP — surface conflict 等 resolution |
-| 信心度閾值邊界值（如 80.0 vs 80.1） | 跟代碼實際值（90%/70%），不跟文檔（95%/80%）— 文檔誤差待修 |
+| 信心度閾值邊界值（如 70.0 vs 70.1） | 一律以代碼為準（90%/70%）— OQ-Q1 已於 2026-07-14 resolved，文檔已對齊 |
 | 三層映射不確定該歸哪層 | Default 通用層（Tier 1），有公司差異才下沉 Tier 2 |
 | i18n 翻譯不確定 | 3 語言都先用英文 placeholder + TODO + ask 用戶 |
 | Performance vs simplicity 衝突 | 當前階段 **simplicity wins**（先 ship，profile 後再優化） |
@@ -307,7 +307,8 @@ ai-document-extraction-project/
 - [ ] 涉及 API → Zod 驗證 + RFC 7807 錯誤格式？
 - [ ] 涉及 Schema 變更 → migration 已建立 + dry-run 驗證？
 - [ ] 涉及 console.log → 改用 logger？
-- [ ] 完成 CHANGE/FIX → 規劃文件狀態更新為 ✅ 已完成？
+- [ ] 完成 CHANGE/FIX → 該檔的 `> **狀態**:` 行更新為 ✅ 已完成？
+- [ ] **新增或改動 CHANGE/FIX 狀態 → 執行 `npm run docs:status` 重新生成 `claudedocs/STATUS.md` 並一併提交？**（`npm run docs:check` 是 CI required gate，未同步會擋 PR）
 - [ ] Commit message 符合 Conventional Commits？
 
 ---
@@ -379,6 +380,10 @@ npm run type-check
 npm run lint
 npm run format
 npm run test
+npm run docs:check       # CHANGE/FIX 文檔一致性（CI required）
+
+# 新增 CHANGE/FIX 或改其狀態後
+npm run docs:status      # 重新生成 claudedocs/STATUS.md，需一併 commit
 ```
 
 > 📋 服務啟動完整流程 + 端口處理 + 問題排解：`.claude/CLAUDE.md`
@@ -447,7 +452,8 @@ npm run test
 | **Blocked** | STOP 對應 work item，ask user |
 
 > 📋 當前 OQ 列表：`docs/open-questions.md`
-> ⚠️ 當前主要 OQ：信心度閾值文檔誤差、Auth 覆蓋率缺口、RFC 7807 格式統一進度
+> ⚠️ 當前主要 OQ：Auth 覆蓋率缺口（OQ-Q2）、RFC 7807 格式統一進度（OQ-Q3）、MappingRule 生態去留（OQ-Q4）
+> ✅ OQ-Q1（信心度閾值文檔誤差）已於 2026-07-14 resolved — 文檔對齊代碼 90%/70%
 
 ---
 
@@ -503,8 +509,15 @@ npm run test
 
 ## 📊 項目狀態
 
-**進度**：22 個 Epic（157+ Stories）已完成 | **當前階段**：Phase 2 功能變更模式
-> Sprint 唯一真實來源：`docs/04-implementation/sprint-status.yaml`
+**進度**：Epic 0–21（157+ Stories）已完成 | **Epic 22**（企業安全治理）進行中 | **Epic 23**（多 LLM Provider）進行中 | **當前階段**：Phase 2 功能變更模式
+
+**狀態真實來源（🔴 2026-07-14 起改制）**：
+
+| 要查什麼 | 看哪裡 |
+|----------|--------|
+| CHANGE/FIX 當前狀態 + 下一個可用編號 | **`claudedocs/STATUS.md`**（由 `npm run docs:status` 自動生成，勿手改） |
+| Epic 22 / 23 進度 | `docs/04-implementation/stories/epic-22-enterprise-security/`、`docs/04-implementation/tech-specs/epic-23-multi-llm-provider/AI-HANDOFF.md` |
+| Epic 0–21 歷史 | `docs/04-implementation/sprint-status.yaml`（⚠️ **已封存，不再維護** — 不含 Epic 22/23） |
 
 **Sub-CLAUDE.md 自動載入機制**：Claude Code 自動遞迴載入子目錄 CLAUDE.md（共 15 個：.claude/、claudedocs/、messages/、prisma/、src/* 等）— 修改子目錄時對應的 sub-CLAUDE.md 會自動注入 context
 > 完整地圖 + 過時統計：`claudedocs/reference/sub-claude-md-map.md`
@@ -522,7 +535,7 @@ npm run test
 | 2 | RFC 7807 格式不一致（top-level vs nested）— 新 API 統一採 top-level | ⚠️ 漸進統一 |
 | 3 | console.log 279 處 / 87 文件 — 逐步替換 logger | ⚠️ 漸進清理 |
 | 4 | Zod 驗證覆蓋率 60-65%，~40 個 POST/PATCH 缺驗證 | ⚠️ 新 API 必加 |
-| 5 | CLAUDE.md 信心度閾值 95%/80% vs 代碼 90%/70% | ⚠️ 文檔待修 |
+| 5 | ~~CLAUDE.md 信心度閾值 95%/80% vs 代碼 90%/70%~~ | ✅ 已解決（2026-07-14，OQ-Q1：文檔對齊代碼 90%/70%） |
 
 > 📋 完整差異記錄（含已修復的 FIX-050/051/052/053）：`claudedocs/reference/known-discrepancies.md`
 

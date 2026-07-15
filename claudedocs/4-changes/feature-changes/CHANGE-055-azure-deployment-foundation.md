@@ -1,5 +1,7 @@
 # CHANGE-055: Azure Production Deployment Foundation
 
+> **狀態**: 🚧 進行中（Phase 2 實施中 — DEV 環境，2026-06-08）
+
 ## 變更摘要
 
 | 項目 | 內容 |

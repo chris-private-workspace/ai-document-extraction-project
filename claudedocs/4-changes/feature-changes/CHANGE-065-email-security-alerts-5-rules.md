@@ -1,5 +1,7 @@
 # CHANGE-065: Email 安全告警 5 條（Email Security Alerts — 5 Critical Rules）
 
+> **狀態**: 📋 規劃中
+
 ## 變更摘要
 
 | 項目 | 內容 |

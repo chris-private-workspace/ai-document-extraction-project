@@ -1,5 +1,7 @@
 # CHANGE-066: Audit Log 中間件全面採用（Audit Log Middleware Adoption）
 
+> **狀態**: 📋 規劃中
+
 ## 變更摘要
 
 | 項目 | 內容 |
