@@ -4,7 +4,7 @@
 > **發現方式**: 用戶提問「設定 field definition 之後,Stage 3 是不是就會把費用 line item 識別並回填?為什麼取到的數據正確、處理時卻計錯數/匹配錯名?」→ 追 Stage 3 回填機制 → 對 Azure DEV 實際資料做命中率盤查
 > **影響頁面\功能**: Stage 3 費用回填（`fieldType === 'lineItem'` 欄位）→ 下游 Template Instance / 匯出 / 報表
 > **優先級**: 中（不影響已穩定的 68% 費用行;針對脆弱/未覆蓋部分的資料品質改善）
-> **狀態**: 🚧 進行中（分析完成 + 9 條 alias 對照表已產出並通過碰撞檢查;**套用待授權**,尚未寫入 DB）
+> **狀態**: ✅ 已完成（9 條 aliases 已於 2026-07-15 冪等寫入 Azure DEV 並回讀驗證;可重現腳本 `prisma/apply-fix110-aliases.js` 已提交）。⏳ **既有文件需重新處理才會生效**（alias 只影響新處理);根因 1（CEVA 公司合併）交 CHANGE-103、根因 2（description 正規化）待另立
 > **最後更新**: 2026-07-15
 > **關聯**: FIX-108（確定性回填 3 修正,本 FIX 是其資料側後續）、CHANGE-094（回填機制原始）、CHANGE-103（CEVA 公司合併 = 本 FIX 的槓桿 1,見 §5）
 
@@ -123,14 +123,24 @@ GPT 抽出的原始 `lineItems`（description + amount）通常是對的,但把 
 
 ---
 
-## 7. 套用方式（尚未執行,待授權）
+## 7. 套用（✅ 已執行,2026-07-15）
 
-目前這些 field def entry 連 `aliases` key 都沒有,套用 = 在 `field_definition_sets.fields` JSON 對應 entry 加 `"aliases": [...]`。加後**機制一機制二皆受惠**。兩條路:
+這些 field def entry 原本連 `aliases` key 都沒有;套用 = 在 `field_definition_sets.fields` JSON 對應 entry 加 `"aliases": [...]`。加後**機制一機制二皆受惠**。
 
-- **field definition 管理 UI** 逐一編輯（零風險,用戶自行操作）
-- **gated 腳本**（比照 `prisma/*.js` + entrypoint flag 慣例,冪等寫入,Azure 部署時旗標觸發）—— 只寫不執行,待授權
+**執行方式**:先 dry-run（確認 4 間公司各精確匹配 1 個 active COMPANY set、無誤配、無歧義、9 條全為新增）→ 冪等寫入 → 回讀驗證（9 條全 ✅ 存在）。寫入 4 個 set:
 
-> 🔴 本 FIX **未寫入任何 DB**。套用需用戶明確授權。
+| set id | 公司 | 寫入 alias 數 |
+|---|---|---|
+| `f13aaf3b-ec74-4750-8036-a27dbb554792` | CEVA Logistics | 5 |
+| `7a124db2-e84f-4d19-8b74-12ca081c098d` | Nippon Express Logistics | 1 |
+| `754d113d-ece4-4ec0-8a2f-8ee0f46ad860` | Fairate Express | 2 |
+| `60f729de-701e-4748-af76-814c61a03499` | NIPPON EXPRESS (HK) CO., LTD.（NIPPON EXPRESS） | 1 |
+
+**可重現腳本**:`prisma/apply-fix110-aliases.js`（gated by `RUN_FIX110_ALIAS_BACKFILL=true`,冪等,參數化,公司以「精確名 → 恰好 1 個 active set」解析,防誤寫重複公司）。FieldDefinitionSet 來自本地同步匯入,DEV 若被 reset/re-import 會遺失本次直接寫入的 aliases → 屆時用此旗標冪等重跑補回。
+
+> ⏳ **生效範圍**:alias 只影響**新處理**的文件。既有 267 份的 ~72 筆脆弱費用行,需**重新處理對應文件**才會從「靠 GPT」轉為確定性穩定（同 FIX-108 的驗收邏輯）。
+>
+> ⚠️ **CEVA 5 條的時序備註**:CEVA 正走公司合併（CHANGE-103）。若合併後 canonical set 換成另一個 company 的 set,這 5 條需以 `apply-fix110-aliases.js` 重跑補到新 canonical set。
 
 ---
 
@@ -140,8 +150,9 @@ GPT 抽出的原始 `lineItems`（description + amount）通常是對的,但把 
 - 比對邏輯逐字複製 `src/services/extraction-v3/utils/classify-normalizer.ts`（`canonicalizeLabel` / `matchLabel`）與 `stage-3-extraction.service.ts`（`resolveUniqueChargeKey`）。
 - 「乾淨 description」定義:不含任何數字字元。
 - 碰撞檢查:模擬把 alias 加入目標 key 後,重跑 `resolveUniqueChargeKey`,確認回傳目標 key（9 條全 `safe: true`）。
+- §7 套用:2026-07-15 經 Kudu sidecar 以參數化 `UPDATE ... SET fields = $1::jsonb` 冪等寫入（先 dry-run 後 apply,寫後回讀驗證 9 條全存在）;等效邏輯固化於 `prisma/apply-fix110-aliases.js`。
 
 ---
 
 *文件建立日期: 2026-07-15*
-*最後更新: 2026-07-15（分析完成 + 對照表產出;套用待授權）*
+*最後更新: 2026-07-15（9 條 aliases 已套用 + 回讀驗證;可重現腳本已提交;既有文件待重處理生效）*
