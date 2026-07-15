@@ -1,5 +1,7 @@
 # CHANGE-054: 新環境部署可靠性強化（Deployment Readiness Enhancement）
 
+> **狀態**: ✅ 已完成（2026-04-22）
+
 ## 變更摘要
 
 | 項目 | 內容 |

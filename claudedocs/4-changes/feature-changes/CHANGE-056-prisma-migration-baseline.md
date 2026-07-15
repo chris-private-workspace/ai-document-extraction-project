@@ -1,5 +1,7 @@
 # CHANGE-056: Prisma Migration Baseline（重建基線）
 
+> **狀態**: 📋 規劃中（待 CHANGE-055 Phase 1 架構評審完成後實施）
+
 ## 變更摘要
 
 | 項目 | 內容 |

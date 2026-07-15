@@ -1,5 +1,7 @@
 # CHANGE-064: SSRF 防護白名單（Server-Side Request Forgery Whitelist）
 
+> **狀態**: 📋 規劃中
+
 ## 變更摘要
 
 | 項目 | 內容 |
