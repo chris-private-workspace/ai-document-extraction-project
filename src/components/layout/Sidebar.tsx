@@ -60,6 +60,7 @@ import {
   Wrench,
   Settings2,
   Cpu,
+  CopyCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -135,6 +136,7 @@ const navigation: NavSection[] = [
     items: [
       { nameKey: 'sidebar.mappingRules', href: '/rules', icon: GitBranch },
       { nameKey: 'sidebar.companies', href: '/companies', icon: Building2 },
+      { nameKey: 'sidebar.duplicateReview', href: '/admin/companies/duplicate-review', icon: CopyCheck },
       { nameKey: 'sidebar.referenceNumbers', href: '/admin/reference-numbers', icon: Hash },
       { nameKey: 'sidebar.exchangeRates', href: '/admin/exchange-rates', icon: DollarSign },
       { nameKey: 'sidebar.pipelineSettings', href: '/admin/pipeline-settings', icon: Settings2 },

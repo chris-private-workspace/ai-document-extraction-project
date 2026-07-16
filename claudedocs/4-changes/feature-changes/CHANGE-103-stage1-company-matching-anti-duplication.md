@@ -1,7 +1,7 @@
 # CHANGE-103: Stage 1 公司匹配防呆 — 識別/治理分離 + 學習迴路
 
 > **日期**: 2026-07-10
-> **狀態**: 🚧 進行中（Phase 1 組件 3 學習迴路 ✅；Phase 2a 決定性 tie-break `orderBy` ✅ 2026-07-16；**Phase 2 組件 2+4 規劃定案 ✅ 2026-07-16、待實作**；Phase 3 存量收斂 ✅ 見 [[FIX-105]]）
+> **狀態**: ✅ 已完成（Phase 1 組件 3 學習迴路 ✅ / Phase 2a `orderBy` ✅ / **Phase 2 組件 2+4 token-set 配對 + PENDING 審核 UI ✅ 2026-07-16 實作** / Phase 3 存量收斂 ✅ 見 [[FIX-105]]）。⏳ 審核 UI 待瀏覽器/E2E + 部署驗證
 > **優先級**: High（公司主檔品質 = 三層映射 + template mapping 的根基）
 > **類型**: Feature / 架構強化（Stage 1 公司識別防呆）
 > **影響範圍**: `src/services/extraction-v3/stages/stage-1-company.service.ts`、`company.service.ts`、（可能）Company schema、公司管理 UI（組件 4）
@@ -282,3 +282,19 @@ Step 3 (497-521): autoCreate → findDuplicateCompany 防重 → jitCreateCompan
 - **H1**：schema 為純加 nullable 欄位（例外允許）；配對邏輯強化屬 CHANGE-103 既定範圍（非擅自偏離三層映射/信心度路由/既有 Prisma 結構）→ 未觸發。
 - **H5**：審核 UI 字串必須 3 語言同步（`companies` namespace）+ `i18n:check`。
 - H2/H4/H6：N/A（無新 vendor/dep、無 PII/secret、無設計偏離）。
+
+### Phase 2 實作完成（2026-07-16，並行 agent 編排）
+
+| 模組 | 檔案 |
+|------|------|
+| 基礎 | `prisma/schema.prisma`（+`suspectedDuplicateOfId` + 自我關聯 + index）、migration `20260716113449_add_company_suspected_duplicate_of_id`（本地 DB 已套用）、`src/services/similarity/token-set.ts`（+ index 導出） |
+| 組件 2（配對） | `stage-1-company.service.ts`：`findDuplicateCompany` 改兩段式（EXACT 優先 → token-set AUTO>GRAY，回傳 `{tier,company}`）；`jitCreateCompany` 加 `opts`（PENDING + marker）；`resolveCompanyId` Step 3 灰帶 → PENDING |
+| 組件 4 後端 | `company.service.ts`：`listPendingReviewCompanies` / `confirmCompanyAsNew` / `confirmCompanyMerge`（單一 transaction，**補 `mergeCompanies` 漏轉 extraction_results 缺口**）；`api/companies/pending/{route, [id]/confirm-new, [id]/confirm-merge}`（RFC 7807 + auth + Zod） |
+| 組件 4 前端 | `admin/companies/duplicate-review/{page, duplicate-review-content, duplicate-review-row}`、`hooks/use-duplicate-review.ts`、`Sidebar.tsx` 導航、`messages/{en,zh-TW,zh-CN}/{companies,navigation}.json`（3 語言 74 key） |
+| 測試 | `token-set.test.ts`（15）、`stage-1-company-tokenset-gray.test.ts`（5，含灰帶→PENDING + DHL 迴歸） |
+
+**品質 gate**：`type-check` 0 ✅ / `lint` 0 error ✅ / `i18n:check` ✅ / 單元測試 24/24 ✅ / 組件行數 271+124（≤300）✅。
+
+**實作方式**：主 session 序列做 schema + token-set 基礎（敏感/依賴前置），再並行 2 個 code-implementer（Stage 1 配對 || PENDING 後端+API，改不同檔），第三波 UI+i18n。第三波 agent stalled 中斷但檔案已建，主 session 補齊 Row 抽檔（守 300 行）並重驗證全綠。
+
+**待驗證**：審核 UI 瀏覽器/E2E、Azure 部署（migration 隨部署套用）。`mergeCompanies` 的 extraction_results 缺口在 admin merge 舊路徑仍存在（本次僅 `confirmCompanyMerge` 補齊），可另立 FIX。
