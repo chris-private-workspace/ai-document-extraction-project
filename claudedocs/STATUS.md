@@ -74,14 +74,15 @@
 
 （無）
 
-## ⏸️ 已取代 / 已升級（2）
+## ⏸️ 已取代 / 已升級（3）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
+| [CHANGE-105](4-changes/feature-changes/CHANGE-105-office-branch-distinguishing-tokens.md) | office branch distinguishing tokens | ⏸️ 已取代（2026-07-16 同日 revert，前提被證據推翻；見文末「撤銷記錄」） |
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（172）
+## ✅ 已完成（171）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -158,7 +159,6 @@
 | [CHANGE-101](4-changes/feature-changes/CHANGE-101-batch-template-field-mappings-from-excel.md) | batch template field mappings from excel | ✅ 已完成（2026-07-09 部署 Azure DEV，寫入 18 筆） |
 | [CHANGE-103](4-changes/feature-changes/CHANGE-103-stage1-company-matching-anti-duplication.md) | stage1 company matching anti duplication | ✅ 已完成（Phase 1 組件 3 學習迴路 ✅ / Phase 2a `orderBy` ✅ / Phase 2 組件 2+4 tok… |
 | [CHANGE-104](4-changes/feature-changes/CHANGE-104-docs-governance-status-index-ci-gate.md) | docs governance status index ci gate | ✅ 已完成（2026-07-14） |
-| [CHANGE-105](4-changes/feature-changes/CHANGE-105-office-branch-distinguishing-tokens.md) | office branch distinguishing tokens | ✅ 已完成（程式碼 + 測試；存量以重新處理收斂） |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |
