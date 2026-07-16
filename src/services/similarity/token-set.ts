@@ -3,8 +3,8 @@
  * @description
  *   在既有字元級 Levenshtein（./levenshtein）之外，提供「以 token 集合」判斷公司名是否
  *   為同一公司的工具。核心概念：
- *   - `coreTokens(normalized)` = 正規化名的 token 集合，**減去 generic 詞**（地區 / 組織
- *     結構詞，如 hong/kong/hk/office/branch），只留公司「專有名」token。
+ *   - `coreTokens(normalized)` = 正規化名的 token 集合，**減去 generic 詞**（純地區詞，如
+ *     hong/kong/hk），只留公司「專有名」token。
  *   - 分層決策（{@link classifyCompanyMatch}）：core 集合**相等** → 自動配（AUTO）；
  *     一方為另一方的**嚴格子集**（即某一方多出專有 token） → 灰帶（GRAY，需人工審核）；
  *     否則 → 無關（NONE）。
@@ -12,6 +12,11 @@
  *   設計取向（CHANGE-103 §Phase 2 定案 D1 保守）：只在 core 完全相等時自動配對，任何額外
  *   專有 token 一律送灰帶人工把關，把誤併風險降到最低。generic-strip 只在本工具層進行，
  *   **不修改 `normalizeCompanyName`**，避免影響既有 normalize-equal 配對與學習安全閘。
+ *
+ *   ⚠️ CHANGE-105（2026-07-16）：`office` / `branch` 由 generic 改列「營運單位區分詞」——
+ *   移出 {@link GENERIC_COMPANY_TOKENS}。業務認定「X Office」與「X Ltd」可能是不同法人／
+ *   計費實體，故不再自動吸收：core 因多出 office/branch 而變子集 → 落 GRAY → PENDING 人工
+ *   確認，而非 AUTO 併入。純地區詞（hong/kong/hk）與法定後綴仍視為同實體、照常吸收。
  *
  *   輸入約定：本工具的函式接收「已由 `normalizeCompanyName` 正規化後」的字串
  *   （小寫、去括號內容 / 法定後綴、空白分隔）。呼叫端先正規化再傳入。
@@ -22,20 +27,20 @@
  */
 
 /**
- * Generic 公司名 token（地區 / 組織結構詞）——計算 core token 時剔除。
+ * Generic 公司名 token（純地區詞）——計算 core token 時剔除。
  * @description
- *   這些詞不是公司的「專有名」，同一公司常帶不同組合（(HK) / Hong Kong / Office / Branch），
- *   剔除後才能讓「CEVA Logistics」與「CEVA Logistics Hong Kong Office」的 core 相等。
+ *   這些詞不是公司的「專有名」，同一公司常帶不同組合（(HK) / Hong Kong），剔除後才能讓
+ *   「CEVA Logistics」與「CEVA Logistics Hong Kong」的 core 相等。
  *   法定後綴（ltd/limited/operations/...）已由 `normalizeCompanyName` 先行去除，不在此列。
  *   ⚠️ 專有分支詞（pacific / richasia / asia 等）**不**列入，以免把不同實體誤判為同一公司。
+ *   ⚠️ CHANGE-105：`office` / `branch` 亦**不**列入（營運單位可能是不同法人／計費實體）——
+ *   「X Office」與「X Ltd」不再自動吸收為同一公司，改落 GRAY 人工審核。
  */
 export const GENERIC_COMPANY_TOKENS: ReadonlySet<string> = new Set([
   'hong',
   'kong',
   'hongkong',
   'hk',
-  'office',
-  'branch',
   'warehouse',
   'terminal',
   'group',

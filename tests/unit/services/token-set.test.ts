@@ -20,9 +20,21 @@ import {
 } from '@/services/similarity/token-set'
 
 describe('CHANGE-103 Phase 2 組件 2：token-set 工具', () => {
-  describe('coreTokens（剔除 generic 地區/組織詞）', () => {
-    it('should strip region words (hong/kong/office) leaving proprietary tokens', () => {
+  describe('coreTokens（剔除 generic 純地區詞）', () => {
+    it('should strip region words (hong/kong) leaving proprietary tokens', () => {
+      expect([...coreTokens('ceva logistics hong kong')].sort()).toEqual([
+        'ceva',
+        'logistics',
+      ])
+    })
+    it('should keep office/branch as distinguishing tokens (CHANGE-105)', () => {
       expect([...coreTokens('ceva logistics hong kong office')].sort()).toEqual([
+        'ceva',
+        'logistics',
+        'office',
+      ])
+      expect([...coreTokens('ceva logistics branch')].sort()).toEqual([
+        'branch',
         'ceva',
         'logistics',
       ])
@@ -34,8 +46,8 @@ describe('CHANGE-103 Phase 2 組件 2：token-set 工具', () => {
         'pacific',
       ])
     })
-    it('should return empty set for generic-only names', () => {
-      expect(coreTokens('hong kong office').size).toBe(0)
+    it('should return empty set for generic-only (pure region) names', () => {
+      expect(coreTokens('hong kong hk').size).toBe(0)
     })
   })
 
@@ -60,8 +72,9 @@ describe('CHANGE-103 Phase 2 組件 2：token-set 工具', () => {
     it.each([
       ['ceva logistics ceva logistics', 'AUTO'], // (HONG KONG) LIMITED（CEVA Logistics）
       ['ceva logistics hong kong', 'AUTO'], // CEVA Logistics Hong Kong Limited
-      ['ceva logistics hong kong office', 'AUTO'], // Ceva Logistics Hong Kong Office
-      ['ceva logistics office', 'AUTO'], // CEVA Logistics (Hong Kong) Office
+      ['ceva logistics hong kong office', 'GRAY'], // CHANGE-105: office 為區分詞 → 灰帶
+      ['ceva logistics office', 'GRAY'], // CHANGE-105: office 為區分詞 → 灰帶
+      ['ceva logistics branch', 'GRAY'], // CHANGE-105: branch 為區分詞 → 灰帶
       ['ceva logistics pacific', 'GRAY'], // (RICHASIA) PACIFIC OPERATIONS LIMITED
       ['ceva logistics kong littd', 'GRAY'], // (香港) KONG LITTD（OCR 亂碼）
       ['ricon asia pacific ceva logistics', 'GRAY'], // RICON ...（CEVA LOGISTICS）
