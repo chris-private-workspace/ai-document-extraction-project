@@ -437,6 +437,9 @@ Response format (JSON):
           ],
           status: 'ACTIVE',
         },
+        // CHANGE-103 Phase 2: 決定性 tie-break —— 重複公司並存時穩定選最早建立者，
+        //   消除原 findFirst 無 orderBy 的非確定（跨環境 DB 列順序不同 → 同輸入選到不同公司）
+        orderBy: { createdAt: 'asc' },
         select: { id: true, name: true, nameVariants: true },
       });
 
@@ -465,6 +468,8 @@ Response format (JSON):
             { name: { contains: candidate, mode: 'insensitive' } },
           ],
         },
+        // CHANGE-103 Phase 2: 決定性 tie-break（`contains` 子字串可命中多筆時尤其重要）
+        orderBy: { createdAt: 'asc' },
         select: { id: true, name: true, nameVariants: true },
       });
 
@@ -486,6 +491,8 @@ Response format (JSON):
       if (normCandidate) {
         const activeCompanies = await this.prisma.company.findMany({
           where: { status: 'ACTIVE' },
+          // CHANGE-103 Phase 2: 決定性順序，使後續 .find() 首個正規化命中穩定
+          orderBy: { createdAt: 'asc' },
           select: { id: true, name: true, nameVariants: true },
         });
 
@@ -654,6 +661,8 @@ Response format (JSON):
     if (!normCandidate) return null;
 
     const companies = await this.prisma.company.findMany({
+      // CHANGE-103 Phase 2: 決定性順序，使重複偵測（findDuplicateCompany）首個命中穩定
+      orderBy: { createdAt: 'asc' },
       select: { id: true, name: true, nameVariants: true },
     });
 

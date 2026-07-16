@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 102 | CHANGE-104 | **CHANGE-105** |
-| FIX | 112 | FIX-110 | **FIX-111** |
+| FIX | 113 | FIX-111 | **FIX-112** |
 
 ## 📋 未開始（25）
 
@@ -55,7 +55,7 @@
 | [CHANGE-079](4-changes/feature-changes/CHANGE-079-city-scope-idor-unified-fix.md) | city scope idor unified fix | ✅ 已實作（程式碼層面，2026-06-10）：6 套用點全部完成；單元測試 + 執行期待驗證 |
 | [CHANGE-091](4-changes/feature-changes/CHANGE-091-template-instance-flow-ux-async-progress.md) | template instance flow ux async progress | 🚧 Phase 1 已完成（2026-06-26）／Phase 2 待實作 |
 | [CHANGE-095](4-changes/feature-changes/CHANGE-095-allow-editing-company-code.md) | allow editing company code | 🔬 待 E2E 驗證（實作完成、type-check/lint 通過；使用者自行測試中） |
-| [CHANGE-103](4-changes/feature-changes/CHANGE-103-stage1-company-matching-anti-duplication.md) | stage1 company matching anti duplication | 🚧 進行中（Phase 1 = 組件 3 學習迴路 ✅ 已實作 + 測試；Phase 2/3 待續。2026-07-10 review … |
+| [CHANGE-103](4-changes/feature-changes/CHANGE-103-stage1-company-matching-anti-duplication.md) | stage1 company matching anti duplication | 🚧 進行中（Phase 1 組件 3 學習迴路 ✅；Phase 2a 決定性 tie-break `orderBy` ✅ 2026-07… |
 | [FIX-065](4-changes/bug-fixes/FIX-065-mapping-api-auth-and-city-scope.md) | mapping api auth and city scope | 🔧 認證已修復（2026-06-10）；城市範圍 IDOR 留 WP-4 |
 | [FIX-067](4-changes/bug-fixes/FIX-067-v1-confidence-prompts-classified-auth.md) | v1 confidence prompts classified auth | 🔧 部分修復（2026-06-10）：confidence/prompts/classified 已修；`/api/v1` 留 WP-2… |
 | [FIX-069](4-changes/bug-fixes/FIX-069-redos-safe-regex-execution.md) | redos safe regex execution | ✅ 核心已完成（2026-06-11，程式碼層面；執行期 staging 驗證待部署） |
@@ -82,7 +82,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（167）
+## ✅ 已完成（168）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -253,4 +253,5 @@
 | [FIX-105](4-changes/bug-fixes/FIX-105-ceva-duplicate-company-cleanup-rename.md) | ceva duplicate company cleanup rename | ✅ 本地已修復 / ✅ Azure DEV 已同步（2026-07-16：合併 5 筆 source + 正名 + 112 筆轉移，rea… |
 | [FIX-109](4-changes/bug-fixes/FIX-109-pipeline-config-refmatch-scope-guard.md) | pipeline config refmatch scope guard | ✅ 已修復（2026-06-18，靜態驗證通過；UI 端到端待 dev server 驗證） |
 | [FIX-110](4-changes/bug-fixes/FIX-110-lineitem-charge-alias-hit-rate-audit.md) | lineitem charge alias hit rate audit | ✅ 已完成（9 條 aliases 已於 2026-07-15 冪等寫入 Azure DEV 並回讀驗證;可重現腳本 `prisma/ap… |
+| [FIX-111](4-changes/bug-fixes/FIX-111-stage3-global-prompt-selection-nondeterminism-hkd-bypass.md) | stage3 global prompt selection nondeterminism hkd bypass | ✅ 程式碼 + 腳本完成 · ✅ Azure DEV 即時修正已套用（2026-07-16，讀回驗證 VERIFY_PASS）· ⏳ 程式… |
 
