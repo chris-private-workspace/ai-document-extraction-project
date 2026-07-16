@@ -357,15 +357,19 @@ export class Stage3ExtractionService {
 
     // 1. 嘗試 FORMAT 級配置
     if (formatId && companyId) {
-      const formatConfig = await this.prisma.promptConfig.findFirst({
-        where: {
-          scope: 'FORMAT',
-          documentFormatId: formatId,
-          companyId,
-          isActive: true,
-          promptType: { in: [...extractionPromptTypes] },
-        },
-      });
+      // FIX-111: findMany + 決定性挑選（STAGE_3 優先、updatedAt desc），取代原 findFirst 無序選型
+      const formatConfig = this.pickPreferredExtractionConfig(
+        await this.prisma.promptConfig.findMany({
+          where: {
+            scope: 'FORMAT',
+            documentFormatId: formatId,
+            companyId,
+            isActive: true,
+            promptType: { in: [...extractionPromptTypes] },
+          },
+          orderBy: { updatedAt: 'desc' },
+        })
+      );
       if (formatConfig) {
         return {
           id: formatConfig.id,
@@ -379,14 +383,18 @@ export class Stage3ExtractionService {
 
     // 2. 嘗試 COMPANY 級配置
     if (companyId) {
-      const companyConfig = await this.prisma.promptConfig.findFirst({
-        where: {
-          scope: 'COMPANY',
-          companyId,
-          isActive: true,
-          promptType: { in: [...extractionPromptTypes] },
-        },
-      });
+      // FIX-111: 同上，決定性挑選
+      const companyConfig = this.pickPreferredExtractionConfig(
+        await this.prisma.promptConfig.findMany({
+          where: {
+            scope: 'COMPANY',
+            companyId,
+            isActive: true,
+            promptType: { in: [...extractionPromptTypes] },
+          },
+          orderBy: { updatedAt: 'desc' },
+        })
+      );
       if (companyConfig) {
         return {
           id: companyConfig.id,
@@ -399,13 +407,18 @@ export class Stage3ExtractionService {
     }
 
     // 3. 使用 GLOBAL 級配置
-    const globalConfig = await this.prisma.promptConfig.findFirst({
-      where: {
-        scope: 'GLOBAL',
-        isActive: true,
-        promptType: { in: [...extractionPromptTypes] },
-      },
-    });
+    // FIX-111: 同上，決定性挑選（原本兩型 active GLOBAL 並存時 findFirst 無序 → 可能選到
+    //   無 HKD 規則的 FIELD_EXTRACTION，使 STAGE_3 的 HKD 提取指示被旁路）
+    const globalConfig = this.pickPreferredExtractionConfig(
+      await this.prisma.promptConfig.findMany({
+        where: {
+          scope: 'GLOBAL',
+          isActive: true,
+          promptType: { in: [...extractionPromptTypes] },
+        },
+        orderBy: { updatedAt: 'desc' },
+      })
+    );
 
     if (!globalConfig) {
       // 返回預設配置
@@ -424,6 +437,24 @@ export class Stage3ExtractionService {
       userPromptTemplate: globalConfig.userPromptTemplate || '',
       imageDetailMode: 'auto',
     };
+  }
+
+  /**
+   * FIX-111: 從候選提取類 PromptConfig 中決定性挑選。
+   * @description
+   *   同一 scope 下可能同時存在 STAGE_3_FIELD_EXTRACTION（V3.1 專用）與 FIELD_EXTRACTION
+   *   （通用/legacy）兩型 active 配置。原 findFirst({ promptType: { in: [...] } }) 無 orderBy，
+   *   由 DB 實體列順序任意選一 → 非確定性（Azure DEV 實測選中無 HKD 規則的 FIELD_EXTRACTION，
+   *   使 GLOBAL STAGE_3 的「amount HKD only」提取指示被旁路 → 費用金額取到非 HKD 欄）。
+   *   本方法明確優先 STAGE_3_FIELD_EXTRACTION；同型多筆時交由呼叫端 updatedAt desc 排序決定。
+   */
+  private pickPreferredExtractionConfig<T extends { promptType: string }>(
+    configs: T[]
+  ): T | null {
+    if (configs.length === 0) return null;
+    return (
+      configs.find((c) => c.promptType === 'STAGE_3_FIELD_EXTRACTION') ?? configs[0]
+    );
   }
 
   /**
