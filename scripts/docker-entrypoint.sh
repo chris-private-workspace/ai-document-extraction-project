@@ -74,5 +74,16 @@ if [ "$RUN_FIX110_ALIAS_BACKFILL" = "true" ]; then
   node prisma/apply-fix110-aliases.js || echo "[entrypoint] FIX-110 alias backfill failed (non-fatal), continuing"
 fi
 
+# (選用)一次性 FIX-111 停用多餘 GLOBAL FIELD_EXTRACTION —— 由
+# RUN_FIX111_DEACTIVATE_FIELD_EXTRACTION=true 觸發,非致命。兩型 active GLOBAL 提取 prompt
+# (STAGE_3_FIELD_EXTRACTION 帶 HKD 規則 / FIELD_EXTRACTION 通用無 HKD)並存時,Stage 3 選型
+# 非確定 → HKD 規則被旁路(FIX-111 根因)。此步驟停用通用 FIELD_EXTRACTION,只留
+# STAGE_3_FIELD_EXTRACTION(冪等、含安全閘;legacy 路徑 fallback 到內容相同的 static prompt)。
+# 程式碼修正(pickPreferredExtractionConfig)隨映像生效後即根治;本步驟為映像重建前的即時修正。補完後設回 false。
+if [ "$RUN_FIX111_DEACTIVATE_FIELD_EXTRACTION" = "true" ]; then
+  echo "[entrypoint] (optional) applying FIX-111 deactivate redundant GLOBAL FIELD_EXTRACTION"
+  node prisma/apply-fix111-deactivate-field-extraction.js || echo "[entrypoint] FIX-111 deactivate failed (non-fatal), continuing"
+fi
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js
