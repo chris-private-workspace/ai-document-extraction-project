@@ -89,23 +89,35 @@ describe('CHANGE-103 Phase 2：Stage 1 token-set 分層配對 + 灰帶 PENDING',
     expect(update).not.toHaveBeenCalled()
   })
 
-  it('AUTO candidate（額外 generic 地區/結構詞）→ 配到既有、不建新公司', async () => {
+  it('CHANGE-105：「… Office」（office 為區分詞）→ GRAY → 建 PENDING（不再 AUTO 併入）', async () => {
     // norm("CEVA Logistics Hong Kong Office") = "ceva logistics hong kong office"（Step 2b 正規化不等）
-    // core {ceva,logistics}（hong/kong/office 為 generic）== 既有 core {ceva,logistics} → AUTO
+    // CHANGE-105 後 office 不再為 generic → core {ceva,logistics,office} ⊃ 既有 {ceva,logistics} → GRAY
     findFirst.mockResolvedValue(null) // Step 2a 未命中
     findMany.mockResolvedValue([
       { id: 'ceva-master', name: 'CEVA Logistics', nameVariants: [] },
     ])
+    create.mockResolvedValue({
+      id: 'pending-office',
+      name: 'CEVA Logistics Hong Kong Office',
+    })
 
     const result = await resolve(makeParsed('CEVA Logistics Hong Kong Office'), {
       autoCreateCompany: true,
     })
 
-    expect(result.isNewCompany).toBe(false)
-    expect(result.companyId).toBe('ceva-master')
-    expect(result.companyName).toBe('CEVA Logistics')
-    // AUTO 配到既有 → 不建任何新公司（含 PENDING）
-    expect(create).not.toHaveBeenCalled()
+    // 灰帶 → 建 PENDING 新公司（不再自動併入既有）
+    expect(result.isNewCompany).toBe(true)
+    expect(result.companyId).toBe('pending-office')
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'PENDING',
+          suspectedDuplicateOfId: 'ceva-master',
+        }),
+      })
+    )
+    // 不動既有
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('DHL 迴歸（FIX-077 經典四寫法之一）：正規化相等 → Step 2b 配到既有，零回歸', async () => {
@@ -126,14 +138,15 @@ describe('CHANGE-103 Phase 2：Stage 1 token-set 分層配對 + 灰帶 PENDING',
   })
 
   it('DHL 迴歸（token-set AUTO 路徑）：正規化不等但 core 相等 → findDuplicateCompany 配到既有', async () => {
-    // norm("DHL Express (Hong Kong) Office") = "dhl express office"（Step 2b 正規化不等、Levenshtein 亦低）
-    // core {dhl,express}（office 為 generic）== 既有 core {dhl,express} → token-set AUTO
+    // norm("DHL Express Hong Kong") = "dhl express hong kong"（Step 2b 正規化不等、Levenshtein 亦低）
+    // core {dhl,express}（hong/kong 仍為 generic 純地區詞）== 既有 core {dhl,express} → token-set AUTO
+    // （CHANGE-105 只把 office/branch 改為區分詞，純地區詞照常吸收，此路徑零回歸）
     findFirst.mockResolvedValue(null) // Step 2a 未命中
     findMany.mockResolvedValue([
       { id: 'dhl-master', name: 'DHL Express', nameVariants: [] },
     ])
 
-    const result = await resolve(makeParsed('DHL Express (Hong Kong) Office'), {
+    const result = await resolve(makeParsed('DHL Express Hong Kong'), {
       autoCreateCompany: true,
     })
 
