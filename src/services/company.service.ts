@@ -1687,6 +1687,251 @@ export async function getCompanyForEdit(id: string): Promise<{
 }
 
 // ============================================================
+// CHANGE-103 Phase 2（組件 4）：PENDING 疑似重複公司人工審核
+// ============================================================
+
+/**
+ * PENDING 審核佇列項目
+ *
+ * @description
+ *   灰帶 JIT 建立的 PENDING 公司，附帶其疑似重複的目標公司資訊，
+ *   供公司管理頁的人工審核佇列使用。
+ */
+export interface PendingReviewCompanyItem {
+  /** PENDING 公司 ID */
+  id: string
+  /** PENDING 公司名稱（canonical name） */
+  name: string
+  /** PENDING 公司顯示名稱 */
+  displayName: string
+  /** 建立時間（首次出現時間） */
+  createdAt: Date
+  /** 該 PENDING 公司目前綁定的文件數 */
+  documentCount: number
+  /** 疑似重複的目標公司（灰帶命中的既有公司） */
+  suspectedDuplicateOf: {
+    id: string
+    name: string
+    displayName: string
+    /** 目標公司目前綁定的文件數 */
+    documentCount: number
+  } | null
+}
+
+/**
+ * 取得所有待審核的 PENDING 疑似重複公司
+ *
+ * @description
+ *   列出所有 status=PENDING 且 suspectedDuplicateOfId 非空的公司（灰帶 JIT 產物），
+ *   附帶各自的文件數，以及疑似重複目標公司的基本資訊 + 文件數，供人工審核佇列使用。
+ *   以 createdAt 升序排列，讓最早出現者優先審核。
+ *
+ * @returns 待審核公司列表（不分頁；PENDING 疑似重複量預期不大）
+ */
+export async function listPendingReviewCompanies(): Promise<PendingReviewCompanyItem[]> {
+  const companies = await prisma.company.findMany({
+    where: {
+      status: 'PENDING' as PrismaCompanyStatus,
+      suspectedDuplicateOfId: { not: null },
+    },
+    select: {
+      id: true,
+      name: true,
+      displayName: true,
+      createdAt: true,
+      _count: { select: { documents: true } },
+      suspectedDuplicateOf: {
+        select: {
+          id: true,
+          name: true,
+          displayName: true,
+          _count: { select: { documents: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  return companies.map((company) => ({
+    id: company.id,
+    name: company.name,
+    displayName: company.displayName,
+    createdAt: company.createdAt,
+    documentCount: company._count.documents,
+    suspectedDuplicateOf: company.suspectedDuplicateOf
+      ? {
+          id: company.suspectedDuplicateOf.id,
+          name: company.suspectedDuplicateOf.name,
+          displayName: company.suspectedDuplicateOf.displayName,
+          documentCount: company.suspectedDuplicateOf._count.documents,
+        }
+      : null,
+  }))
+}
+
+/**
+ * 確認 PENDING 公司為「全新公司」
+ *
+ * @description
+ *   人工審核判定該 PENDING 公司並非既有公司的變體 → 升為 ACTIVE 並清除疑似重複標記，
+ *   使其得以進入 loadKnownCompanies 的 ACTIVE 候選。
+ *
+ * @param companyId - 待確認的 PENDING 公司 ID
+ * @returns 更新後的公司（id / name / status）
+ * @throws Error 若公司不存在（訊息含 "not found"）
+ * @throws Error 若公司非 PENDING 狀態（訊息含 "not in PENDING status"）
+ */
+export async function confirmCompanyAsNew(companyId: string): Promise<{
+  id: string
+  name: string
+  status: CompanyStatus
+}> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true, status: true },
+  })
+
+  if (!company) {
+    throw new Error(`Company not found: ${companyId}`)
+  }
+
+  if (company.status !== 'PENDING') {
+    throw new Error(
+      `Company ${companyId} is not in PENDING status (current: ${company.status}); cannot confirm as new`
+    )
+  }
+
+  const updated = await prisma.company.update({
+    where: { id: companyId },
+    data: {
+      status: 'ACTIVE' as PrismaCompanyStatus,
+      suspectedDuplicateOfId: null,
+    },
+    select: { id: true, name: true, status: true },
+  })
+
+  return {
+    id: updated.id,
+    name: updated.name,
+    status: updated.status as CompanyStatus,
+  }
+}
+
+/**
+ * 確認 PENDING 公司為「既有公司變體」並併入疑似目標
+ *
+ * @description
+ *   人工審核判定該 PENDING 公司是其 suspectedDuplicateOfId 目標公司的變體 → 執行完整合併。
+ *   於單一 transaction 內原子性完成：
+ *   1. 合併 nameVariants（來源 name + 變體 append 到目標，去重不覆蓋）
+ *   2. 轉移 documents（company_id → 目標）
+ *   3. 轉移 extractionResults（company_id → 目標）— **補既有 `mergeCompanies` 未轉移提取結果的缺口**
+ *   4. 轉移 mappingRules（company_id → 目標）
+ *   5. 來源公司設為 MERGED + mergedIntoId=目標 + 清除疑似重複標記
+ *
+ * @param companyId - 待併入的 PENDING 公司 ID
+ * @returns 合併結果（轉移數量統計）
+ * @throws Error 若公司不存在（訊息含 "not found"）
+ * @throws Error 若公司非 PENDING 狀態（訊息含 "not in PENDING status"）
+ * @throws Error 若公司無 suspectedDuplicateOfId（訊息含 "no suspectedDuplicateOfId"）
+ */
+export async function confirmCompanyMerge(companyId: string): Promise<{
+  sourceId: string
+  targetId: string
+  documentsTransferred: number
+  extractionResultsTransferred: number
+  rulesTransferred: number
+}> {
+  return prisma.$transaction(async (tx) => {
+    // 1. 讀取來源公司並驗證：必須 PENDING 且有疑似重複目標
+    const source = await tx.company.findUnique({
+      where: { id: companyId },
+      select: {
+        id: true,
+        name: true,
+        nameVariants: true,
+        status: true,
+        suspectedDuplicateOfId: true,
+      },
+    })
+
+    if (!source) {
+      throw new Error(`Company not found: ${companyId}`)
+    }
+
+    if (source.status !== 'PENDING') {
+      throw new Error(
+        `Company ${companyId} is not in PENDING status (current: ${source.status}); cannot confirm merge`
+      )
+    }
+
+    if (!source.suspectedDuplicateOfId) {
+      throw new Error(
+        `Company ${companyId} has no suspectedDuplicateOfId; nothing to merge into`
+      )
+    }
+
+    const targetId = source.suspectedDuplicateOfId
+
+    // 2. 讀取目標公司
+    const target = await tx.company.findUnique({
+      where: { id: targetId },
+      select: { id: true, nameVariants: true },
+    })
+
+    if (!target) {
+      throw new Error(`Suspected duplicate target company not found: ${targetId}`)
+    }
+
+    // 3. 合併 nameVariants（去重、append 不覆蓋）
+    const combinedVariants = [
+      ...new Set([...target.nameVariants, source.name, ...source.nameVariants]),
+    ]
+
+    await tx.company.update({
+      where: { id: targetId },
+      data: { nameVariants: combinedVariants },
+    })
+
+    // 4. 轉移文件
+    const documentsResult = await tx.document.updateMany({
+      where: { companyId: source.id },
+      data: { companyId: targetId },
+    })
+
+    // 5. 轉移提取結果（補既有 mergeCompanies 缺口：其僅轉移 documents + mappingRules，未處理 extractionResults）
+    const extractionResultsResult = await tx.extractionResult.updateMany({
+      where: { companyId: source.id },
+      data: { companyId: targetId },
+    })
+
+    // 6. 轉移映射規則
+    const rulesResult = await tx.mappingRule.updateMany({
+      where: { companyId: source.id },
+      data: { companyId: targetId },
+    })
+
+    // 7. 來源公司設為 MERGED + 記錄合併目標 + 清除疑似重複標記
+    await tx.company.update({
+      where: { id: source.id },
+      data: {
+        status: 'MERGED' as PrismaCompanyStatus,
+        mergedIntoId: targetId,
+        suspectedDuplicateOfId: null,
+      },
+    })
+
+    return {
+      sourceId: source.id,
+      targetId,
+      documentsTransferred: documentsResult.count,
+      extractionResultsTransferred: extractionResultsResult.count,
+      rulesTransferred: rulesResult.count,
+    }
+  })
+}
+
+// ============================================================
 // 向後相容別名 (DEPRECATED)
 // ============================================================
 

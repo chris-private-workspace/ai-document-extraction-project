@@ -1,7 +1,7 @@
 # CHANGE-103: Stage 1 公司匹配防呆 — 識別/治理分離 + 學習迴路
 
 > **日期**: 2026-07-10
-> **狀態**: 🚧 進行中（Phase 1 組件 3 學習迴路 ✅；**Phase 2a 決定性 tie-break `orderBy` ✅ 2026-07-16**；Phase 2 組件 2/4 + Phase 3 存量收斂待續）
+> **狀態**: ✅ 已完成（Phase 1 組件 3 學習迴路 ✅ / Phase 2a `orderBy` ✅ / **Phase 2 組件 2+4 token-set 配對 + PENDING 審核 UI ✅ 2026-07-16 實作** / Phase 3 存量收斂 ✅ 見 [[FIX-105]]）。⏳ 審核 UI 待瀏覽器/E2E + 部署驗證
 > **優先級**: High（公司主檔品質 = 三層映射 + template mapping 的根基）
 > **類型**: Feature / 架構強化（Stage 1 公司識別防呆）
 > **影響範圍**: `src/services/extraction-v3/stages/stage-1-company.service.ts`、`company.service.ts`、（可能）Company schema、公司管理 UI（組件 4）
@@ -103,7 +103,7 @@ Step 3 (497-521): autoCreate → findDuplicateCompany 防重 → jitCreateCompan
 | OQ-1 | Canonical 用既有 `name` 還是新增 `legalName` 欄位 | ✅ A：用既有 `name`（不動 schema，治理階段正名） |
 | OQ-2 | 組件 4（PENDING 閘門 + 審核 UI）納入本 CHANGE 還是拆 | ✅ 拆：組件 4 + UI 移 Phase 2 |
 | OQ-3 | 變體回寫的護欄 | ✅ 改用**正規化-相等安全閘**（零誤併），不依賴 confidence 門檻；精確匹配才回寫、可自動 |
-| OQ-4 | token-set 門檻 + 防誤併不同實體（RICHASIA）機制 | ⏳ 延至 Phase 2（隨組件 2 定義 containment/Jaccard 門檻 + 核心 token 護欄） |
+| OQ-4 | token-set 門檻 + 防誤併不同實體（RICHASIA）機制 | ✅ Resolved 2026-07-16（見 §Phase 2 實作設計）：保守 core-相等自動配、額外專有 token/head 非 core → 灰帶 PENDING 人工把關 |
 
 ---
 
@@ -199,3 +199,102 @@ Step 3 (497-521): autoCreate → findDuplicateCompany 防重 → jitCreateCompan
 | 品質 gate | `npm run type-check` ✅ |
 | Strict Mode | H1 未觸發（bug fix 性質，未改三層映射/信心度/schema）；H2/H4/H5/H6 N/A |
 | 關聯 | [[FIX-105]]（Azure CEVA 存量合併，2026-07-16 盤點 8 筆）、[[FIX-111]]（同源 findFirst-無-orderBy 非確定 anti-pattern，出現在 Stage 3 prompt 選型）|
+
+---
+
+## Phase 2 實作設計（規劃定案 2026-07-16）
+
+> 本節為組件 2（token-set 配對）+ 組件 4（灰帶 PENDING + 完整審核 UI）的實作定案，取代原「變更內容」中的高階描述。以合併 [[FIX-105]] 後拿到的真實 8 筆 CEVA + DHL 迴歸案例校準（`scratchpad/calibrate-tokenset.js` 驗證）。
+
+### 定案決策（使用者 2026-07-16 拍板）
+
+| # | 決策 | 選定 |
+|---|------|------|
+| D1 | 自動配對嚴格度 | **保守**：`core` token 集合**完全相等**才自動配；有任何額外「專有」token → 灰帶送 PENDING（誤併風險最低） |
+| D2 | 組件 4「疑似重複於 X」標記 | **加 nullable `suspectedDuplicateOfId String?`**（Company，純加、向後相容） |
+| D3 | 組件 2 與組件 4 相位 | **一次做完**（配對 + PENDING 後端 + 完整人工審核 UI） |
+
+### 組件 2 — token-set 分層配對
+
+**核心概念**：`core(name)` = `normalizeCompanyName(name)` 的 token 集合，**再減去 generic 詞**（地區/組織結構詞），保留公司專有名。
+
+- **generic 詞清單（strip）**：`hong` / `kong` / `hongkong` / `hk` / `office` / `branch` / `warehouse` / `terminal` / `group` / `holdings` / `holding` / `international` / `intl` / `global` / `the`（legal 後綴 `ltd/limited/operations/...` 已由 `normalizeCompanyName` 去除）
+- **proprietary 詞**：其餘全部（`ceva` / `logistics` / `ricon` / `pacific` / `asia` / `littd` …）
+
+**分層決策**（在 `findDuplicateCompany` + Step 2b，於現有 normalize-exact / Levenshtein 之外新增）：
+
+| Tier | 條件 | 動作 |
+|------|------|------|
+| A 自動配 | `core(候選) == core(既有)`（集合相等） | 配到既有（沿用現行回傳 + 組件 3 學習） |
+| B 灰帶 | `core(既有) ⊂ core(候選)` 且候選多出專有 token（或候選 head token ∉ 既有 core） | → 組件 4：建 PENDING、不自動併 |
+| C 新公司 | 無 containment、Levenshtein 亦低 | JIT 建 ACTIVE（現行） |
+
+**真實資料校準結果**（canonical core = `{ceva, logistics}`）：
+
+| 名稱 | Tier | 理由 |
+|------|------|------|
+| CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics） / CEVA Logistics Hong Kong Limited / Ceva Logistics Hong Kong Office / CEVA Logistics (Hong Kong) Office | **A 自動配** | core 相等（地區/後綴/全形括號差異被吸收） |
+| CEVA Logistics (RICHASIA) PACIFIC OPERATIONS LIMITED | **B PENDING** | 額外專有 `{pacific}` |
+| RICON ASIA PACIFIC OPERATIONS LIMITED（CEVA LOGISTICS） | **B PENDING** | 額外 `{ricon,asia,pacific}`、head=`ricon` 非 core |
+| CEVA LOGISTICS (香港) KONG LITTD | **B PENDING** | 額外 `{littd}`（OCR 亂碼；預設送人工確認，不加 OCR 容錯剝除） |
+| DHL 4 寫法（FIX-077 迴歸） | **A 自動配** | 全部 core=`{dhl,express}` 相等，**零回歸** |
+
+> ⚠️ 灰帶的三筆正是 [[FIX-105]] 合併時**使用者需親自判斷**的那幾筆 → 證明送人工審核（而非自動併）是正確設計。
+
+**新增工具**（現有 `src/services/similarity/` 只有字元級 Levenshtein）：`src/services/similarity/token-set.ts` — `tokenize` / `coreTokens(genericSet)` / `jaccard` / `setEqual` / `isSubset`。generic 清單集中一處常量。
+
+### 組件 4 — 灰帶閘門 + 完整審核 UI
+
+**Schema**（D2）：`Company` 加 `suspectedDuplicateOfId String? @map("suspected_duplicate_of_id")`（+ 可選自我關聯）→ 純加 nullable，migration 為單一 `ADD COLUMN`（向後相容，H1 例外）。
+
+**後端**：
+- `jitCreateCompany` 灰帶分支：建 `status=PENDING` + 填 `suspectedDuplicateOfId`（指向 Tier B 命中的既有公司）。
+- `loadKnownCompanies`（`stage-orchestrator.service.ts`）維持只撈 `ACTIVE` → PENDING 不進候選、不繁殖；但文件仍綁該 PENDING companyId（可繼續提取，不卡住）。
+- 審核動作 API：確認為新公司（PENDING→ACTIVE、清 marker）／確認為變體（呼叫既有 `company.service.mergeCompanies` 併入 suspected 目標 + 學習變體）。
+
+**前端**（完整審核 UI）：公司管理頁新增「待審核（PENDING）」佇列 — 列 PENDING 公司 + 其 `suspectedDuplicateOfId` 對應公司 + 文件數 + 兩個動作按鈕（確認新公司 / 併入疑似目標）。i18n 3 語言（既有 `companies` namespace）。
+
+### 檔案影響
+
+| 檔案 | 變更 |
+|------|------|
+| `prisma/schema.prisma` | Company 加 `suspectedDuplicateOfId`（+ migration） |
+| `src/services/similarity/token-set.ts` | **新增** token-set 工具 + generic 常量 |
+| `src/services/extraction-v3/stages/stage-1-company.service.ts` | `findDuplicateCompany` + Step 2b 加 Tier A/B 判斷；`jitCreateCompany` 灰帶 → PENDING + marker |
+| `src/services/company.service.ts` | PENDING 審核動作（confirm-new / confirm-merge，複用 `mergeCompanies`） |
+| `src/app/api/.../companies/pending/*` | 審核佇列 + 動作 API（Zod + RFC 7807 top-level） |
+| `src/components/features/companies/*` | PENDING 審核佇列 UI |
+| `messages/{en,zh-TW,zh-CN}/companies.json` | 審核 UI i18n 3 語言 |
+
+### 測試計劃（verifiable goals）
+
+1. **單元**（token-set）：上表 CEVA/DHL 案例 → 斷言 Tier A/B 分類與校準一致；generic/proprietary 邊界。
+2. **單元**（resolveCompanyId）：Tier A 配到既有；Tier B 建 PENDING + 填 marker + 不進候選；DHL 迴歸仍 Tier A。
+3. **整合**：PENDING 審核 confirm-new → ACTIVE；confirm-merge → `mergeCompanies` 併入 + 文件轉移。
+4. `type-check` / `lint` / `i18n:check` / migration dry-run 全通過。
+
+### OQ-4 定案
+
+> OQ-4（token-set 門檻 + 防誤併不同實體 RICHASIA 機制）→ **✅ Resolved**：採 D1 保守（core 相等才自動配）+ core-token 減 generic 詞 + 額外專有 token / head 非 core → 灰帶 PENDING 人工把關。RICHASIA / RICON 正落灰帶（不自動併）。
+
+### Strict Mode 預評
+
+- **H1**：schema 為純加 nullable 欄位（例外允許）；配對邏輯強化屬 CHANGE-103 既定範圍（非擅自偏離三層映射/信心度路由/既有 Prisma 結構）→ 未觸發。
+- **H5**：審核 UI 字串必須 3 語言同步（`companies` namespace）+ `i18n:check`。
+- H2/H4/H6：N/A（無新 vendor/dep、無 PII/secret、無設計偏離）。
+
+### Phase 2 實作完成（2026-07-16，並行 agent 編排）
+
+| 模組 | 檔案 |
+|------|------|
+| 基礎 | `prisma/schema.prisma`（+`suspectedDuplicateOfId` + 自我關聯 + index）、migration `20260716113449_add_company_suspected_duplicate_of_id`（本地 DB 已套用）、`src/services/similarity/token-set.ts`（+ index 導出） |
+| 組件 2（配對） | `stage-1-company.service.ts`：`findDuplicateCompany` 改兩段式（EXACT 優先 → token-set AUTO>GRAY，回傳 `{tier,company}`）；`jitCreateCompany` 加 `opts`（PENDING + marker）；`resolveCompanyId` Step 3 灰帶 → PENDING |
+| 組件 4 後端 | `company.service.ts`：`listPendingReviewCompanies` / `confirmCompanyAsNew` / `confirmCompanyMerge`（單一 transaction，**補 `mergeCompanies` 漏轉 extraction_results 缺口**）；`api/companies/pending/{route, [id]/confirm-new, [id]/confirm-merge}`（RFC 7807 + auth + Zod） |
+| 組件 4 前端 | `admin/companies/duplicate-review/{page, duplicate-review-content, duplicate-review-row}`、`hooks/use-duplicate-review.ts`、`Sidebar.tsx` 導航、`messages/{en,zh-TW,zh-CN}/{companies,navigation}.json`（3 語言 74 key） |
+| 測試 | `token-set.test.ts`（15）、`stage-1-company-tokenset-gray.test.ts`（5，含灰帶→PENDING + DHL 迴歸） |
+
+**品質 gate**：`type-check` 0 ✅ / `lint` 0 error ✅ / `i18n:check` ✅ / 單元測試 24/24 ✅ / 組件行數 271+124（≤300）✅。
+
+**實作方式**：主 session 序列做 schema + token-set 基礎（敏感/依賴前置），再並行 2 個 code-implementer（Stage 1 配對 || PENDING 後端+API，改不同檔），第三波 UI+i18n。第三波 agent stalled 中斷但檔案已建，主 session 補齊 Row 抽檔（守 300 行）並重驗證全綠。
+
+**待驗證**：審核 UI 瀏覽器/E2E、Azure 部署（migration 隨部署套用）。`mergeCompanies` 的 extraction_results 缺口在 admin merge 舊路徑仍存在（本次僅 `confirmCompanyMerge` 補齊），可另立 FIX。

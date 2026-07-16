@@ -282,5 +282,48 @@
       "pendingReview": "Pending Review",
       "deprecated": "Deprecated"
     }
+  },
+  "duplicateReview": {
+    "pageTitle": "Duplicate Review",
+    "metaDescription": "Review companies flagged as possible duplicates",
+    "title": "Duplicate Company Review",
+    "subtitle": "Review companies auto-created in the gray zone and flagged as possible duplicates",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "loadError": "Failed to load the review queue: {error}",
+    "pendingCount": "{count} pending review",
+    "empty": {
+      "title": "No companies pending review",
+      "description": "There are currently no companies flagged as possible duplicates."
+    },
+    "table": {
+      "columns": {
+        "pendingCompany": "Pending Company",
+        "documentCount": "Documents",
+        "suspectedDuplicate": "Suspected Duplicate Of",
+        "actions": "Actions"
+      },
+      "displayName": "Display name: {name}",
+      "firstSeen": "First seen: {date}",
+      "documentsUnit": "{count} documents",
+      "noTarget": "No target"
+    },
+    "actions": {
+      "confirmNew": "Confirm as New",
+      "confirmMerge": "Merge into Target"
+    },
+    "toast": {
+      "confirmNewSuccess": "Company confirmed as new and activated",
+      "confirmNewError": "Failed to confirm as new company",
+      "confirmMergeSuccess": "Company merged into the suspected target",
+      "confirmMergeError": "Failed to merge company"
+    },
+    "mergeDialog": {
+      "title": "Confirm Merge",
+      "description": "Are you sure you want to merge \"{source}\" into \"{target}\"? All documents, extraction results, and mapping rules will be transferred to the target company.",
+      "warning": "This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Confirm Merge"
+    }
   }
 }

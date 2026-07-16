@@ -470,6 +470,8 @@ model Company {
   nameVariants              String[]                 @map("name_variants")
   identificationPatterns    String[]                 @map("identification_patterns")
   mergedIntoId              String?                  @map("merged_into_id")
+  // CHANGE-103 Phase 2（組件 4）：灰帶 JIT 建 PENDING 時記錄「疑似重複於」目標公司，供人工審核
+  suspectedDuplicateOfId    String?                  @map("suspected_duplicate_of_id")
   firstSeenDocumentId       String?                  @map("first_seen_document_id")
   logoUrl                   String?                  @map("logo_url")
   contactEmail              String?                  @map("contact_email")
@@ -484,6 +486,8 @@ model Company {
   defaultTemplate           DataTemplate?            @relation("CompanyDefaultTemplate", fields: [defaultTemplateId], references: [id])
   mergedInto                Company?                 @relation("CompanyMerge", fields: [mergedIntoId], references: [id])
   mergedFrom                Company[]                @relation("CompanyMerge")
+  suspectedDuplicateOf      Company?                 @relation("CompanySuspectedDuplicate", fields: [suspectedDuplicateOfId], references: [id])
+  suspectedDuplicates       Company[]                @relation("CompanySuspectedDuplicate")
   correctionPatterns        CorrectionPattern[]      @relation("CompanyCorrectionPatterns")
   dataTemplates             DataTemplate[]
   documentFormats           DocumentFormat[]
@@ -509,6 +513,7 @@ model Company {
   @@index([source])
   @@index([createdById])
   @@index([mergedIntoId])
+  @@index([suspectedDuplicateOfId])
   @@map("companies")
 }
 

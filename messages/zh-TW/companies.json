@@ -282,5 +282,48 @@
       "pendingReview": "待審核",
       "deprecated": "已棄用"
     }
+  },
+  "duplicateReview": {
+    "pageTitle": "重複審核",
+    "metaDescription": "審核被標記為疑似重複的公司",
+    "title": "重複公司審核",
+    "subtitle": "審核在灰帶自動建立、被標記為疑似重複的公司",
+    "refresh": "重新整理",
+    "loading": "載入中...",
+    "loadError": "無法載入審核佇列：{error}",
+    "pendingCount": "{count} 筆待審核",
+    "empty": {
+      "title": "沒有待審核的公司",
+      "description": "目前沒有被標記為疑似重複的公司。"
+    },
+    "table": {
+      "columns": {
+        "pendingCompany": "待審核公司",
+        "documentCount": "文件數",
+        "suspectedDuplicate": "疑似重複於",
+        "actions": "操作"
+      },
+      "displayName": "顯示名稱：{name}",
+      "firstSeen": "首次出現：{date}",
+      "documentsUnit": "{count} 份文件",
+      "noTarget": "無目標"
+    },
+    "actions": {
+      "confirmNew": "確認為新公司",
+      "confirmMerge": "併入疑似目標"
+    },
+    "toast": {
+      "confirmNewSuccess": "已確認為新公司並啟用",
+      "confirmNewError": "確認為新公司失敗",
+      "confirmMergeSuccess": "已併入疑似目標公司",
+      "confirmMergeError": "併入公司失敗"
+    },
+    "mergeDialog": {
+      "title": "確認合併",
+      "description": "確定要將「{source}」併入「{target}」嗎？所有文件、提取結果與映射規則都會轉移到目標公司。",
+      "warning": "此操作無法復原。",
+      "cancel": "取消",
+      "confirm": "確認合併"
+    }
   }
 }

@@ -36,3 +36,15 @@ export {
   formatDate,
   getSupportedDateFormats,
 } from './date-similarity';
+
+// 公司名 token-set 相似度（CHANGE-103 Phase 2 組件 2）
+export {
+  GENERIC_COMPANY_TOKENS,
+  tokenizeCompanyName,
+  coreTokens,
+  setsEqual,
+  isSubset,
+  jaccardSimilarity,
+  classifyCompanyMatch,
+  type CompanyMatchTier,
+} from './token-set';

@@ -282,5 +282,48 @@
       "pendingReview": "待审核",
       "deprecated": "已弃用"
     }
+  },
+  "duplicateReview": {
+    "pageTitle": "重复审核",
+    "metaDescription": "审核被标记为疑似重复的公司",
+    "title": "重复公司审核",
+    "subtitle": "审核在灰带自动创建、被标记为疑似重复的公司",
+    "refresh": "刷新",
+    "loading": "加载中...",
+    "loadError": "无法加载审核队列：{error}",
+    "pendingCount": "{count} 条待审核",
+    "empty": {
+      "title": "没有待审核的公司",
+      "description": "目前没有被标记为疑似重复的公司。"
+    },
+    "table": {
+      "columns": {
+        "pendingCompany": "待审核公司",
+        "documentCount": "文件数",
+        "suspectedDuplicate": "疑似重复于",
+        "actions": "操作"
+      },
+      "displayName": "显示名称：{name}",
+      "firstSeen": "首次出现：{date}",
+      "documentsUnit": "{count} 份文件",
+      "noTarget": "无目标"
+    },
+    "actions": {
+      "confirmNew": "确认为新公司",
+      "confirmMerge": "并入疑似目标"
+    },
+    "toast": {
+      "confirmNewSuccess": "已确认为新公司并启用",
+      "confirmNewError": "确认为新公司失败",
+      "confirmMergeSuccess": "已并入疑似目标公司",
+      "confirmMergeError": "并入公司失败"
+    },
+    "mergeDialog": {
+      "title": "确认合并",
+      "description": "确定要将“{source}”并入“{target}”吗？所有文件、提取结果与映射规则都会转移到目标公司。",
+      "warning": "此操作无法撤销。",
+      "cancel": "取消",
+      "confirm": "确认合并"
+    }
   }
 }
