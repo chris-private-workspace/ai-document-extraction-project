@@ -17,7 +17,7 @@
  *
  * @module prisma/apply-schema-drift
  * @since CHANGE-086 (2026-06-23)
- * @lastModified 2026-06-23
+ * @lastModified 2026-07-16
  */
 const { Client } = require('pg')
 
@@ -44,6 +44,24 @@ const MIGRATIONS = [
   {
     id: 'CHANGE-086 index reference_numbers_document_sub_type_idx',
     sql: `create index if not exists "reference_numbers_document_sub_type_idx" on "reference_numbers" ("document_sub_type");`,
+  },
+  // CHANGE-103 Phase 2（組件 4）：companies.suspected_duplicate_of_id（灰帶 JIT 記錄疑似重複目標）。
+  // 對應 migration 20260716113449；Azure 既有 companies 表非空，bootstrap 不會套用，需此增量補上。
+  {
+    id: 'CHANGE-103 P2 column companies.suspected_duplicate_of_id',
+    sql: `alter table "companies" add column if not exists "suspected_duplicate_of_id" text;`,
+  },
+  {
+    id: 'CHANGE-103 P2 index companies_suspected_duplicate_of_id_idx',
+    sql: `create index if not exists "companies_suspected_duplicate_of_id_idx" on "companies" ("suspected_duplicate_of_id");`,
+  },
+  {
+    id: 'CHANGE-103 P2 fk companies_suspected_duplicate_of_id_fkey',
+    sql: `do $$ begin
+      alter table "companies" add constraint "companies_suspected_duplicate_of_id_fkey"
+        foreign key ("suspected_duplicate_of_id") references "companies"("id")
+        on delete set null on update cascade;
+    exception when duplicate_object then null; end $$;`,
   },
 ]
 
