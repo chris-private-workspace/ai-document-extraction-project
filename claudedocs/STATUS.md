@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 102 | CHANGE-104 | **CHANGE-105** |
-| FIX | 112 | FIX-110 | **FIX-111** |
+| FIX | 113 | FIX-111 | **FIX-112** |
 
 ## 📋 未開始（25）
 
@@ -82,7 +82,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（167）
+## ✅ 已完成（168）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -253,4 +253,5 @@
 | [FIX-105](4-changes/bug-fixes/FIX-105-ceva-duplicate-company-cleanup-rename.md) | ceva duplicate company cleanup rename | ✅ 本地已修復 / ⏳ Azure DEV 待同步 |
 | [FIX-109](4-changes/bug-fixes/FIX-109-pipeline-config-refmatch-scope-guard.md) | pipeline config refmatch scope guard | ✅ 已修復（2026-06-18，靜態驗證通過；UI 端到端待 dev server 驗證） |
 | [FIX-110](4-changes/bug-fixes/FIX-110-lineitem-charge-alias-hit-rate-audit.md) | lineitem charge alias hit rate audit | ✅ 已完成（9 條 aliases 已於 2026-07-15 冪等寫入 Azure DEV 並回讀驗證;可重現腳本 `prisma/ap… |
+| [FIX-111](4-changes/bug-fixes/FIX-111-stage3-global-prompt-selection-nondeterminism-hkd-bypass.md) | stage3 global prompt selection nondeterminism hkd bypass | ✅ 程式碼 + 腳本完成 · ✅ Azure DEV 即時修正已套用（2026-07-16，讀回驗證 VERIFY_PASS）· ⏳ 程式… |
 
