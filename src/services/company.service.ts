@@ -1529,12 +1529,12 @@ export async function activateCompany(
  * @description
  *   將來源公司合併到目標公司
  *   - 來源公司狀態改為 MERGED
- *   - 所有關聯的文件、規則轉移到目標公司
+ *   - 所有關聯的文件、提取結果、規則轉移到目標公司（extractionResults 為 FIX-112 補齊）
  *   - 來源公司的名稱變體加入目標公司
  *
  * @param sourceId - 來源公司 ID
  * @param targetId - 目標公司 ID
- * @returns 合併結果
+ * @returns 合併結果（含各類關聯轉移數量）
  */
 export async function mergeCompanies(
   sourceId: string,
@@ -1543,6 +1543,7 @@ export async function mergeCompanies(
   sourceId: string
   targetId: string
   documentsTransferred: number
+  extractionResultsTransferred: number
   rulesTransferred: number
 }> {
   const result = await prisma.$transaction(async (tx) => {
@@ -1585,13 +1586,21 @@ export async function mergeCompanies(
       data: { companyId: targetId },
     })
 
-    // 4. 轉移規則
+    // 4. 轉移提取結果（FIX-112：補既有缺口——原本只轉移 documents + mappingRules，
+    //    未處理 extractionResults，導致合併後 COMPANY 級 template 映射因 companyId
+    //    不相等而失效。與 confirmCompanyMerge 一致。）
+    const extractionResultsResult = await tx.extractionResult.updateMany({
+      where: { companyId: sourceId },
+      data: { companyId: targetId },
+    })
+
+    // 5. 轉移規則
     const rulesResult = await tx.mappingRule.updateMany({
       where: { companyId: sourceId },
       data: { companyId: targetId },
     })
 
-    // 5. 更新來源公司狀態
+    // 6. 更新來源公司狀態
     await tx.company.update({
       where: { id: sourceId },
       data: {
@@ -1604,6 +1613,7 @@ export async function mergeCompanies(
       sourceId,
       targetId,
       documentsTransferred: documentsResult.count,
+      extractionResultsTransferred: extractionResultsResult.count,
       rulesTransferred: rulesResult.count,
     }
   })

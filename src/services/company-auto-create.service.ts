@@ -440,11 +440,15 @@ export async function addNameVariant(
  *   將副公司合併到主公司：
  *   1. 將副公司的名稱變體添加到主公司
  *   2. 將副公司的名稱作為變體添加到主公司
- *   3. 將副公司狀態設為 MERGED
- *   4. 記錄合併關係
+ *   3. 將副公司的文件、提取結果、映射規則轉移到主公司（FIX-112 補齊）
+ *   4. 將副公司狀態設為 MERGED
+ *   5. 記錄合併關係
  *
- *   NOTE: 此函數用於 JIT 自動建立流程中的合併操作。
- *   對於一般公司管理的合併操作，請使用 company.service.ts 的 mergeCompanies。
+ *   NOTE: 此函數為 admin 合併 UI（POST /api/admin/companies/merge）的實際後端。
+ *   FIX-112 前僅更新 nameVariants + MERGED，未轉移副公司關聯資料，導致合併後
+ *   documents / extraction_results / mapping_rules 全部孤兒化（COMPANY 級 template
+ *   映射因 companyId 不相等而失效）。現與 company.service.ts 的
+ *   mergeCompanies / confirmCompanyMerge 行為一致。
  *
  * @param primaryId - 主公司 ID（保留）
  * @param secondaryIds - 副公司 ID 列表（將被合併）
@@ -490,6 +494,22 @@ export async function autoMergeCompanies(
       data: {
         nameVariants: Array.from(allVariants),
       },
+    })
+
+    // FIX-112：轉移副公司的關聯資料到主公司（原本缺失，導致合併後孤兒化）。
+    // 與 company.service.ts 的 confirmCompanyMerge 一致，僅轉移這三類；
+    // document_formats / field_definition_sets 等刻意不轉（副公司設 MERGED 後 inert）。
+    await tx.document.updateMany({
+      where: { companyId: { in: secondaryIds } },
+      data: { companyId: primaryId },
+    })
+    await tx.extractionResult.updateMany({
+      where: { companyId: { in: secondaryIds } },
+      data: { companyId: primaryId },
+    })
+    await tx.mappingRule.updateMany({
+      where: { companyId: { in: secondaryIds } },
+      data: { companyId: primaryId },
     })
 
     // 更新所有副公司
