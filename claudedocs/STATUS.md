@@ -55,7 +55,7 @@
 | [CHANGE-079](4-changes/feature-changes/CHANGE-079-city-scope-idor-unified-fix.md) | city scope idor unified fix | ✅ 已實作（程式碼層面，2026-06-10）：6 套用點全部完成；單元測試 + 執行期待驗證 |
 | [CHANGE-091](4-changes/feature-changes/CHANGE-091-template-instance-flow-ux-async-progress.md) | template instance flow ux async progress | 🚧 Phase 1 已完成（2026-06-26）／Phase 2 待實作 |
 | [CHANGE-095](4-changes/feature-changes/CHANGE-095-allow-editing-company-code.md) | allow editing company code | 🔬 待 E2E 驗證（實作完成、type-check/lint 通過；使用者自行測試中） |
-| [CHANGE-103](4-changes/feature-changes/CHANGE-103-stage1-company-matching-anti-duplication.md) | stage1 company matching anti duplication | 🚧 進行中（Phase 1 = 組件 3 學習迴路 ✅ 已實作 + 測試；Phase 2/3 待續。2026-07-10 review … |
+| [CHANGE-103](4-changes/feature-changes/CHANGE-103-stage1-company-matching-anti-duplication.md) | stage1 company matching anti duplication | 🚧 進行中（Phase 1 組件 3 學習迴路 ✅；Phase 2a 決定性 tie-break `orderBy` ✅ 2026-07… |
 | [FIX-065](4-changes/bug-fixes/FIX-065-mapping-api-auth-and-city-scope.md) | mapping api auth and city scope | 🔧 認證已修復（2026-06-10）；城市範圍 IDOR 留 WP-4 |
 | [FIX-067](4-changes/bug-fixes/FIX-067-v1-confidence-prompts-classified-auth.md) | v1 confidence prompts classified auth | 🔧 部分修復（2026-06-10）：confidence/prompts/classified 已修；`/api/v1` 留 WP-2… |
 | [FIX-069](4-changes/bug-fixes/FIX-069-redos-safe-regex-execution.md) | redos safe regex execution | ✅ 核心已完成（2026-06-11，程式碼層面；執行期 staging 驗證待部署） |

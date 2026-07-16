@@ -1,7 +1,7 @@
 # CHANGE-103: Stage 1 公司匹配防呆 — 識別/治理分離 + 學習迴路
 
 > **日期**: 2026-07-10
-> **狀態**: 🚧 進行中（Phase 1 = 組件 3 學習迴路 ✅ 已實作 + 測試；Phase 2/3 待續。2026-07-10 review 定案）
+> **狀態**: 🚧 進行中（Phase 1 組件 3 學習迴路 ✅；**Phase 2a 決定性 tie-break `orderBy` ✅ 2026-07-16**；Phase 2 組件 2/4 + Phase 3 存量收斂待續）
 > **優先級**: High（公司主檔品質 = 三層映射 + template mapping 的根基）
 > **類型**: Feature / 架構強化（Stage 1 公司識別防呆）
 > **影響範圍**: `src/services/extraction-v3/stages/stage-1-company.service.ts`、`company.service.ts`、（可能）Company schema、公司管理 UI（組件 4）
@@ -20,6 +20,7 @@
 | 2 | **正規化不足** | `normalizeCompanyName(:546-568)` 只去「括號內容 + 法定後綴」；`Hong Kong`（無括號）、`Office`、`Pacific` 全保留 → 7 種寫法正規化後仍分成 4 組 |
 | 3 | **防重網太鬆** | 唯一模糊防護是 `findDuplicateCompany` 的 **0.85 字元級 Levenshtein**（`:74, :603`）；多一個 token 的相似度僅 0.45–0.77，全低於門檻 |
 | 4 | **🔴 無學習迴路** | grep 全檔：`nameVariants` 只有讀（429/454/477/481/589/593）+ JIT 建立時 `nameVariants: []`（`:651`），**零個 update** → 變體庫永遠空、比對永遠 miss、無法自我收斂 |
+| 5 | **🔴 選型非確定（2026-07-16 Azure 事件補查）** | `resolveCompanyId` 的 Step 1/2a `findFirst` 與 Step 2b / `findDuplicateCompany` 的 `findMany` **皆無 `orderBy`** → 多筆重複並存時由 Postgres 實體列順序任意選一 → **本地與 Azure 同輸入選到不同公司**。這正是 `CEVA_RCIM250325_17865` 在 Azure 被識別為簡稱「CEVA Logistics」、本地為全名「CEVA LOGISTICS (HONG KONG) LTD」的直接機制（本地僅 1 筆、Azure 有 8 筆）|
 
 ### 為什麼修過兩次仍漏
 
@@ -184,4 +185,17 @@ Step 3 (497-521): autoCreate → findDuplicateCompany 防重 → jitCreateCompan
 | schema | 未動（用既有 `nameVariants[]`，`{ push }` atomic append） |
 | Strict Mode | H1 未觸發（強化既有 FIX-057/077 方向、未改三層映射/信心度路由/122 Prisma models 結構）；H2/H4/H5/H6 N/A |
 | 成效界定 | 只吸收正規化相等的印法變異；CEVA 無括號多 token 分裂待 Phase 2 組件 2 |
-| 待續 | Phase 2（組件 2 + 組件 4 + PENDING 審核 UI）、Phase 3（收斂現有 7 筆 CEVA） |
+| 待續 | Phase 2（組件 2 + 組件 4 + PENDING 審核 UI）、Phase 3（收斂現有 CEVA） |
+
+### Phase 2a — 決定性 tie-break（orderBy）（2026-07-16 實作）
+
+> 源自 `CEVA_RCIM250325_17865` 的 Azure 事件（見根因 #5）：Azure DEV 累積 **8 筆 CEVA**（6 ACTIVE），文件被識別為簡稱而非全名；本地僅 1 筆故正確。追根後確認 `resolveCompanyId` 的四個查詢皆無 `orderBy` → 跨環境非確定。
+
+| 項目 | 內容 |
+|------|------|
+| 改動檔 | `stage-1-company.service.ts`：Step 1 `findFirst`、Step 2a `findFirst`、Step 2b `findMany`、`findDuplicateCompany` `findMany` — 四處均加 `orderBy: { createdAt: 'asc' }` |
+| 效果 | 多筆重複並存時穩定選「最早建立者」（CEVA 即 MANUAL 主檔 `0d02b680`），消除跨環境/隨時間的非確定；`.find()` 在有序陣列上首個命中亦穩定 |
+| 定位 | 這是**識別端的決定性化**（不做合併、不改正規化語意），與組件 2（token-set 放寬配對）正交；存量 8 筆 CEVA 的**收斂**屬 Phase 3 / [[FIX-105]] Azure 同步 |
+| 品質 gate | `npm run type-check` ✅ |
+| Strict Mode | H1 未觸發（bug fix 性質，未改三層映射/信心度/schema）；H2/H4/H5/H6 N/A |
+| 關聯 | [[FIX-105]]（Azure CEVA 存量合併，2026-07-16 盤點 8 筆）、[[FIX-111]]（同源 findFirst-無-orderBy 非確定 anti-pattern，出現在 Stage 3 prompt 選型）|
