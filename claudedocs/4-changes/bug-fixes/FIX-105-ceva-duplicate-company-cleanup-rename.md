@@ -1,7 +1,7 @@
 # FIX-105: CEVA 公司重複記錄清理 + 主檔正名
 
 > **日期**: 2026-07-10
-> **狀態**: ✅ 本地已修復 / ⏳ Azure DEV 待同步
+> **狀態**: ✅ 本地已修復 / ✅ Azure DEV 已同步（2026-07-16：合併 5 筆 source + 正名 + 112 筆轉移，read-back 驗證 active CEVA=1）
 > **嚴重度**: Sev3（資料品質；不影響處理成功率，影響公司名顯示正確性）
 > **類型**: Bug Fix（資料治理 — 公司重複）
 > **影響範圍**: 本地 DB `companies` / `document_formats`（Azure DEV 待確認）
@@ -81,10 +81,38 @@ COMMIT;
 | 3 | 別名清理 | name_variants = `{"CEVA Logistics"}` | ✅ |
 | 4 | 文件不受影響 | 55 文件 + mapping 仍綁 0d02b680 | ✅ |
 | 5 | UI 顯示正確 | 文件詳情顯示正確公司名 | ⏳ 待使用者 UI 驗證 |
-| 6 | Azure DEV 同步 | Azure DB 若有同樣髒資料，比照清理 | ⏳ 待辦 |
+| 6 | Azure DEV 同步 | Azure DB 若有同樣髒資料，比照清理 | ✅ 2026-07-16（見下方「Azure DEV 同步」節） |
 
 ## 待辦
 
-1. **UI 驗證**：刷新 `CEVA_RCIM250306_20874.PDF` 詳情頁，確認公司名顯示「CEVA LOGISTICS (HONG KONG) LTD」。
-2. **Azure DEV 同步**：需先 inspect Azure `companies` 的 CEVA 記錄（id 與本地不同），確認是否同樣有重複/OFFICE 別名，再以 gated 腳本比照清理。
+1. **UI 驗證**：刷新 CEVA 文件詳情頁，確認公司名顯示「CEVA LOGISTICS (HONG KONG) LTD」。
+2. ~~**Azure DEV 同步**~~：✅ 2026-07-16 完成（見下方「Azure DEV 同步」節）。
 3. **普遍性評估（選）**：其他 forwarder 是否也有 name_variants 汙染 / 重複孤兒，可另立盤點。
+
+---
+
+## Azure DEV 同步（2026-07-16，完整合併）
+
+Azure 的重複遠比本地嚴重。2026-07-16 經 Kudu 唯讀盤點 8 筆 CEVA（6 ACTIVE），使用者拍板全併：
+
+| id | 名稱 | docs | 處置 |
+|---|---|---|---|
+| **0d02b680**（MANUAL） | CEVA Logistics → **正名 CEVA LOGISTICS (HONG KONG) LTD** | 138 | canonical（保留其 field_def_set，含 FIX-110 alias）|
+| 7448b7c5 | CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics） | 51 | 併入 → MERGED |
+| ee91a1cf | CEVA Logistics Hong Kong Limited | 2 | 併入 → MERGED |
+| 866c5aa5 | CEVA Logistics (RICHASIA) PACIFIC OPERATIONS LIMITED | 1 | 併入 → MERGED（使用者確認屬 CEVA HK）|
+| e1841c20 | CEVA LOGISTICS (香港) KONG LITTD（OCR 亂碼） | 1 | 併入 → MERGED |
+| c55b4d07 | RICON ASIA PACIFIC OPERATIONS LIMITED（CEVA LOGISTICS） | 1 | 併入 → MERGED（使用者確認屬 CEVA HK）|
+| 7a65777a / fa3c426c | …Office | 0 | 早已 MERGED（本次未動）|
+
+### 執行方式
+- gated 腳本 `prisma/apply-fix105-ceva-merge.js`（`RUN_FIX105_CEVA_MERGE=dryrun|write`），**不接入 entrypoint**（破壞性一次性、避免部署誤觸），經 Kudu ad-hoc 執行、先 dryrun 再 write，交易原子性（BEGIN/COMMIT，失敗 ROLLBACK）。
+- **補足 `company.service.mergeCompanies` 缺口**：後者只轉 documents + mapping_rules；本腳本動態轉移**所有含 company_id 的表**（實際非零：`documents` 56 + `extraction_results` 56 = **112 筆**），並保留 canonical 既有 `field_definition_sets` / `template_field_mappings` / `document_formats`（source 的變 MERGED 後 inert、永不被載入）。
+- **read-back 驗證**：canonical = ACTIVE「CEVA LOGISTICS (HONG KONG) LTD」、5 筆 source = MERGED（merged_into_id 指向 canonical）、active CEVA = 1。
+
+### 根治關聯
+- 識別端非確定性（source 累積的直接機制）已由 [[CHANGE-103]] Phase 2a（`resolveCompanyId` 四查詢加 `orderBy: createdAt asc`）根治。
+- OCR 名稱飄移導致 JIT 增生（全形括號 `（）` / 亂碼名 normalize 不相等）仍需 CHANGE-103 組件 2（token-set）進一步收斂，屬 Phase 2。
+
+### 殘留（inert，可日後清）
+- 5 筆 MERGED source 的 `document_formats`（各 1）、7448b7c5 的 `field_definition_set` + 4 `template_field_mappings` 留在 MERGED 公司下、不被載入；如需可另立小清理。

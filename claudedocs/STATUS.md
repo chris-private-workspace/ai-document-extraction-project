@@ -250,7 +250,7 @@
 | [FIX-099](4-changes/bug-fixes/FIX-099-template-field-mapping-list-total-count-zero.md) | template field mapping list total count zero | ✅ 已修復（2026-06-29，本地 type-check / lint / Playwright live E2E 通過） |
 | [FIX-100](4-changes/bug-fixes/FIX-100-upload-blocks-documents-page-event-loop.md) | upload blocks documents page event loop | ✅ 已實作（2026-06-29，type-check / lint 通過；端到端效果建議實測驗證） |
 | [FIX-104](4-changes/bug-fixes/FIX-104-stage1-issuer-prompt-multi-entity-known-company-anchoring.md) | stage1 issuer prompt multi entity known company anchoring | ✅ 已修復（2026-07-09）— Stage 1 prompt 四處副本強化 + 本地 DB 既有 2 筆 GLOBAL 記錄更新；`… |
-| [FIX-105](4-changes/bug-fixes/FIX-105-ceva-duplicate-company-cleanup-rename.md) | ceva duplicate company cleanup rename | ✅ 本地已修復 / ⏳ Azure DEV 待同步 |
+| [FIX-105](4-changes/bug-fixes/FIX-105-ceva-duplicate-company-cleanup-rename.md) | ceva duplicate company cleanup rename | ✅ 本地已修復 / ✅ Azure DEV 已同步（2026-07-16：合併 5 筆 source + 正名 + 112 筆轉移，rea… |
 | [FIX-109](4-changes/bug-fixes/FIX-109-pipeline-config-refmatch-scope-guard.md) | pipeline config refmatch scope guard | ✅ 已修復（2026-06-18，靜態驗證通過；UI 端到端待 dev server 驗證） |
 | [FIX-110](4-changes/bug-fixes/FIX-110-lineitem-charge-alias-hit-rate-audit.md) | lineitem charge alias hit rate audit | ✅ 已完成（9 條 aliases 已於 2026-07-15 冪等寫入 Azure DEV 並回讀驗證;可重現腳本 `prisma/ap… |
 | [FIX-111](4-changes/bug-fixes/FIX-111-stage3-global-prompt-selection-nondeterminism-hkd-bypass.md) | stage3 global prompt selection nondeterminism hkd bypass | ✅ 程式碼 + 腳本完成 · ✅ Azure DEV 即時修正已套用（2026-07-16，讀回驗證 VERIFY_PASS）· ⏳ 程式… |
