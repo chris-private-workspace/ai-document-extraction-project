@@ -9,10 +9,10 @@
  * @module src/lib/document-status
  * @author Development Team
  * @since Epic 2 - Story 2.7 (Processing Status Tracking & Display)
- * @lastModified 2026-02-11 (FIX-036: 新增 REF_MATCH_FAILED 狀態)
+ * @lastModified 2026-07-20 (FIX-117: 補齊 APPROVED / ESCALATED 狀態)
  *
  * @features
- *   - 12 種文件狀態配置
+ *   - 14 種文件狀態配置（與 Prisma DocumentStatus enum 一一對應）
  *   - 狀態查詢輔助函數
  *   - 處理階段計算
  *
@@ -52,6 +52,8 @@ export type DocumentStatusKey =
   | 'PENDING_REVIEW'
   | 'IN_REVIEW'
   | 'REF_MATCH_FAILED'
+  | 'APPROVED'
+  | 'ESCALATED'
   | 'COMPLETED'
   | 'FAILED'
 
@@ -232,6 +234,33 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatusKey, StatusConfig> = {
     isError: true,
     canRetry: true,
     order: 12,
+  },
+  // FIX-117: APPROVED / ESCALATED 存在於 Prisma DocumentStatus 但先前漏在本表外。
+  //          getStatusConfig 對未知狀態回退到 FAILED 配置，導致這兩種狀態
+  //          被顯示成紅色「處理失敗」徽章並帶出重試按鈕。
+  APPROVED: {
+    label: 'Approved',
+    labelZh: '已核准',
+    icon: Check,
+    color: 'green',
+    bgColor: 'bg-green-100',
+    textColor: 'text-green-700',
+    isProcessing: false,
+    isError: false,
+    canRetry: false,
+    order: 13,
+  },
+  ESCALATED: {
+    label: 'Escalated',
+    labelZh: '已升級',
+    icon: AlertCircle,
+    color: 'orange',
+    bgColor: 'bg-orange-100',
+    textColor: 'text-orange-700',
+    isProcessing: false,
+    isError: false,
+    canRetry: false,
+    order: 14,
   },
 }
 

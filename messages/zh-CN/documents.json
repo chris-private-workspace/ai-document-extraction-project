@@ -73,7 +73,9 @@
     "IN_REVIEW": "审核中",
     "COMPLETED": "已完成",
     "FAILED": "处理失败",
-    "REF_MATCH_FAILED": "参考编号匹配失败"
+    "REF_MATCH_FAILED": "参考编号匹配失败",
+    "APPROVED": "已核准",
+    "ESCALATED": "已升级"
   },
   "upload": {
     "title": "上传文件",
