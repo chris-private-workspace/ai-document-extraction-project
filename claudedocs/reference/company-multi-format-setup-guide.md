@@ -117,9 +117,9 @@ FROM prompt_configs WHERE prompt_type='STAGE_2_FORMAT_IDENTIFICATION' AND is_act
 - ✅ 特殊元素（QR code、浮水印、頁碼位置）
 - ❌ 避免「有公司 Logo」「有發票標題」這類所有版面共通的描述
 
-#### ⚠️ 具體 vs 通用的張力（尚未解決，見 FIX-119）
+#### 🔴 可變值一定要就地標註（FIX-121）
 
-規則寫得太具體會有風險：Stage 2 的判斷帶排他性，若 keywords 含**隨單張文件變動的值**，遇到稍有不同的文件就可能誤排除正確格式。已識別的高風險寫法：
+Stage 2 的判斷帶**排他性** —— 特徵「明確不存在」就排除該格式。若 keywords 含**隨單張文件變動的值**，遇到稍有不同的文件就可能誤排除正確格式：
 
 | 寫法 | 失效情境 |
 |------|----------|
@@ -128,15 +128,29 @@ FROM prompt_configs WHERE prompt_type='STAGE_2_FORMAT_IDENTIFICATION' AND is_act
 | 含 `CONTAINERS` 區塊列出櫃號 | 空運／散貨無櫃號 |
 | 發票號為 **12 位**純數字 | 位數由單一樣本推得 |
 
-**但把它們改寫成抽象描述已實測失敗**（[FIX-119](../4-changes/bug-fixes/FIX-119-stage2-overfit-identification-keywords.md)，已回滾）。Stage 2 使用 `gpt-5.4-nano` + `imageDetailMode: "low"`（降採樣圖像），這些具體字串實際上是**弱模型的辨識錨點**；改成「以字母 F 起首」「頁碼位於右下角」後，模型連 QR code 和分欄表格都認不出來，兩個格式隨即混淆。
+**但不可以把具體字串刪掉改寫成抽象描述** —— 已實測失敗（[FIX-119](../4-changes/bug-fixes/FIX-119-stage2-overfit-identification-keywords.md)，已回滾）。Stage 2 用 `gpt-5.4-nano` + `imageDetailMode: "low"`（降採樣圖像），`F260017865`、`CHARGES IN HKD` 這類獨特字串是**弱模型的辨識錨點**；換成「以字母 F 起首」後，模型連 QR code 和分欄表格都認不出來。
 
-**現階段建議**：
+**正解是兩者兼顧：保留具體範例當錨點，並在同一條 keyword 內就地標註哪一段可變**（[FIX-121](../4-changes/bug-fixes/FIX-121-identification-rules-inline-variability-annotation.md)，實測四份全數通過）：
 
-1. 沿用具體寫法（能work），但**知道**多頁／不同幣別／不同運送方式的文件可能誤判
-2. 遇到誤判時，優先**補樣本**再收斂規則，而不是把規則寫得更抽象
-3. 若要根治，方向是提升 `imageDetailMode` 或改用更強模型 —— 屬管線配置決策，見 FIX-119 §後續可行方向
+| ❌ 純具體（會誤排除） | ❌ 純抽象（認不出） | ✅ 具體 + 就地標註 |
+|---|---|---|
+| 頁碼 Page 1 of 1 位於標題列右端 | 頁碼標示位於標題列右端 | 頁碼位於標題列右端（如 Page 1 of 1，頁次與總頁數可變） |
+| …\| EX RATE \| CHARGES IN HKD | …EX RATE、換算後金額欄 | …\| EX RATE \| CHARGES IN ⟨帳單幣別⟩（如 CHARGES IN HKD，幣別隨帳單變動） |
+| 發票號為 12 位純數字（如 253250005808） | 發票號為純數字 | 發票號為純數字、無英文字母前綴（如 253250005808，位數可能不同） |
+| 含 CONTAINERS 區塊列出櫃號 | （移除該條） | （條件性）貨櫃運送時含 CONTAINERS 區塊…；空運或散貨則無此區塊，不構成排除理由 |
 
-> 教訓：規則的抽象程度必須與**模型能力**匹配。此結論僅適用於當前 nano + low detail 組合。
+GLOBAL Stage 2 prompt（version 4）已配合加入一句：標明「可變」「條件性」的部分不符時不構成排除理由。因此上表右欄的措辭**會被模型正確折扣**。
+
+**撰寫原則**：
+
+1. **具體字串一律保留** —— 它們是錨點，刪掉就認不出
+2. **可變的部分就地標註** —— 用「（如 X，Y 可變）」「（條件性）…不構成排除理由」的句式
+3. **負向特徵最穩定** —— 「無 QR code」這類有無判斷不受內容變動影響，優先寫
+4. **避免從單一樣本推論精確規格** —— 位數、幣別、總頁數先寫寬鬆形態 + 範例
+5. **遇到誤判優先補樣本**，而不是把規則寫得更抽象
+
+> ⚠️ FIX-121 只驗證了「沒有回歸」—— 手上無多頁／非 HKD／空運樣本，觸發原始風險的情境無從重現。真正確證仍需補樣本。
+> 教訓：規則的抽象程度必須與**模型能力**匹配。此結論僅適用於當前 nano + low detail 組合；若改用更強模型或提高 `imageDetailMode`，應重新評估。
 
 `identificationRules` 完整結構（`validations/document-format.ts:50-59`）：
 
@@ -300,38 +314,43 @@ GET /api/v1/field-definition-sets/resolve?companyId=<公司id>&documentFormatId=
 | 既有格式代表版面 | 版面 A（深藍色系） |
 | 新增格式子類型 | `OCEAN_FREIGHT` |
 
-### 版面 A（深藍色系）— 收窄後的 keywords
+> 以下 keywords 為 [FIX-121](../4-changes/bug-fixes/FIX-121-identification-rules-inline-variability-annotation.md) 套用**就地標註可變性**後的現況（可直接當範本抄）。
+
+### 版面 A（深藍色系）— id `cmqur1q73000vpkxgx48c54jo`
 
 ```
-標題列文字為 "CEVA LOGISTICS HONG KONG OFFICE"（非 "(HONG KONG) LTD"）
-深藍色實心橫幅作為區塊標題底色（INVOICE / SHIPMENT DETAILS / CHARGES / CONTAINERS）
+標題列文字為 CEVA LOGISTICS HONG KONG OFFICE（非 (HONG KONG) LTD）
+深藍色實心橫幅作為區塊標題底色（如 INVOICE、SHIPMENT DETAILS、CHARGES；CONTAINERS 僅貨櫃運送時出現）
 右側成組標籤方塊：INVOICE DATE、CUSTOMER ID、SHIPMENT、REGISTRATION #、DUE DATE、TERMS
 含 CONSOL NUMBER 欄位與 PRINTED BY 欄位
-發票號為 12 位純數字（如 253250005808），無英文字母前綴
-費用明細為等寬字體單欄文字行，匯率內嵌於描述句中（如 "USD 2,490.00 @ 7.834661"）
-含 CONTAINERS 區塊，單行列出多個櫃號與櫃型
-頁碼 "Page 1 of 1" 位於標題列右端
+發票號為純數字、無英文字母前綴（如 253250005808，位數可能不同）
+費用明細為等寬字體單欄文字行，匯率以 @ 內嵌於描述句中（如 USD 2,490.00 @ 7.834661，金額與匯率數值每張不同）
+（條件性）貨櫃運送時含 CONTAINERS 區塊，單行列出多個櫃號與櫃型；空運或散貨則無此區塊，不構成排除理由
+頁碼位於標題列右端（如 Page 1 of 1，頁次與總頁數可變）
+無 QR code
+無 Client Tax ID 或 Incoterm ref 欄位
 ```
 
-`layoutHints`：`深色橫幅分區、右側鍵值方塊、費用為純文字行` ｜ `priority`：`60`
+`layoutHints`：`深色橫幅分區、右側鍵值方塊、費用為等寬字體純文字行、匯率內嵌描述句` ｜ `priority`：`60`
 
-### 版面 B（白底表格線）— keywords
+### 版面 B（白底表格線）— id `cmrsmg8mb0000bsxgjrqy6ksk`
 
 ```
 左上角有 QR code（方形二維碼）
 右上角黑色粗框方塊，內含 Original INVOICE、N°、Date、Due On、Terms、Edited by
-發票號格式為 F + 9 位數字（如 F260017865）
+發票號以字母 F 起首、後接一串數字（如 F260017865，位數可能不同）
 含 Client Tax ID 欄位
 含 Incoterm ref 欄位
 含 Consol ref 與 Customer id/Account n° 欄位
 含 Operations 與 Tracking ref 欄位
-費用明細為分欄表格：DESCRIPTION | CUR | AMOUNT | EX RATE | CHARGES IN HKD
-底部含 "TOTAL TO PAY BEFORE" 列與英文大寫金額（如 "TWO THOUSAND, EIGHT HUNDRED..."）
-白底細框線表格，無深色填充區塊
-頁碼 "PAGE 1 of 1" 位於頁面右下角
+費用明細為分欄表格：DESCRIPTION | CUR | AMOUNT | EX RATE | CHARGES IN ⟨帳單幣別⟩（如 CHARGES IN HKD，幣別隨帳單變動）
+底部含 TOTAL TO PAY BEFORE 列，並以英文大寫拼寫金額
+白底細框線表格，無深色實心填充區塊
+頁碼位於頁面右下角（如 PAGE 1 of 1，頁次與總頁數可變）
+抬頭公司名為 CEVA LOGISTICS (HONG KONG) LTD（非 HONG KONG OFFICE）
 ```
 
-`layoutHints`：`白底細框線、右上黑框發票資訊、費用為 CUR/AMOUNT/EX RATE 分欄表` ｜ `priority`：`60`
+`layoutHints`：`白底細框線表格、右上黑框發票資訊方塊、費用為 CUR/AMOUNT/EX RATE/CHARGES IN HKD 四欄分列、左上角 QR code` ｜ `priority`：`60`
 
 ### 版面 B 的 Stage 3 提取指令重點
 

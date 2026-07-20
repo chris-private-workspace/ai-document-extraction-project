@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 103 | CHANGE-105 | **CHANGE-106** |
-| FIX | 122 | FIX-120 | **FIX-121** |
+| FIX | 123 | FIX-121 | **FIX-122** |
 
 ## 📋 未開始（25）
 
@@ -85,7 +85,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（176）
+## ✅ 已完成（177）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -265,4 +265,5 @@
 | [FIX-116](4-changes/bug-fixes/FIX-116-resolve-endpoint-jsdoc-claims-merge-but-does-not.md) | resolve endpoint jsdoc claims merge but does not | ✅ 已修復（註解修正；行為未變動） |
 | [FIX-118](4-changes/bug-fixes/FIX-118-prod-reference-seed-overwrites-prompts-with-stale-copy.md) | prod reference seed overwrites prompts with stale copy | ✅ 已修復（dry-run 驗證通過；type-check 通過） |
 | [FIX-120](4-changes/bug-fixes/FIX-120-resolve-format-id-empty-name-silent-match.md) | resolve format id empty name silent match | ✅ 已修復（含迴歸測試；type-check 通過） |
+| [FIX-121](4-changes/bug-fixes/FIX-121-identification-rules-inline-variability-annotation.md) | identification rules inline variability annotation | ✅ 已完成（本地實測通過；⚠️ 驗收有固有上限，見 §驗收） |
 
