@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 103 | CHANGE-105 | **CHANGE-106** |
-| FIX | 120 | FIX-118 | **FIX-119** |
+| FIX | 122 | FIX-120 | **FIX-121** |
 
 ## 📋 未開始（25）
 
@@ -69,11 +69,13 @@
 | [FIX-108](4-changes/bug-fixes/FIX-108-stage3-lineitem-backfill-description-matching.md) | stage3 lineitem backfill description matching | ✅ 已實作並已部署 Azure DEV（2026-07-14，映像 `dev-fix108-20260714135401`）；🔴 §6.… |
 | [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
 
-## ❓ 狀態無法解析（0）
+## ❓ 狀態無法解析（1）
 
 > 缺少 `> **狀態**:` 欄位或狀態文字無法歸類 —— 新檔不應出現在此區。
 
-（無）
+| 編號 | 標題 | 狀態 |
+|------|------|------|
+| [FIX-119](4-changes/bug-fixes/FIX-119-stage2-overfit-identification-keywords.md) | stage2 overfit identification keywords | 🔴 已回滾 —— 問題分析成立，但實作導致辨識準確度明顯下降，已還原至修改前狀態（見 §實作嘗試與回滾）。問題本身尚未解決。 |
 
 ## ⏸️ 已取代 / 已升級（3）
 
@@ -83,7 +85,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（175）
+## ✅ 已完成（176）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -262,4 +264,5 @@
 | [FIX-115](4-changes/bug-fixes/FIX-115-stage2-prompt-missing-knownformats-variable.md) | stage2 prompt missing knownformats variable | ✅ 已實作並端到端驗證（2026-07-20，本地）。⏳ Azure DEV 待套用 |
 | [FIX-116](4-changes/bug-fixes/FIX-116-resolve-endpoint-jsdoc-claims-merge-but-does-not.md) | resolve endpoint jsdoc claims merge but does not | ✅ 已修復（註解修正；行為未變動） |
 | [FIX-118](4-changes/bug-fixes/FIX-118-prod-reference-seed-overwrites-prompts-with-stale-copy.md) | prod reference seed overwrites prompts with stale copy | ✅ 已修復（dry-run 驗證通過；type-check 通過） |
+| [FIX-120](4-changes/bug-fixes/FIX-120-resolve-format-id-empty-name-silent-match.md) | resolve format id empty name silent match | ✅ 已修復（含迴歸測試；type-check 通過） |
 

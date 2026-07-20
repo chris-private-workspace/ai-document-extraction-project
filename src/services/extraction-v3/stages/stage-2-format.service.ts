@@ -475,12 +475,15 @@ Focus on the visual layout, table structure, and distinctive formatting elements
     isNewFormat: boolean;
   }> {
     // 1. 嘗試匹配已知格式（需要 companyId）
+    // FIX-120: DocumentFormat 的唯一鍵是 (companyId, documentType, documentSubtype)，
+    //          name 並非唯一，同公司可能有同名格式 → 加 orderBy 確保選擇具決定性。
     if (parsed.matchedKnownFormat && companyId) {
       const format = await this.prisma.documentFormat.findFirst({
         where: {
           name: parsed.matchedKnownFormat,
           companyId,
         },
+        orderBy: { createdAt: 'asc' },
         select: { id: true, name: true },
       });
 
@@ -493,20 +496,29 @@ Focus on the visual layout, table structure, and distinctive formatting elements
       }
     }
 
-    // 2. 嘗試模糊匹配（需要 companyId）
-    if (companyId) {
+    // 2. 嘗試模糊匹配（需要 companyId 且 formatName 非空）
+    //
+    // FIX-120: 原本未檢查 parsed.formatName 是否為空即執行模糊比對。
+    //   GPT 回傳 `"formatName": null` 時，extractFormatFromParsed 會轉成空字串（`String(null || '')`），
+    //   而 `contains: ''` 對每一筆記錄都成立 —— 條件恆真，等同「撈該公司任一格式」。
+    //   結果：GPT 明明什麼都沒匹配到，卻靜默回傳一個任意格式並標記 isNewFormat: false，
+    //   在下游看起來與「成功匹配」無法區分。
+    //   正確行為是讓它往下走（JIT 建立，或回傳 isNewFormat: true 且無 formatId）。
+    const fuzzyTerm = parsed.formatName?.trim();
+    if (companyId && fuzzyTerm) {
       const fuzzyMatch = await this.prisma.documentFormat.findFirst({
         where: {
-          name: { contains: parsed.formatName, mode: 'insensitive' },
+          name: { contains: fuzzyTerm, mode: 'insensitive' },
           companyId,
         },
+        orderBy: { createdAt: 'asc' },
         select: { id: true, name: true },
       });
 
       if (fuzzyMatch) {
         return {
           formatId: fuzzyMatch.id,
-          formatName: fuzzyMatch.name || parsed.formatName,
+          formatName: fuzzyMatch.name || fuzzyTerm,
           isNewFormat: false,
         };
       }
