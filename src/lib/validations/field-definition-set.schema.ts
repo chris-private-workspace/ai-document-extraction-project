@@ -118,7 +118,7 @@ export const createFieldDefinitionSetSchema = z
     name: z.string().min(1, { message: '名稱為必填' }).max(NAME_MAX_LENGTH),
     scope: fieldDefinitionScopeSchema,
     companyId: z.string().uuid().optional().nullable(),
-    documentFormatId: z.string().uuid().optional().nullable(),
+    documentFormatId: z.string().cuid().optional().nullable(),
     description: z.string().max(DESCRIPTION_MAX_LENGTH).optional().nullable(),
     isActive: z.boolean().default(true),
     fields: z
@@ -249,7 +249,7 @@ export const getFieldDefinitionSetsQuerySchema = z.object({
     .pipe(z.number().int().min(PAGE_SIZE_MIN).max(PAGE_SIZE_MAX)),
   scope: fieldDefinitionScopeSchema.optional(),
   companyId: z.string().uuid().optional(),
-  documentFormatId: z.string().uuid().optional(),
+  documentFormatId: z.string().cuid().optional(),
   isActive: z
     .string()
     .transform((v) => v === 'true')
@@ -272,7 +272,7 @@ export const getFieldDefinitionSetsQuerySchema = z.object({
  */
 export const resolveFieldsQuerySchema = z.object({
   companyId: z.string().uuid().optional(),
-  documentFormatId: z.string().uuid().optional(),
+  documentFormatId: z.string().cuid().optional(),
 });
 
 // ============================================================================
