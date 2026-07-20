@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 103 | CHANGE-105 | **CHANGE-106** |
-| FIX | 116 | FIX-114 | **FIX-115** |
+| FIX | 118 | FIX-117 | **FIX-118** |
 
 ## 📋 未開始（25）
 
@@ -42,7 +42,7 @@
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 
-## 🚧 進行中 / 部分完成（19）
+## 🚧 進行中 / 部分完成（20）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -67,6 +67,7 @@
 | [FIX-106](4-changes/bug-fixes/FIX-106-ocr-processing-stuck-db-connection-timeout.md) | ocr processing stuck db connection timeout | ✅ 根因已確認（應用端事件迴圈飽和，非 DB 故障）；治本（§5.5）+ 臨時緩解（§5.1）+ 收斂 1（§5.3）已實作並於 2026… |
 | [FIX-107](4-changes/bug-fixes/FIX-107-stage2-gpt-transient-failure-batch-ocr-failed.md) | stage2 gpt transient failure batch ocr failed | 🔍 根因已確認（Azure OpenAI 服務端瞬斷，外部因素）；資料已由重試恢復；弱點 A（重試退避）已修並於 2026-07-14 … |
 | [FIX-108](4-changes/bug-fixes/FIX-108-stage3-lineitem-backfill-description-matching.md) | stage3 lineitem backfill description matching | ✅ 已實作並已部署 Azure DEV（2026-07-14，映像 `dev-fix108-20260714135401`）；🔴 §6.… |
+| [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
 
 ## ❓ 狀態無法解析（0）
 
@@ -82,7 +83,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（172）
+## ✅ 已完成（173）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -258,4 +259,5 @@
 | [FIX-112](4-changes/bug-fixes/FIX-112-company-merge-missing-data-transfer.md) | company merge missing data transfer | ✅ 已完成（程式碼；存量資料回填另議） |
 | [FIX-113](4-changes/bug-fixes/FIX-113-orphan-merge-data-backfill.md) | orphan merge data backfill | ✅ 已完成（本地 + Azure DEV 皆驗證無 CORE 存量孤兒，無需 WRITE；gated 腳本留作安全網工具） |
 | [FIX-114](4-changes/bug-fixes/FIX-114-document-format-id-uuid-validation-blocks-format-scope.md) | document format id uuid validation blocks format scope | ✅ 已修復（本地；type-check / lint 通過） |
+| [FIX-116](4-changes/bug-fixes/FIX-116-resolve-endpoint-jsdoc-claims-merge-but-does-not.md) | resolve endpoint jsdoc claims merge but does not | ✅ 已修復（註解修正；行為未變動） |
 

@@ -11,7 +11,8 @@
  *   - deleteFieldDefinitionSet: 刪除記錄
  *   - toggleFieldDefinitionSet: 切換啟用狀態
  *   - getFieldsForSet: 僅回傳 fields 陣列（給 SourceFieldCombobox）
- *   - getResolvedFields: 三層合併邏輯
+ *   - getResolvedFields: 三層擇一解析（回傳最具體的那一層，**不合併**）
+ *   - getMergedResolvedFields: 三層合併（GLOBAL 為基底，COMPANY / FORMAT 逐層覆蓋）
  *   - getFieldCoverage: 覆蓋率分析（聚合 FieldExtractionFeedback）
  *   - getCandidateFields: 從 invoice-fields.ts 轉為候選清單
  *
@@ -359,9 +360,26 @@ export async function getFieldsForSet(id: string): Promise<FieldDefinitionEntry[
 }
 
 /**
- * 三層合併解析欄位（GLOBAL → COMPANY → FORMAT）
+ * 三層擇一解析欄位（FORMAT → COMPANY → GLOBAL → FALLBACK）
  *
- * @description 公開版的三層合併邏輯，供 SourceFieldCombobox 和其他組件使用
+ * @description
+ *   🔴 **本函式不合併各層** —— 依 FORMAT → COMPANY → GLOBAL 順序查找，
+ *   命中第一個存在且啟用的欄位集就直接回傳該層的完整 fields，其餘層不參與。
+ *   回傳的 `source` 標示實際採用的是哪一層。
+ *
+ *   若 FORMAT 層只放了「需要覆蓋的少數欄位」，本函式會**只回傳那幾個欄位**，
+ *   不會補上 COMPANY / GLOBAL 層的其餘欄位 —— 這與實際提取時的行為不同，
+ *   請勿用本函式的輸出推斷提取管線會拿到哪些欄位。
+ *
+ *   需要合併結果請改用 {@link getMergedResolvedFields}。實際提取管線採用的是
+ *   合併語意：Stage 3 走 `stage-3-extraction.service.ts` 內的 `loadFieldDefinitionSet`，
+ *   匯率換算走 `getMergedResolvedFields`（CHANGE-072）。
+ *
+ *   用途：SourceFieldCombobox 等需要「某一層設定了什麼」的設定介面。
+ *
+ * @param companyId - 公司 ID（可選）
+ * @param formatId - 格式 ID（可選；需與 companyId 並用才查 FORMAT 層）
+ * @returns 最具體那一層的欄位集 + `source`（FORMAT / COMPANY / GLOBAL / FALLBACK）
  */
 export async function getResolvedFields(
   companyId?: string,
