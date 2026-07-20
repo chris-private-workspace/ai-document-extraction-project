@@ -152,6 +152,12 @@ prisma/seed-data
 prisma/sql
 prisma/migrations/_archive
 
+# FIX-122: prompt-configs.ts 例外保留 —— FIX-118 起 seed-prod-reference.ts 靜態 import
+# 此檔（單一真相來源）。tsconfig 的 include 涵蓋 prisma/**/*.ts，builder 階段少了它會讓
+# `next build` 的型別檢查失敗（Cannot find module './seed-data/prompt-configs'）。
+# 該檔為自足常量模組（無任何 import），保留成本僅數 KB。
+!prisma/seed-data/prompt-configs.ts
+
 # 但保留 schema、production migration、production seeds：
 # !prisma/schema.prisma
 # !prisma/migrations

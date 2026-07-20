@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 103 | CHANGE-105 | **CHANGE-106** |
-| FIX | 123 | FIX-121 | **FIX-122** |
+| FIX | 124 | FIX-122 | **FIX-123** |
 
 ## 📋 未開始（25）
 
@@ -85,7 +85,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（177）
+## ✅ 已完成（178）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -261,9 +261,10 @@
 | [FIX-112](4-changes/bug-fixes/FIX-112-company-merge-missing-data-transfer.md) | company merge missing data transfer | ✅ 已完成（程式碼；存量資料回填另議） |
 | [FIX-113](4-changes/bug-fixes/FIX-113-orphan-merge-data-backfill.md) | orphan merge data backfill | ✅ 已完成（本地 + Azure DEV 皆驗證無 CORE 存量孤兒，無需 WRITE；gated 腳本留作安全網工具） |
 | [FIX-114](4-changes/bug-fixes/FIX-114-document-format-id-uuid-validation-blocks-format-scope.md) | document format id uuid validation blocks format scope | ✅ 已修復（本地；type-check / lint 通過） |
-| [FIX-115](4-changes/bug-fixes/FIX-115-stage2-prompt-missing-knownformats-variable.md) | stage2 prompt missing knownformats variable | ✅ 已實作並端到端驗證（2026-07-20，本地）。⏳ Azure DEV 待套用 |
+| [FIX-115](4-changes/bug-fixes/FIX-115-stage2-prompt-missing-knownformats-variable.md) | stage2 prompt missing knownformats variable | ✅ 已實作並端到端驗證（2026-07-20，本地）。✅ Azure DEV 已套用（2026-07-20，`VERIFY_PASS`） |
 | [FIX-116](4-changes/bug-fixes/FIX-116-resolve-endpoint-jsdoc-claims-merge-but-does-not.md) | resolve endpoint jsdoc claims merge but does not | ✅ 已修復（註解修正；行為未變動） |
 | [FIX-118](4-changes/bug-fixes/FIX-118-prod-reference-seed-overwrites-prompts-with-stale-copy.md) | prod reference seed overwrites prompts with stale copy | ✅ 已修復（dry-run 驗證通過；type-check 通過） |
 | [FIX-120](4-changes/bug-fixes/FIX-120-resolve-format-id-empty-name-silent-match.md) | resolve format id empty name silent match | ✅ 已修復（含迴歸測試；type-check 通過） |
 | [FIX-121](4-changes/bug-fixes/FIX-121-identification-rules-inline-variability-annotation.md) | identification rules inline variability annotation | ✅ 已完成（本地實測通過；⚠️ 驗收有固有上限，見 §驗收） |
+| [FIX-122](4-changes/bug-fixes/FIX-122-dockerignore-excludes-prompt-configs-breaks-build.md) | dockerignore excludes prompt configs breaks build | ✅ 已修復（映像重建 `ck16` Succeeded，並已部署至 Azure DEV 驗證） |
 
