@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 103 | CHANGE-105 | **CHANGE-106** |
-| FIX | 119 | FIX-117 | **FIX-118** |
+| FIX | 120 | FIX-118 | **FIX-119** |
 
 ## 📋 未開始（25）
 
@@ -83,7 +83,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（174）
+## ✅ 已完成（175）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -261,4 +261,5 @@
 | [FIX-114](4-changes/bug-fixes/FIX-114-document-format-id-uuid-validation-blocks-format-scope.md) | document format id uuid validation blocks format scope | ✅ 已修復（本地；type-check / lint 通過） |
 | [FIX-115](4-changes/bug-fixes/FIX-115-stage2-prompt-missing-knownformats-variable.md) | stage2 prompt missing knownformats variable | ✅ 已實作並端到端驗證（2026-07-20，本地）。⏳ Azure DEV 待套用 |
 | [FIX-116](4-changes/bug-fixes/FIX-116-resolve-endpoint-jsdoc-claims-merge-but-does-not.md) | resolve endpoint jsdoc claims merge but does not | ✅ 已修復（註解修正；行為未變動） |
+| [FIX-118](4-changes/bug-fixes/FIX-118-prod-reference-seed-overwrites-prompts-with-stale-copy.md) | prod reference seed overwrites prompts with stale copy | ✅ 已修復（dry-run 驗證通過；type-check 通過） |
 
