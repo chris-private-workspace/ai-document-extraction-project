@@ -76,10 +76,14 @@ WHERE c.name ILIKE '%<關鍵字>%';
 **這是整份指南最關鍵的前提。** 2026-07-20 實測發現：
 
 - Stage 2 有自訂 `PromptConfig` 時，走 DB prompt + 變數替換；**沒有**才用會自動注入格式清單的硬編碼 prompt（`stage-2-format.service.ts:152-167`）。
-- 系統內建的 **GLOBAL「V3.1 Stage 2 - Format Identification」配置一個變數都沒用**，`${knownFormats}` 不在裡面。
+- 系統內建的 GLOBAL「V3.1 Stage 2 - Format Identification」配置原本**一個變數都沒用**，`${knownFormats}` 不在裡面。
 - 結果：GPT 在 Stage 2 **看不到任何已知格式清單**，只能憑空猜名字 → `matchedKnownFormat` 幾乎必為 null → 模糊比對失敗 → 一律走 JIT → 撞唯一鍵 → 沿用該公司唯一那筆格式。
 
-**所以 identificationRules 的 keywords 寫得再好，在預設配置下完全不會進入 GPT。**
+**所以 identificationRules 的 keywords 寫得再好，在該配置下完全不會進入 GPT。**
+
+> ✅ **已由 [FIX-115](../4-changes/bug-fixes/FIX-115-stage2-prompt-missing-knownformats-variable.md) 修復**（GLOBAL prompt version 3 起含 `${knownFormats}`）。
+> 但**既有環境不會自動更新** —— seed 對既有記錄只改 name/description、不覆寫 prompt 內容。
+> 需另外執行 `node prisma/update-stage2-prompt.js`（Azure 經 Kudu ad-hoc）。下方檢查方式仍建議先跑一次確認。
 
 檢查方式：
 ```sql
@@ -112,6 +116,27 @@ FROM prompt_configs WHERE prompt_type='STAGE_2_FORMAT_IDENTIFICATION' AND is_act
 - ✅ 版面結構（深色橫幅 vs 白底細框線、分欄表 vs 純文字行）
 - ✅ 特殊元素（QR code、浮水印、頁碼位置）
 - ❌ 避免「有公司 Logo」「有發票標題」這類所有版面共通的描述
+
+#### ⚠️ 具體 vs 通用的張力（尚未解決，見 FIX-119）
+
+規則寫得太具體會有風險：Stage 2 的判斷帶排他性，若 keywords 含**隨單張文件變動的值**，遇到稍有不同的文件就可能誤排除正確格式。已識別的高風險寫法：
+
+| 寫法 | 失效情境 |
+|------|----------|
+| 頁碼 `Page 1 of 1` 位於右下角 | 多頁發票是 `Page 1 of 3` |
+| 費用表 …\| `CHARGES IN HKD` | 泰銖帳單是 `CHARGES IN THB` |
+| 含 `CONTAINERS` 區塊列出櫃號 | 空運／散貨無櫃號 |
+| 發票號為 **12 位**純數字 | 位數由單一樣本推得 |
+
+**但把它們改寫成抽象描述已實測失敗**（[FIX-119](../4-changes/bug-fixes/FIX-119-stage2-overfit-identification-keywords.md)，已回滾）。Stage 2 使用 `gpt-5.4-nano` + `imageDetailMode: "low"`（降採樣圖像），這些具體字串實際上是**弱模型的辨識錨點**；改成「以字母 F 起首」「頁碼位於右下角」後，模型連 QR code 和分欄表格都認不出來，兩個格式隨即混淆。
+
+**現階段建議**：
+
+1. 沿用具體寫法（能work），但**知道**多頁／不同幣別／不同運送方式的文件可能誤判
+2. 遇到誤判時，優先**補樣本**再收斂規則，而不是把規則寫得更抽象
+3. 若要根治，方向是提升 `imageDetailMode` 或改用更強模型 —— 屬管線配置決策，見 FIX-119 §後續可行方向
+
+> 教訓：規則的抽象程度必須與**模型能力**匹配。此結論僅適用於當前 nano + low detail 組合。
 
 `identificationRules` 完整結構（`validations/document-format.ts:50-59`）：
 
