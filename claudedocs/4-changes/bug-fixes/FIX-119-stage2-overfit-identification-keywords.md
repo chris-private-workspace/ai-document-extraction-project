@@ -116,13 +116,13 @@ CEVA 的兩組規則是照**各一張樣本**撰寫的，過度擬合：
 
 原始風險**未解除**：多頁發票、非 HKD 計價、空運無櫃等情境仍可能因特徵「不存在」而被誤排除。
 
-### 後續可行方向（未採用，待評估）
+### 後續可行方向
 
-| 方向 | 說明 | 風險 |
+| 方向 | 說明 | 狀態 |
 |------|------|------|
-| A | 保留但書、**同時保留具體範例** —— 讓範例當錨點、但書防過度排除 | 需實測；本次已證明單獨移除範例會失敗 |
-| B | 提升 `imageDetailMode`（`low` → `high`）或 Stage 2 改用更強模型 | 治本，但影響成本與延遲，屬管線配置決策 |
-| C | 蒐集同格式的多張真實樣本後再收斂規則 | 最紮實；本次規則全部出自**各一張**樣本，這是根本弱點 |
+| A | 保留但書、**同時保留具體範例** —— 讓範例當錨點、但書防過度排除 | ✅ 已由 [FIX-121](FIX-121-identification-rules-inline-variability-annotation.md) 實作（改良為「就地標註」而非全域但書），實測四份全數通過 |
+| B | 提升 `imageDetailMode`（`low` → `high`）或 Stage 2 改用更強模型 | ⏳ 未採用 —— 治本，但影響成本與延遲，屬管線配置決策，應另開 CHANGE |
+| C | 蒐集同格式的多張真實樣本後再收斂規則 | ⏳ 未採用 —— 最紮實；本次規則全部出自**各一張**樣本，這是根本弱點。FIX-121 亦因缺樣本而無法確證效益 |
 
 > 教訓：規則的抽象程度必須與**模型能力**匹配。在弱模型 + 低解析度圖像的條件下，「寫得更通用」反而會失去可辨識性。此結論僅適用於當前的 nano + low detail 組合，若 B 方向調整後應重新評估。
 
@@ -137,4 +137,6 @@ CEVA 的兩組規則是照**各一張樣本**撰寫的，過度擬合：
 ## 關聯
 
 - [FIX-115](FIX-115-stage2-prompt-missing-knownformats-variable.md) —— 本 FIX 修正其排他性判斷的副作用；CEVA 的過度具體規則亦是該次撰寫
+- [FIX-121](FIX-121-identification-rules-inline-variability-annotation.md) —— **承接本 FIX 的第二次嘗試（已完成）**：保留具體範例作錨點，改以「就地標註可變性」取代全域但書
+- [FIX-120](FIX-120-resolve-format-id-empty-name-silent-match.md) —— 本次實驗的診斷過程中發現的靜默任意匹配缺陷
 - 操作指南：[company-multi-format-setup-guide.md](../../reference/company-multi-format-setup-guide.md)
