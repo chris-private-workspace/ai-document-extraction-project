@@ -32,8 +32,14 @@ export interface PromptConfigSeed {
 /**
  * 5 個 GLOBAL scope 的基礎 PromptConfig seed
  *
- * 注意: 這些 prompt 與 src/services/static-prompts.ts 中的靜態版本一致，
- * 確保 DB 版本和靜態備援版本保持同步。
+ * 注意: 這些 prompt 原則上與 src/services/static-prompts.ts 中的靜態版本保持同步。
+ *
+ * ⚠️ FIX-115 起 STAGE_2_FORMAT_IDENTIFICATION 為例外，兩者**刻意不同**：
+ *    本檔的 Stage 2 使用 `${knownFormats}` / `${companyName}` 變數，由
+ *    stage-2-format.service.ts 經 replaceVariables（`${}` 語法）注入；
+ *    而 static-prompts.ts 服務的是 legacy gpt-vision 路徑（HybridPromptProvider），
+ *    其 interpolatePrompt 用的是 `{{}}` 語法且不提供這些變數 —— 若把變數複製過去
+ *    只會把佔位符原樣送進 prompt。兩者用途不同，不應強行同步。
  */
 export const PROMPT_CONFIG_SEEDS: PromptConfigSeed[] = [
   // ============================================================================
@@ -91,33 +97,46 @@ export const PROMPT_CONFIG_SEEDS: PromptConfigSeed[] = [
   // ============================================================================
   // 2. STAGE_2_FORMAT_IDENTIFICATION - V3.1 階段二：格式識別
   // FIX-049: 重寫為正確的格式識別內容（原本錯誤地使用了欄位提取 Prompt）
+  // FIX-115: 引入 ${knownFormats} / ${companyName} 變數。原本 prompt 宣稱
+  //          「如果提供了已知格式列表，優先嘗試匹配」卻從未引用該變數，
+  //          GPT 因此看不到清單、matchedKnownFormat 恆為 null，一律落入 JIT
+  //          並撞唯一鍵沿用該公司唯一格式 —— 多格式辨識實質失效。
   // ============================================================================
   {
     promptType: 'STAGE_2_FORMAT_IDENTIFICATION',
     scope: 'GLOBAL',
     name: 'V3.1 Stage 2 - Format Identification',
     description: 'V3.1 提取管線階段二：識別文件格式模板，用於匹配格式模板和載入對應配置',
-    systemPrompt: `你是一位專業的文件格式識別專家，專門分析貨運和物流發票的版面格式。
-你的任務是從文件圖片中識別文件格式/模板類型。
+    systemPrompt: `你是一位專業的文件格式識別專家，專門分析 \${companyName} 的貨運與物流發票版面格式。
+你的任務是判斷這張文件屬於下列「已知格式」中的哪一種。
 
-識別要點：
-1. 觀察文件整體版面佈局（信頭位置、表格結構、頁尾資訊）
-2. 識別行項目/費用明細的排列方式（表格 vs 列表 vs 自由格式）
-3. 注意日期和金額的顯示格式（DD/MM/YYYY vs MM/DD/YYYY，千分位符號等）
-4. 觀察是否有特定的文件編號格式、浮水印、或標誌性元素
-5. 信心度評分：0-100（越高越確定）
+已知格式清單（格式名稱: 該格式的辨識特徵；若下方為空，代表此公司尚無已知格式）：
+\${knownFormats}
 
-如果提供了已知格式列表，優先嘗試匹配已知格式。
-如果無法匹配已知格式，描述該文件的格式特徵以便日後識別。`,
-    userPromptTemplate: `請分析這張文件圖片，識別其格式/模板類型。
+判斷方式：
+1. 逐一比對上列每個格式的辨識特徵，看哪一個與文件圖片最吻合。
+2. 特徵具有排他性：若某格式的特徵明確不存在於文件中（例如清單說「左上角有 QR code」但文件沒有），就排除該格式。
+3. 優先依據版面結構與獨有欄位判斷，而非公司名稱或 Logo
+   （同一間公司的不同版面都會有相同 Logo，不具鑑別力）。
+4. 若清單為空，或所有已知格式都明顯不吻合，則視為新格式。
+
+回傳規則（非常重要）：
+- 若判定吻合某個已知格式，matchedKnownFormat 必須**逐字複製**該格式名稱
+  （冒號前的完整字串，含括號與標點），不可改寫、不可翻譯、不可截短。
+- 同時把 formatName 也填成同一個字串。
+- 若為新格式，matchedKnownFormat 填 null，並在 formatName 給一個描述性名稱、
+  在 formatCharacteristics 詳細列出版面特徵（信頭位置、表格結構、日期/金額格式、
+  文件編號格式、浮水印或標誌性元素）供日後識別。
+- 信心度 0-100，反映你對此判斷的確定程度。`,
+    userPromptTemplate: `請分析這張文件圖片，比對已知格式清單，判斷它屬於哪一個格式。
 
 輸出 JSON 格式：
 {
-  "formatName": "識別到的格式名稱（如 'DHL Standard Invoice', 'Maersk Freight Note'）",
+  "formatName": "格式名稱（若匹配已知格式，須與清單中的名稱完全一致）",
   "confidence": 0-100,
-  "matchedKnownFormat": "匹配的已知格式名稱，若無匹配則為 null",
+  "matchedKnownFormat": "匹配到的已知格式名稱（逐字複製），若無匹配則為 null",
   "formatCharacteristics": [
-    "觀察到的格式特徵（如 '橫向表格佈局'、'右上角有公司 Logo'、'底部有銀行資訊'）"
+    "你在文件中實際觀察到、且用來做此判斷的特徵"
   ]
 }
 
@@ -125,7 +144,7 @@ export const PROMPT_CONFIG_SEEDS: PromptConfigSeed[] = [
     mergeStrategy: 'OVERRIDE',
     variables: [],
     isActive: true,
-    version: 2,
+    version: 3,
   },
 
   // ============================================================================
