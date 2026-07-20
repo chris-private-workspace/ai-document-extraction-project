@@ -67,7 +67,7 @@
 | [FIX-106](4-changes/bug-fixes/FIX-106-ocr-processing-stuck-db-connection-timeout.md) | ocr processing stuck db connection timeout | ✅ 根因已確認（應用端事件迴圈飽和，非 DB 故障）；治本（§5.5）+ 臨時緩解（§5.1）+ 收斂 1（§5.3）已實作並於 2026… |
 | [FIX-107](4-changes/bug-fixes/FIX-107-stage2-gpt-transient-failure-batch-ocr-failed.md) | stage2 gpt transient failure batch ocr failed | 🔍 根因已確認（Azure OpenAI 服務端瞬斷，外部因素）；資料已由重試恢復；弱點 A（重試退避）已修並於 2026-07-14 … |
 | [FIX-108](4-changes/bug-fixes/FIX-108-stage3-lineitem-backfill-description-matching.md) | stage3 lineitem backfill description matching | ✅ 已實作並已部署 Azure DEV（2026-07-14，映像 `dev-fix108-20260714135401`）；🔴 §6.… |
-| [FIX-115](4-changes/bug-fixes/FIX-115-stage2-prompt-missing-knownformats-variable.md) | stage2 prompt missing knownformats variable | 🔬 根因已確認並實證，待批准實作（CEVA 已套用公司級繞法） |
+| [FIX-115](4-changes/bug-fixes/FIX-115-stage2-prompt-missing-knownformats-variable.md) | stage2 prompt missing knownformats variable | ✅ 已實作（2026-07-20；本地 DB 已套用並驗證冪等；type-check / lint 通過）。⏳ 全域端到端驗證待做（見 §… |
 | [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
 
 ## ❓ 狀態無法解析（0）
