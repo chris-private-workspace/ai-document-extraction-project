@@ -4,7 +4,7 @@
 > **發現方式**: Azure DEV 部署 FIX-115 後查證為何多格式辨識仍無效
 > **影響頁面/功能**: 公司合併（admin 合併 UI / 疑似重複審核 / Stage 1 自動合併）→ Stage 2 已知格式清單
 > **優先級**: 高
-> **狀態**: 🚧 待修復
+> **狀態**: ✅ 程式修復已完成（2026-07-21）；存量資料處理待執行
 
 ---
 
@@ -104,26 +104,92 @@ CEVA 在 Azure 有 8 筆公司記錄，其中 7 筆已 `MERGED` 至 `CEVA LOGIST
 
 ---
 
+## 實作記錄（2026-07-21）
+
+### 用戶決策
+
+| 項目 | 決定 |
+|------|------|
+| 轉移範圍 | **公司處理知識類 6 種**：`documentFormats`、`fieldDefinitionSets`、`templateFieldMappings`、`promptConfigs`、`pipelineConfigs`、`fieldMappingConfigs` |
+| 唯一鍵衝突 | **選項 A** —— 不轉移 + 記錄警告，交人工處理 |
+| 存量 `mergedIntoId` 缺失 | 盤點腳本列出待辦，**不自動推斷** |
+
+「公司處理知識」的判準是「這間公司的文件該怎麼處理」。歷史性質的關聯（`issuedDocuments`、`correctionHistories`、`identifiedHistoricalFiles`、`transactionParticipations` 等）**刻意留在原地** —— 它們記錄「當時是哪間公司」，轉走會扭曲審計事實。
+
+### 盤點發現（實作前調查，本地環境）
+
+**1. 6 類關聯的唯一鍵全部含 `companyId`** —— 不只 `documentFormats`，`updateMany` 對每一類都不安全：
+
+| Model | 唯一鍵 |
+|-------|--------|
+| `DocumentFormat` | `(companyId, documentType, documentSubtype)` ← 三欄皆 non-null，必然撞鍵 |
+| `FieldDefinitionSet` / `FieldMappingConfig` | `(scope, companyId, documentFormatId)` |
+| `PromptConfig` | `(promptType, scope, companyId, documentFormatId)` |
+| `TemplateFieldMapping` | `(dataTemplateId, scope, companyId, documentFormatId)` |
+| `PipelineConfig` | `(scope, regionId, companyId, documentFormatId)` |
+
+**2. 撞鍵率實測 2/3** —— 本地 3 間 MERGED 的 DHL 公司各有 1 個格式，**全部是 `INVOICE/GENERAL`**；目標 `DHL Express` 沒有該組合，故第 1 個可轉、第 2、3 個互撞。與 Azure CEVA 手動修復時遇到的情況一致。
+
+**3. 規劃外的障礙：3 間 MERGED 公司全部 `mergedIntoId = null`** —— 程式無從得知該轉去哪，即使修好合併函數，這批存量也無法自動歸位。
+
+**4. `promptConfigs` 也有孤立**（本地 1 筆），而規劃的「最小必要三類」中 `fieldDefinitionSets` / `templateFieldMappings` 在本地實測皆為 0 —— 這是把範圍擴為 6 類的實證依據。
+
+### 實作內容
+
+**新增** `src/services/company-merge-transfer.service.ts`：
+
+- `transferCompanyKnowledge(tx, sourceIds, targetId)` —— 6 類逐筆轉移，每類依自身唯一鍵查詢目標是否已存在相同組合，撞鍵則跳過並記入 `skipped`
+- **配置跟隨格式**：FORMAT scope 的配置若其 `documentFormat` 因撞鍵未能轉移，該配置一併跳過 —— 否則配置轉到新公司卻指向留在舊公司的格式，語義矛盾
+- `logMergeTransferSkips(report, context)` —— 輸出警告。撞鍵不轉移是刻意處置，但若不記錄就會變成另一種靜默失敗（使用者以為合併完成，實際知識仍留在原公司）
+
+> 🔴 **不使用 try/catch 捕捉 P2002**：PostgreSQL 中語句失敗會使交易進入 aborted 狀態，後續語句全部失敗。必須「先查詢再決定」。
+
+**三個呼叫點統一接入**（行為一致）：
+
+| 函數 | 檔案 | 變更 |
+|------|------|------|
+| `mergeCompanies` | `company.service.ts` | 轉移規則後呼叫，回傳值加 `knowledgeTransfer` |
+| `confirmCompanyMerge` | `company.service.ts` | 同上 |
+| `autoMergeCompanies` | `company-auto-create.service.ts` | 同上，並改寫 `:499-501` 記錄舊假設的過時註解 |
+
+回傳型別為擴充（加欄位），API route 直接回傳 `result`、前端 hook 不解析內容，無破壞性變更。
+
+### 測試驗證
+
+- [x] 合併後副公司名下的 `documentFormats` 已轉移至存活公司
+- [x] 唯一鍵衝突時**不轉移**且有明確警告（測試斷言 `update` 未被呼叫、`skipped` 含衝突對象名稱）
+- [x] 三個合併函數行為一致（皆呼叫同一 `transferCompanyKnowledge`）
+- [x] FORMAT scope 配置在其格式未轉移時一併跳過；COMPANY scope（`documentFormatId` 為 null）不受影響
+- [x] `npm run type-check` 無錯誤
+- [x] `npm run lint` —— 新模組與 `company-auto-create.service.ts` 零警告
+- [x] 單元測試 **6 passed**（`tests/unit/services/company-merge-transfer.test.ts`）；全套 97 passed / 4 failed（失敗為 Epic 23 gateway 既有問題）
+- [ ] 🚧 合併後 Stage 2 的 `${knownFormats}` 能列出原屬副公司的格式（需實跑合併驗證）
+- [ ] 🚧 存量盤點腳本可在 Azure DEV 執行（現有腳本為 tsx，Azure runner 映像不含 tsx，需另寫 `prisma/*.js` 版本）
+
+---
+
 ## 修改的檔案
 
 | 檔案 | 修改內容 |
 |------|----------|
-| `src/services/company.service.ts` | `mergeCompanies`、`confirmCompanyMerge`：擴充轉移範圍 + 唯一鍵衝突處理 |
-| `src/services/company-auto-create.service.ts` | `autoMergeCompanies`：同上（含更新 `:500-501` 的過時註解） |
-| `scripts/`（新增） | 存量孤立格式盤點 / 回填腳本（gated） |
+| `src/services/company-merge-transfer.service.ts` | **新增** —— 6 類關聯轉移 + 唯一鍵守門 + 跳過報告 |
+| `src/services/company.service.ts` | `mergeCompanies`、`confirmCompanyMerge`：接入轉移，回傳值加 `knowledgeTransfer` |
+| `src/services/company-auto-create.service.ts` | `autoMergeCompanies`：同上，並改寫記錄舊假設的過時註解 |
+| `tests/unit/services/company-merge-transfer.test.ts` | **新增** —— 6 條迴歸測試 |
+| `scripts/local-inspect-merged-company-orphans.ts` | **新增** —— 唯讀存量盤點（含撞鍵模擬、`mergedIntoId` 缺失偵測） |
 
 ---
 
-## 測試驗證
+## 存量處理（待執行）
 
-修復完成後需驗證：
+程式修復只影響**今後**的合併。現有孤立資料需一次性處理：
 
-- [ ] 合併後副公司名下的 `documentFormats` 已轉移至存活公司
-- [ ] 唯一鍵衝突時**不轉移**且有明確警告（不得靜默失敗或亂改 subtype）
-- [ ] 三個合併函數行為一致（`mergeCompanies` / `confirmCompanyMerge` / `autoMergeCompanies`）
-- [ ] 合併後 Stage 2 的 `${knownFormats}` 能列出原屬副公司的格式
-- [ ] 存量盤點腳本可在本地與 Azure DEV 執行且 inspect 模式無副作用
-- [ ] `npm run type-check`、`npm run lint`
+| 環境 | 現況 | 障礙 |
+|------|------|------|
+| 本地 | 3 個 `documentFormat` + 1 個 `promptConfig` 孤立於 3 間 MERGED 的 DHL 公司 | 全部 `mergedIntoId = null`，且 3 個格式同為 `INVOICE/GENERAL`（轉入同一目標會撞 2 筆） |
+| Azure DEV | CEVA 曾有 8 格式散落 8 間公司（2026-07-20 已手動修復一部分）；另有 4 筆 `templateFieldMappings` + 1 筆 `fieldDefinitionSets` 遺留於 `7448b7c5-…` | 盤點腳本為 tsx，Azure runner 映像不含 tsx，需另寫 `prisma/*.js` 版本 |
+
+依決議，盤點腳本**只列出待辦、不自動推斷目標** —— 公司名稱相似度推斷正是 CHANGE-103 在治理的問題，不應在此重蹈。
 
 ---
 

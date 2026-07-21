@@ -76,6 +76,12 @@ import type {
   UpdateCompanyFormData,
 } from '@/types/company'
 import { mapDocumentStatus, getIsActiveFromStatus } from '@/types/company'
+// FIX-125: 合併時一併轉移「公司處理知識」類關聯（格式 / 欄位定義集 / 模板映射 / Prompt 等）
+import {
+  transferCompanyKnowledge,
+  logMergeTransferSkips,
+  type MergeTransferReport,
+} from './company-merge-transfer.service'
 
 // ============================================================
 // 類型定義
@@ -1545,6 +1551,8 @@ export async function mergeCompanies(
   documentsTransferred: number
   extractionResultsTransferred: number
   rulesTransferred: number
+  /** FIX-125: 處理知識類關聯的轉移結果（含因唯一鍵衝突而跳過者） */
+  knowledgeTransfer: MergeTransferReport
 }> {
   const result = await prisma.$transaction(async (tx) => {
     // 1. 獲取來源公司資訊
@@ -1600,7 +1608,12 @@ export async function mergeCompanies(
       data: { companyId: targetId },
     })
 
-    // 6. 更新來源公司狀態
+    // 6. 轉移處理知識類關聯（FIX-125：格式 / 欄位定義集 / 模板映射 / Prompt /
+    //    管線配置 / 欄位映射配置）。原本刻意不轉，假設副公司 MERGED 後 inert —— 但
+    //    存活公司仍會收到同樣版面的文件，辨識所需的定義留在原地等同遺失。
+    const knowledgeTransfer = await transferCompanyKnowledge(tx, [sourceId], targetId)
+
+    // 7. 更新來源公司狀態
     await tx.company.update({
       where: { id: sourceId },
       data: {
@@ -1615,8 +1628,11 @@ export async function mergeCompanies(
       documentsTransferred: documentsResult.count,
       extractionResultsTransferred: extractionResultsResult.count,
       rulesTransferred: rulesResult.count,
+      knowledgeTransfer,
     }
   })
+
+  logMergeTransferSkips(result.knowledgeTransfer, `mergeCompanies ${sourceId} → ${targetId}`)
 
   return result
 }
@@ -1851,6 +1867,8 @@ export async function confirmCompanyMerge(companyId: string): Promise<{
   documentsTransferred: number
   extractionResultsTransferred: number
   rulesTransferred: number
+  /** FIX-125: 處理知識類關聯的轉移結果（含因唯一鍵衝突而跳過者） */
+  knowledgeTransfer: MergeTransferReport
 }> {
   return prisma.$transaction(async (tx) => {
     // 1. 讀取來源公司並驗證：必須 PENDING 且有疑似重複目標
@@ -1921,7 +1939,10 @@ export async function confirmCompanyMerge(companyId: string): Promise<{
       data: { companyId: targetId },
     })
 
-    // 7. 來源公司設為 MERGED + 記錄合併目標 + 清除疑似重複標記
+    // 7. 轉移處理知識類關聯（FIX-125，與 mergeCompanies / autoMergeCompanies 一致）
+    const knowledgeTransfer = await transferCompanyKnowledge(tx, [source.id], targetId)
+
+    // 8. 來源公司設為 MERGED + 記錄合併目標 + 清除疑似重複標記
     await tx.company.update({
       where: { id: source.id },
       data: {
@@ -1931,12 +1952,15 @@ export async function confirmCompanyMerge(companyId: string): Promise<{
       },
     })
 
+    logMergeTransferSkips(knowledgeTransfer, `confirmCompanyMerge ${source.id} → ${targetId}`)
+
     return {
       sourceId: source.id,
       targetId,
       documentsTransferred: documentsResult.count,
       extractionResultsTransferred: extractionResultsResult.count,
       rulesTransferred: rulesResult.count,
+      knowledgeTransfer,
     }
   })
 }
