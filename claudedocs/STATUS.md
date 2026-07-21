@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 103 | CHANGE-105 | **CHANGE-106** |
-| FIX | 124 | FIX-122 | **FIX-123** |
+| FIX | 127 | FIX-125 | **FIX-126** |
 
-## 📋 未開始（25）
+## 📋 未開始（28）
 
 > 完全未動工的規劃。
 
@@ -41,6 +41,9 @@
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
+| [FIX-123](4-changes/bug-fixes/FIX-123-resolve-format-id-name-match-fragility.md) | resolve format id name match fragility | 🚧 待修復 |
+| [FIX-124](4-changes/bug-fixes/FIX-124-jit-create-format-silent-arbitrary-reuse.md) | jit create format silent arbitrary reuse | 🚧 待修復 |
+| [FIX-125](4-changes/bug-fixes/FIX-125-company-merge-orphans-document-formats.md) | company merge orphans document formats | 🚧 待修復 |
 
 ## 🚧 進行中 / 部分完成（20）
 
