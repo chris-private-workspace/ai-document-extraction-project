@@ -14,11 +14,18 @@
  *
  * @module src/services/extraction-v3/stages/stage-2-format.service
  * @since CHANGE-024 - Three-Stage Extraction Architecture
- * @lastModified 2026-05-31
+ * @lastModified 2026-07-21
  *
  *   FIX-058：jitCreateFormat 改為 find-or-create（先查唯一鍵
  *   (companyId, documentType, documentSubtype)），避免同公司第 2+ 份文件
  *   重複建立 (INVOICE, GENERAL) 格式撞唯一約束導致 OCR_FAILED
+ *
+ *   FIX-123：resolveFormatId 補上兩段容錯比對（剝除描述後綴、反向包含），
+ *   修正 GPT 已匹配到正確格式卻因字串不逐字相等而被誤判為新格式；
+ *   兩段新比對皆帶唯一性守門，維持 FIX-120「寧可不匹配」的防呆原則
+ *
+ *   FIX-124：jitCreateFormat 撞到唯一鍵時不再沿用既有格式的 id（改回傳無 id），
+ *   避免把新版面的文件靜默指派給一個與它無關的格式而讓下游套錯 FORMAT scope 配置
  *
  * @features
  *   - 分層配置查詢：公司特定 → 統一格式 → LLM 推斷
@@ -496,7 +503,74 @@ Focus on the visual layout, table structure, and distinctive formatting elements
       }
     }
 
-    // 2. 嘗試模糊匹配（需要 companyId 且 formatName 非空）
+    // 2. FIX-123 BUG-1：剝除描述後綴後再做完全相等比對
+    //
+    //   ${knownFormats} 的渲染格式為 `- 名稱: 關鍵字1, 關鍵字2, …`
+    //   （variable-replacer.ts buildStage2VariableContext），而 prompt 要求「逐字複製」名稱。
+    //   GPT 有時忠實地連同冒號後的描述一併複製，使步驟 1 的完全相等落空
+    //   （實測：matchedKnownFormat = "…標準貨運發票模板: 左上角有公司 Logo…"）。
+    //   這裡取第一個 ': ' 之前的片段還原名稱，再做一次完全相等。
+    //
+    //   🔴 唯一性守門：name 並非唯一鍵，且「剝除後綴」是我方推測而非 GPT 明示，
+    //      命中多筆即視為不確定 → 不匹配並往下走，維持 FIX-120
+    //      「寧可不匹配，也不可靜默匹配任意一筆」的原則。
+    if (companyId && parsed.matchedKnownFormat) {
+      const separatorIndex = parsed.matchedKnownFormat.indexOf(': ');
+      const strippedName =
+        separatorIndex > 0 ? parsed.matchedKnownFormat.slice(0, separatorIndex).trim() : '';
+
+      if (strippedName) {
+        const candidates = await this.prisma.documentFormat.findMany({
+          where: { name: strippedName, companyId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, name: true },
+          take: 2,
+        });
+
+        if (candidates.length === 1) {
+          return {
+            formatId: candidates[0].id,
+            formatName: candidates[0].name || strippedName,
+            isNewFormat: false,
+          };
+        }
+      }
+    }
+
+    // 3. FIX-123 BUG-2：反向包含比對（GPT 回傳字串 ⊃ DB 名稱）
+    //
+    //   步驟 4 的既有模糊比對語義是「DB 名稱包含 GPT 字串」，但實測失敗案例是反方向 ——
+    //   GPT 在名稱前加了說明語，使 DB 名稱完整出現在回傳字串裡
+    //   （實測：formatName = "…貨運發票（Original Invoice）已知模板：<DB 名稱>"）。
+    //   Prisma 無法表達「欄位是給定字串的子字串」，故撈出該公司格式後於應用層比對。
+    //
+    //   🔴 同樣採唯一性守門：命中多筆即視為不確定，不匹配。
+    const haystacks = [parsed.matchedKnownFormat, parsed.formatName]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+
+    if (companyId && haystacks.length > 0) {
+      const companyFormats = await this.prisma.documentFormat.findMany({
+        where: { companyId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, name: true },
+      });
+
+      const contained = companyFormats.filter((format) => {
+        const name = format.name?.trim();
+        return Boolean(name) && haystacks.some((haystack) => haystack.includes(name as string));
+      });
+
+      if (contained.length === 1) {
+        return {
+          formatId: contained[0].id,
+          formatName: contained[0].name || parsed.formatName,
+          isNewFormat: false,
+        };
+      }
+    }
+
+    // 4. 嘗試模糊匹配（需要 companyId 且 formatName 非空）
     //
     // FIX-120: 原本未檢查 parsed.formatName 是否為空即執行模糊比對。
     //   GPT 回傳 `"formatName": null` 時，extractFormatFromParsed 會轉成空字串（`String(null || '')`），
@@ -524,7 +598,7 @@ Focus on the visual layout, table structure, and distinctive formatting elements
       }
     }
 
-    // 3. 如果允許自動創建，則 JIT 創建格式
+    // 5. 如果允許自動創建，則 JIT 創建格式
     if (options?.autoCreateFormat !== false && parsed.formatName && companyId) {
       const newFormat = await this.jitCreateFormat(
         parsed.formatName,
@@ -547,28 +621,42 @@ Focus on the visual layout, table structure, and distinctive formatting elements
 
   /**
    * JIT 創建格式
-   * @description Just-in-Time 創建新格式記錄
+   * @description
+   *   Just-in-Time 創建新格式記錄。
+   *
+   *   FIX-058：先以唯一鍵 (companyId, documentType, documentSubtype) 查找既有格式，
+   *   避免重複 create 撞唯一約束（同公司同 type/subtype 的第 2+ 份文件）導致 OCR_FAILED。
+   *
+   *   FIX-124：唯一鍵命中既有記錄時**不再沿用該格式的 id**。documentType/documentSubtype
+   *   在此寫死為 INVOICE/GENERAL，同公司所有 JIT 建立都會撞同一個鍵，第 2 筆之後必然落入
+   *   existing 分支 —— 沿用等同把新版面的文件靜默指派給一個與它無關的格式，下游任何依
+   *   formatId 解析的 FORMAT scope 配置都會套錯設定。改為回傳無 id，語義是
+   *   「這是新版面，但尚未登記為 DocumentFormat」。
+   *
+   * @returns `id` 為 `undefined` 表示既未建立也未匹配（撞唯一鍵），文件屬於尚未登記的新版面
    */
   private async jitCreateFormat(
     formatName: string,
     companyId: string,
     characteristics: string[]
-  ): Promise<{ id: string; name: string }> {
+  ): Promise<{ id?: string; name: string }> {
     const documentType = 'INVOICE' as const;
     const documentSubtype = 'GENERAL' as const; // 使用 GENERAL 作為預設子類型
 
-    // FIX-058: 先以唯一鍵 (companyId, documentType, documentSubtype) 查找既有格式，
-    //          避免重複 create 撞唯一約束（同公司同 type/subtype 的第 2+ 份文件）
     const existing = await this.prisma.documentFormat.findFirst({
       where: { companyId, documentType, documentSubtype },
       select: { id: true, name: true },
     });
 
     if (existing) {
-      return {
-        id: existing.id,
-        name: existing.name || formatName,
-      };
+      // FIX-124: 不沿用 existing.id（理由見上方 JSDoc）。
+      //   仍需留下記錄，否則只是把「靜默錯誤指派」換成「靜默不指派」。
+      console.warn(
+        `[Stage2] JIT format creation hit the unique key ` +
+          `(companyId=${companyId}, ${documentType}/${documentSubtype}, existing="${existing.name}"). ` +
+          `Returning no formatId for "${formatName}" — this layout is not registered yet.`
+      );
+      return { name: formatName };
     }
 
     const newFormat = await this.prisma.documentFormat.create({
