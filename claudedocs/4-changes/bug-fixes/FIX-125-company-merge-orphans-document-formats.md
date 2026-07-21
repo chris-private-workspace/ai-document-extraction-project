@@ -266,13 +266,44 @@ sandbox 資料已清除（`psql` 獨立核實殘留為 0）。
 
 驗證（兩個獨立來源）：盤點腳本重跑顯示 MERGED 公司 0 間、孤立 0 筆；`psql` 查詢 `TEST %` 配置 0 筆、MERGED 公司 0 間、MERGED 名下格式 0 個。三間 ACTIVE 公司的格式數維持 2 / 1 / 1 未變動，確認無誤刪。
 
+### 延伸查證：Azure DEV 是否有同類 override（2026-07-21）✅ 無
+
+本地發現 override 會靜默壓制 `${knownFormats}` 後，隨即產生一個影響部署判讀的疑問：**Azure 是否也有同類配置？** 若有，FIX-115 在 Azure 的失效原因就不只「格式散落」一條，部署 FIX-123/124/125 後將無從判斷效果不如預期是修復無效還是被 override 壓制。
+
+透過 Kudu 以唯讀方式查詢 Azure DEV 資料庫，結果為 **`STAGE_2_FORMAT_IDENTIFICATION` 全庫只有 1 筆**：
+
+```
+V3.1 Stage 2 - Format Identification
+  GLOBAL 啟用中 | 策略=OVERRIDE | v4 | 模板長度=255
+  knownFormats: 模板=N 系統提示=Y | 提及 matchedKnownFormat=Y
+```
+
+無任何 COMPANY / FORMAT scope 配置，故不存在非全域 override 壓制。本地那 4 筆 TEST 配置從未同步至 Azure。
+
+> ⚠️ **`模板=N` 不代表壞掉**：`${knownFormats}` 位於 `system_prompt` 而非 `user_prompt_template`。
+> `stage-2-format.service.ts:164-165` 對 **system 與 user 兩者都呼叫 `replaceVariables`**，故變數正常展開。
+> 若僅憑「模板=N」判讀，會誤以為 Azure 的 FIX-115 同樣失效，導向完全相反的處置。
+
+**結論**：Azure CEVA 的 FIX-115 失效**純粹**源於格式散落 8 間公司，即本 FIX 所解者，無第二成因。部署後的觀察基準是乾淨的。
+
+#### Kudu 查詢方法備忘（可複用）
+
+Azure DEV 的 PostgreSQL 位於 VNet 私有端點，本機無法直連，須在 Kudu 內查詢。兩個必要技巧：
+
+| 障礙 | 解法 |
+|------|------|
+| 本機 DNS 對 scm 端點回傳空值（主站台正常） | 公用 DNS 取 IP 後 `curl --resolve <scm-host>:443:<ip>`；主機名帶隨機後綴，須先 `az webapp show --query enabledHostNames` 取得 |
+| `/api/command` 按空白拆 argv，**不做 shell 解析** | `cmd1 && cmd2` 會使 cmd2 變成 cmd1 的參數，`bash -c '...'` 的引號內空白同樣被拆。改以 `PUT /api/vfs/<path>`（需 `If-Match: *`）上傳腳本檔，再執行 `node /home/diag/check.js` 這類「單一命令 + 獨立參數」形式 |
+
+Kudu node 為 v14，需 `npm install pg@8.7.3` 才能連 PG；查詢完成後 `/home/diag`（含 `node_modules`）已刪除，全程唯讀。
+
 ---
 
 ## 關聯
 
 - FIX-112 — 補上 documents / extractionResults / mappingRules 的轉移，並在該次確立「其餘刻意不轉」的假設；本 FIX 質疑該假設
 - FIX-113 — 存量孤兒盤點（當時只查 documents / extraction_results / rules，**範圍不含格式**，故未發現本問題）
-- FIX-115 — 因本問題而在 Azure 完全無效，是本問題的發現路徑
+- FIX-115 — 因本問題而在 Azure 完全無效，是本問題的發現路徑；已查證該失效**無第二成因**（Azure 無非全域 override 壓制 `${knownFormats}`，見上方延伸查證）
 - 部署記錄 `docs/07-deployment/02-azure-deployment/deployment-records/2026-07-20-dev-ceva-format-consolidation.md` — Azure 手動修復的完整經過與回滾資料
 
 ---
