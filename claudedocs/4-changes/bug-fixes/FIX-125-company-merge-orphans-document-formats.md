@@ -163,8 +163,39 @@ CEVA 在 Azure 有 8 筆公司記錄，其中 7 筆已 `MERGED` 至 `CEVA LOGIST
 - [x] `npm run type-check` 無錯誤
 - [x] `npm run lint` —— 新模組與 `company-auto-create.service.ts` 零警告
 - [x] 單元測試 **6 passed**（`tests/unit/services/company-merge-transfer.test.ts`）；全套 97 passed / 4 failed（失敗為 Epic 23 gateway 既有問題）
-- [ ] 🚧 合併後 Stage 2 的 `${knownFormats}` 能列出原屬副公司的格式（需實跑合併驗證）
+- [x] 合併後 Stage 2 的 `${knownFormats}` 能列出原屬副公司的格式 —— **端到端驗證 11/11 通過**（見下方）
 - [ ] 🚧 存量盤點腳本可在 Azure DEV 執行（現有腳本為 tsx，Azure runner 映像不含 tsx，需另寫 `prisma/*.js` 版本）
+
+#### 端到端驗證（2026-07-21）
+
+單元測試只證明「轉移函數改寫了 `companyId`」，但 FIX-125 的目的是讓 FIX-115 在合併過的公司身上生效 ——
+中間還隔著 `loadFormatConfig` 的查詢與 `buildStage2VariableContext` 的字串組裝。
+`scripts/local-verify-fix125-known-formats.ts` 串起三段**真實程式碼**（不複製查詢邏輯），
+在 sandbox 公司上實跑合併並在 `finally` 清除：
+
+| 驗證項 | 結果 |
+|--------|------|
+| 合併前目標公司清單不含副公司格式（基準） | ✅ |
+| `documentFormats` 轉移 1 筆 | ✅ |
+| 撞鍵格式被跳過並記入 `skipped`（情境 B） | ✅ |
+| 🔴 合併後清單**包含**原屬副公司的格式（情境 A） | ✅ |
+| 目標公司原有格式未被覆寫，清單為 2 筆 | ✅ |
+| 配置來源為 `COMPANY_SPECIFIC` | ✅ |
+| 🔴 `${knownFormats}` 字串含轉移過來的格式名 | ✅ |
+| `${knownFormats}` 保留識別關鍵字供 GPT 判別版面 | ✅ |
+| 撞鍵格式仍留在副公司名下（未被靜默改動） | ✅ |
+| 轉移的是同一筆記錄（id 不變，非複製） | ✅ |
+| 目標公司原有格式內容未受影響 | ✅ |
+
+GPT 實際會看到的清單（驗證輸出）：
+
+```
+- __FIX125_VERIFY__ General Layout (target, incumbent): incumbent-keyword
+- __FIX125_VERIFY__ Ocean Freight Layout (transferable): bill-of-lading, vessel
+```
+
+第二行即原屬副公司、經合併轉移而來的格式 —— **這正是 Azure CEVA 情境中缺席、導致 FIX-115 失效的那一行**。
+sandbox 資料已清除（`psql` 獨立核實殘留為 0）。
 
 ---
 
@@ -177,6 +208,7 @@ CEVA 在 Azure 有 8 筆公司記錄，其中 7 筆已 `MERGED` 至 `CEVA LOGIST
 | `src/services/company-auto-create.service.ts` | `autoMergeCompanies`：同上，並改寫記錄舊假設的過時註解 |
 | `tests/unit/services/company-merge-transfer.test.ts` | **新增** —— 6 條迴歸測試 |
 | `scripts/local-inspect-merged-company-orphans.ts` | **新增** —— 唯讀存量盤點（含撞鍵模擬、`mergedIntoId` 缺失偵測） |
+| `scripts/local-verify-fix125-known-formats.ts` | **新增** —— 端到端驗證：sandbox 實跑合併 → 真實 `loadFormatConfig` → 真實 `${knownFormats}` 組裝 |
 
 ---
 
