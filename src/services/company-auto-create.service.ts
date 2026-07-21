@@ -28,6 +28,11 @@
 
 import { prisma } from '@/lib/prisma'
 import { CompanyStatus, CompanySource, CompanyType, Company } from '@prisma/client'
+// FIX-125: 合併時一併轉移「公司處理知識」類關聯
+import {
+  transferCompanyKnowledge,
+  logMergeTransferSkips,
+} from './company-merge-transfer.service'
 import {
   findMatchingCompany,
   findPossibleDuplicates,
@@ -497,8 +502,7 @@ export async function autoMergeCompanies(
     })
 
     // FIX-112：轉移副公司的關聯資料到主公司（原本缺失，導致合併後孤兒化）。
-    // 與 company.service.ts 的 confirmCompanyMerge 一致，僅轉移這三類；
-    // document_formats / field_definition_sets 等刻意不轉（副公司設 MERGED 後 inert）。
+    // 與 company.service.ts 的 confirmCompanyMerge 一致。
     await tx.document.updateMany({
       where: { companyId: { in: secondaryIds } },
       data: { companyId: primaryId },
@@ -512,6 +516,12 @@ export async function autoMergeCompanies(
       data: { companyId: primaryId },
     })
 
+    // FIX-125：document_formats / field_definition_sets 等原本「刻意不轉」，理由是
+    // 「副公司設 MERGED 後 inert」。該假設對 documents 成立，對公司處理知識不成立 ——
+    // 存活公司仍會收到同樣版面的文件，辨識所需的定義留在原地等同遺失
+    // （Azure DEV 實證：CEVA 8 個格式散落 8 間公司，FIX-115 因此完全無效）。
+    const knowledgeTransfer = await transferCompanyKnowledge(tx, secondaryIds, primaryId)
+
     // 更新所有副公司
     await tx.company.updateMany({
       where: { id: { in: secondaryIds } },
@@ -520,6 +530,11 @@ export async function autoMergeCompanies(
         mergedIntoId: primaryId,
       },
     })
+
+    logMergeTransferSkips(
+      knowledgeTransfer,
+      `autoMergeCompanies [${secondaryIds.join(', ')}] → ${primaryId}`
+    )
 
     return updatedPrimary
   })

@@ -4,7 +4,7 @@
 > **發現方式**: Azure DEV 部署 FIX-115 後查證為何多格式辨識仍無效
 > **影響頁面/功能**: 公司合併（admin 合併 UI / 疑似重複審核 / Stage 1 自動合併）→ Stage 2 已知格式清單
 > **優先級**: 高
-> **狀態**: 🚧 待修復
+> **狀態**: ✅ 程式修復已完成（2026-07-21）；本地存量已清理，Azure DEV 存量待處理
 
 ---
 
@@ -104,26 +104,198 @@ CEVA 在 Azure 有 8 筆公司記錄，其中 7 筆已 `MERGED` 至 `CEVA LOGIST
 
 ---
 
+## 實作記錄（2026-07-21）
+
+### 用戶決策
+
+| 項目 | 決定 |
+|------|------|
+| 轉移範圍 | **公司處理知識類 6 種**：`documentFormats`、`fieldDefinitionSets`、`templateFieldMappings`、`promptConfigs`、`pipelineConfigs`、`fieldMappingConfigs` |
+| 唯一鍵衝突 | **選項 A** —— 不轉移 + 記錄警告，交人工處理 |
+| 存量 `mergedIntoId` 缺失 | 盤點腳本列出待辦，**不自動推斷** |
+
+「公司處理知識」的判準是「這間公司的文件該怎麼處理」。歷史性質的關聯（`issuedDocuments`、`correctionHistories`、`identifiedHistoricalFiles`、`transactionParticipations` 等）**刻意留在原地** —— 它們記錄「當時是哪間公司」，轉走會扭曲審計事實。
+
+### 盤點發現（實作前調查，本地環境）
+
+**1. 6 類關聯的唯一鍵全部含 `companyId`** —— 不只 `documentFormats`，`updateMany` 對每一類都不安全：
+
+| Model | 唯一鍵 |
+|-------|--------|
+| `DocumentFormat` | `(companyId, documentType, documentSubtype)` ← 三欄皆 non-null，必然撞鍵 |
+| `FieldDefinitionSet` / `FieldMappingConfig` | `(scope, companyId, documentFormatId)` |
+| `PromptConfig` | `(promptType, scope, companyId, documentFormatId)` |
+| `TemplateFieldMapping` | `(dataTemplateId, scope, companyId, documentFormatId)` |
+| `PipelineConfig` | `(scope, regionId, companyId, documentFormatId)` |
+
+**2. 撞鍵率實測 2/3** —— 本地 3 間 MERGED 的 DHL 公司各有 1 個格式，**全部是 `INVOICE/GENERAL`**；目標 `DHL Express` 沒有該組合，故第 1 個可轉、第 2、3 個互撞。與 Azure CEVA 手動修復時遇到的情況一致。
+
+**3. 規劃外的障礙：3 間 MERGED 公司全部 `mergedIntoId = null`** —— 程式無從得知該轉去哪，即使修好合併函數，這批存量也無法自動歸位。
+
+**4. `promptConfigs` 也有孤立**（本地 1 筆），而規劃的「最小必要三類」中 `fieldDefinitionSets` / `templateFieldMappings` 在本地實測皆為 0 —— 這是把範圍擴為 6 類的實證依據。
+
+### 實作內容
+
+**新增** `src/services/company-merge-transfer.service.ts`：
+
+- `transferCompanyKnowledge(tx, sourceIds, targetId)` —— 6 類逐筆轉移，每類依自身唯一鍵查詢目標是否已存在相同組合，撞鍵則跳過並記入 `skipped`
+- **配置跟隨格式**：FORMAT scope 的配置若其 `documentFormat` 因撞鍵未能轉移，該配置一併跳過 —— 否則配置轉到新公司卻指向留在舊公司的格式，語義矛盾
+- `logMergeTransferSkips(report, context)` —— 輸出警告。撞鍵不轉移是刻意處置，但若不記錄就會變成另一種靜默失敗（使用者以為合併完成，實際知識仍留在原公司）
+
+> 🔴 **不使用 try/catch 捕捉 P2002**：PostgreSQL 中語句失敗會使交易進入 aborted 狀態，後續語句全部失敗。必須「先查詢再決定」。
+
+**三個呼叫點統一接入**（行為一致）：
+
+| 函數 | 檔案 | 變更 |
+|------|------|------|
+| `mergeCompanies` | `company.service.ts` | 轉移規則後呼叫，回傳值加 `knowledgeTransfer` |
+| `confirmCompanyMerge` | `company.service.ts` | 同上 |
+| `autoMergeCompanies` | `company-auto-create.service.ts` | 同上，並改寫 `:499-501` 記錄舊假設的過時註解 |
+
+回傳型別為擴充（加欄位），API route 直接回傳 `result`、前端 hook 不解析內容，無破壞性變更。
+
+### 測試驗證
+
+- [x] 合併後副公司名下的 `documentFormats` 已轉移至存活公司
+- [x] 唯一鍵衝突時**不轉移**且有明確警告（測試斷言 `update` 未被呼叫、`skipped` 含衝突對象名稱）
+- [x] 三個合併函數行為一致（皆呼叫同一 `transferCompanyKnowledge`）
+- [x] FORMAT scope 配置在其格式未轉移時一併跳過；COMPANY scope（`documentFormatId` 為 null）不受影響
+- [x] `npm run type-check` 無錯誤
+- [x] `npm run lint` —— 新模組與 `company-auto-create.service.ts` 零警告
+- [x] 單元測試 **6 passed**（`tests/unit/services/company-merge-transfer.test.ts`）；全套 97 passed / 4 failed（失敗為 Epic 23 gateway 既有問題）
+- [x] 合併後 Stage 2 的 `${knownFormats}` 能列出原屬副公司的格式 —— **端到端驗證 11/11 通過**（見下方）
+- [ ] 🚧 存量盤點腳本可在 Azure DEV 執行（現有腳本為 tsx，Azure runner 映像不含 tsx，需另寫 `prisma/*.js` 版本）
+
+#### 端到端驗證（2026-07-21）
+
+單元測試只證明「轉移函數改寫了 `companyId`」，但 FIX-125 的目的是讓 FIX-115 在合併過的公司身上生效 ——
+中間還隔著 `loadFormatConfig` 的查詢與 `buildStage2VariableContext` 的字串組裝。
+`scripts/local-verify-fix125-known-formats.ts` 串起三段**真實程式碼**（不複製查詢邏輯），
+在 sandbox 公司上實跑合併並在 `finally` 清除：
+
+| 驗證項 | 結果 |
+|--------|------|
+| 合併前目標公司清單不含副公司格式（基準） | ✅ |
+| `documentFormats` 轉移 1 筆 | ✅ |
+| 撞鍵格式被跳過並記入 `skipped`（情境 B） | ✅ |
+| 🔴 合併後清單**包含**原屬副公司的格式（情境 A） | ✅ |
+| 目標公司原有格式未被覆寫，清單為 2 筆 | ✅ |
+| 配置來源為 `COMPANY_SPECIFIC` | ✅ |
+| 🔴 `${knownFormats}` 字串含轉移過來的格式名 | ✅ |
+| `${knownFormats}` 保留識別關鍵字供 GPT 判別版面 | ✅ |
+| 撞鍵格式仍留在副公司名下（未被靜默改動） | ✅ |
+| 轉移的是同一筆記錄（id 不變，非複製） | ✅ |
+| 目標公司原有格式內容未受影響 | ✅ |
+
+GPT 實際會看到的清單（驗證輸出）：
+
+```
+- __FIX125_VERIFY__ General Layout (target, incumbent): incumbent-keyword
+- __FIX125_VERIFY__ Ocean Freight Layout (transferable): bill-of-lading, vessel
+```
+
+第二行即原屬副公司、經合併轉移而來的格式 —— **這正是 Azure CEVA 情境中缺席、導致 FIX-115 失效的那一行**。
+sandbox 資料已清除（`psql` 獨立核實殘留為 0）。
+
+---
+
 ## 修改的檔案
 
 | 檔案 | 修改內容 |
 |------|----------|
-| `src/services/company.service.ts` | `mergeCompanies`、`confirmCompanyMerge`：擴充轉移範圍 + 唯一鍵衝突處理 |
-| `src/services/company-auto-create.service.ts` | `autoMergeCompanies`：同上（含更新 `:500-501` 的過時註解） |
-| `scripts/`（新增） | 存量孤立格式盤點 / 回填腳本（gated） |
+| `src/services/company-merge-transfer.service.ts` | **新增** —— 6 類關聯轉移 + 唯一鍵守門 + 跳過報告 |
+| `src/services/company.service.ts` | `mergeCompanies`、`confirmCompanyMerge`：接入轉移，回傳值加 `knowledgeTransfer` |
+| `src/services/company-auto-create.service.ts` | `autoMergeCompanies`：同上，並改寫記錄舊假設的過時註解 |
+| `tests/unit/services/company-merge-transfer.test.ts` | **新增** —— 6 條迴歸測試 |
+| `scripts/local-inspect-merged-company-orphans.ts` | **新增** —— 唯讀存量盤點（含撞鍵模擬、`mergedIntoId` 缺失偵測） |
+| `scripts/local-verify-fix125-known-formats.ts` | **新增** —— 端到端驗證：sandbox 實跑合併 → 真實 `loadFormatConfig` → 真實 `${knownFormats}` 組裝 |
+| `scripts/local-cleanup-test-residue.ts` | **新增** —— gated 清除本地測試殘留（安全條件驗證 + dry-run 預設） |
 
 ---
 
-## 測試驗證
+## 存量處理
 
-修復完成後需驗證：
+程式修復只影響**今後**的合併。現有孤立資料需一次性處理：
 
-- [ ] 合併後副公司名下的 `documentFormats` 已轉移至存活公司
-- [ ] 唯一鍵衝突時**不轉移**且有明確警告（不得靜默失敗或亂改 subtype）
-- [ ] 三個合併函數行為一致（`mergeCompanies` / `confirmCompanyMerge` / `autoMergeCompanies`）
-- [ ] 合併後 Stage 2 的 `${knownFormats}` 能列出原屬副公司的格式
-- [ ] 存量盤點腳本可在本地與 Azure DEV 執行且 inspect 模式無副作用
-- [ ] `npm run type-check`、`npm run lint`
+| 環境 | 現況 |
+|------|------|
+| 本地 | ✅ **已處理（2026-07-21）** —— 查證後為測試殘留，非業務資料，已刪除（見下） |
+| Azure DEV | 🚧 CEVA 曾有 8 格式散落 8 間公司（2026-07-20 已手動修復一部分）；另有 4 筆 `templateFieldMappings` + 1 筆 `fieldDefinitionSets` 遺留於 `7448b7c5-…`。盤點腳本為 tsx，Azure runner 映像不含 tsx，需另寫 `prisma/*.js` 版本 |
+
+依決議，盤點腳本**只列出待辦、不自動推斷目標** —— 公司名稱相似度推斷正是 CHANGE-103 在治理的問題，不應在此重蹈。
+
+### 🔴 本地存量的真相：不是該歸位的知識，是測試殘留
+
+原假設是「3 個孤立格式代表 DHL 的三種版面，應歸位到存活公司」。查證後**推翻**：
+
+| 佐證 | 內容 |
+|------|------|
+| 建立時間 | 3 間公司、3 個格式、4 筆 Prompt 配置全部集中在 **2026-06-16 06:22~06:32 的 10 分鐘內**，TEST 配置與 `AUTO_CREATED` 公司交錯出現 |
+| 使用情況 | 3 個格式 `fileCount` **全為 0**，3 間公司文件數 0 |
+| 命名 | 4 筆 Prompt 配置名稱皆以 `TEST ` 起始，`description` 標明「示範用 COMPANY scope 模板」 |
+| 內容 | 3 個格式的 `identificationRules` 描述高度雷同（DHL Logo、`Type of Service / Total of Charges` 表格、`DUTY TAX PAID`、底部銀行資訊），**連舉例日期都是同一組**（24/11/2025、01/12/2025） |
+
+即三者不是三種版面，而是**同一版面因公司被重複 `AUTO_CREATED` 三次而各建一份** —— 正是 FIX-124 所治問題的歷史遺留。轉移它們反而有害：測試用的版面描述會進入 `${knownFormats}`，讓 GPT 處理真實 DHL 文件時看到三份雷同的假版面。
+
+### 🔴 連帶發現的現行 bug：3 筆啟用中的 TEST override
+
+清查時發現同批的 3 筆 Prompt 配置 `is_active = true` 且掛在**有真實文件的 ACTIVE 公司**上，並非單純殘留：
+
+| 配置 | 掛載公司 | 受影響文件 |
+|------|----------|-----------|
+| `TEST DHL EXPRESS HK Stage2 COMPANY override` | DHL Express | 41 份 |
+| `TEST RICH KING HONG Stage2 COMPANY override` | RICH KING HONG LIMITED | 1 份 |
+| `TEST MODERN LEASING Stage2 COMPANY override` | MODERN LEASING LIMITED | 1 份 |
+
+三者 `merge_strategy = OVERRIDE`、`scope = COMPANY`，會**整個取代**全域 Stage 2 prompt，造成兩項具體損害：
+
+1. **`${knownFormats}` 被洗掉** —— 覆蓋用的 `user_prompt_template` 僅一句「請分析這張 DHL 文件圖片，識別其格式類型，並依指定 JSON 格式輸出。」，不含該變數。FIX-115 的注入對這些公司完全失效，與 Azure CEVA 同病而異因（CEVA 是格式散落，此處是 prompt 覆蓋）。
+2. **誘導 `matchedKnownFormat` 恆為 null** —— `system_prompt` 把 `"matchedKnownFormat": null` 寫死在輸出 JSON 範例裡。該欄位正是 `resolveFormatId` 的比對輸入，等於教模型不要匹配，FIX-123 的比對鏈拿不到有效輸入。
+
+其 `system_prompt` 開頭寫「你是 **DHL EXPRESS (HK) LIMITED** 專屬的…」，指的是已 MERGED 的測試公司，並非它實際掛載的 ACTIVE `DHL Express`。
+
+### 執行結果（2026-07-21）
+
+`scripts/local-cleanup-test-residue.ts`，gated by `RUN_DELETE_TEST_RESIDUE=true`，預設 dry-run。刪除前逐項驗證安全條件，任一不符即中止且不刪任何資料：
+
+- Prompt 配置：名稱須以 `TEST ` 起始、`scope = COMPANY`、`promptType = STAGE_2_FORMAT_IDENTIFICATION`
+- 格式：`fileCount = 0`、5 類子關聯皆為 0、須隸屬於待刪公司
+- 公司：`status = MERGED`、`source = AUTO_CREATED`、16 類關聯皆為 0
+
+實際刪除 **4 筆 Prompt 配置、3 個格式、3 間公司**（交易內，由葉往根）。
+
+驗證（兩個獨立來源）：盤點腳本重跑顯示 MERGED 公司 0 間、孤立 0 筆；`psql` 查詢 `TEST %` 配置 0 筆、MERGED 公司 0 間、MERGED 名下格式 0 個。三間 ACTIVE 公司的格式數維持 2 / 1 / 1 未變動，確認無誤刪。
+
+### 延伸查證：Azure DEV 是否有同類 override（2026-07-21）✅ 無
+
+本地發現 override 會靜默壓制 `${knownFormats}` 後，隨即產生一個影響部署判讀的疑問：**Azure 是否也有同類配置？** 若有，FIX-115 在 Azure 的失效原因就不只「格式散落」一條，部署 FIX-123/124/125 後將無從判斷效果不如預期是修復無效還是被 override 壓制。
+
+透過 Kudu 以唯讀方式查詢 Azure DEV 資料庫，結果為 **`STAGE_2_FORMAT_IDENTIFICATION` 全庫只有 1 筆**：
+
+```
+V3.1 Stage 2 - Format Identification
+  GLOBAL 啟用中 | 策略=OVERRIDE | v4 | 模板長度=255
+  knownFormats: 模板=N 系統提示=Y | 提及 matchedKnownFormat=Y
+```
+
+無任何 COMPANY / FORMAT scope 配置，故不存在非全域 override 壓制。本地那 4 筆 TEST 配置從未同步至 Azure。
+
+> ⚠️ **`模板=N` 不代表壞掉**：`${knownFormats}` 位於 `system_prompt` 而非 `user_prompt_template`。
+> `stage-2-format.service.ts:164-165` 對 **system 與 user 兩者都呼叫 `replaceVariables`**，故變數正常展開。
+> 若僅憑「模板=N」判讀，會誤以為 Azure 的 FIX-115 同樣失效，導向完全相反的處置。
+
+**結論**：Azure CEVA 的 FIX-115 失效**純粹**源於格式散落 8 間公司，即本 FIX 所解者，無第二成因。部署後的觀察基準是乾淨的。
+
+#### Kudu 查詢方法備忘（可複用）
+
+Azure DEV 的 PostgreSQL 位於 VNet 私有端點，本機無法直連，須在 Kudu 內查詢。兩個必要技巧：
+
+| 障礙 | 解法 |
+|------|------|
+| 本機 DNS 對 scm 端點回傳空值（主站台正常） | 公用 DNS 取 IP 後 `curl --resolve <scm-host>:443:<ip>`；主機名帶隨機後綴，須先 `az webapp show --query enabledHostNames` 取得 |
+| `/api/command` 按空白拆 argv，**不做 shell 解析** | `cmd1 && cmd2` 會使 cmd2 變成 cmd1 的參數，`bash -c '...'` 的引號內空白同樣被拆。改以 `PUT /api/vfs/<path>`（需 `If-Match: *`）上傳腳本檔，再執行 `node /home/diag/check.js` 這類「單一命令 + 獨立參數」形式 |
+
+Kudu node 為 v14，需 `npm install pg@8.7.3` 才能連 PG；查詢完成後 `/home/diag`（含 `node_modules`）已刪除，全程唯讀。
 
 ---
 
@@ -131,7 +303,7 @@ CEVA 在 Azure 有 8 筆公司記錄，其中 7 筆已 `MERGED` 至 `CEVA LOGIST
 
 - FIX-112 — 補上 documents / extractionResults / mappingRules 的轉移，並在該次確立「其餘刻意不轉」的假設；本 FIX 質疑該假設
 - FIX-113 — 存量孤兒盤點（當時只查 documents / extraction_results / rules，**範圍不含格式**，故未發現本問題）
-- FIX-115 — 因本問題而在 Azure 完全無效，是本問題的發現路徑
+- FIX-115 — 因本問題而在 Azure 完全無效，是本問題的發現路徑；已查證該失效**無第二成因**（Azure 無非全域 override 壓制 `${knownFormats}`，見上方延伸查證）
 - 部署記錄 `docs/07-deployment/02-azure-deployment/deployment-records/2026-07-20-dev-ceva-format-consolidation.md` — Azure 手動修復的完整經過與回滾資料
 
 ---
