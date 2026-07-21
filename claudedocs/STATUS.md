@@ -7,10 +7,10 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 103 | CHANGE-105 | **CHANGE-106** |
-| FIX | 127 | FIX-125 | **FIX-126** |
+| CHANGE | 104 | CHANGE-106 | **CHANGE-107** |
+| FIX | 132 | FIX-130 | **FIX-131** |
 
-## 📋 未開始（25）
+## 📋 未開始（31）
 
 > 完全未動工的規劃。
 
@@ -38,9 +38,15 @@
 | [CHANGE-074](4-changes/feature-changes/CHANGE-074-source-field-dynamic-load-company-global-scope-ux.md) | source field dynamic load company global scope ux | ⏳ 待實作 |
 | [CHANGE-080](4-changes/feature-changes/CHANGE-080-python-services-auth-rate-limit.md) | python services auth rate limit | ⏳ 待實作（H1 架構，用戶暫未 approve，需先確認部署網路拓撲） |
 | [CHANGE-102](4-changes/feature-changes/CHANGE-102-cleanup-legacy-llm-models-stage-config-rename.md) | cleanup legacy llm models stage config rename | ⏳ 待實作 |
+| [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | 📋 規劃中 |
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
+| [FIX-126](4-changes/bug-fixes/FIX-126-charge-label-matching-fragility.md) | charge label matching fragility | 📋 規劃中 |
+| [FIX-127](4-changes/bug-fixes/FIX-127-stage3-misattribution-and-dual-source.md) | stage3 misattribution and dual source | 📋 規劃中 |
+| [FIX-128](4-changes/bug-fixes/FIX-128-mapping-source-field-validation.md) | mapping source field validation | 📋 規劃中 |
+| [FIX-129](4-changes/bug-fixes/FIX-129-merge-skipped-config-no-resolution-path.md) | merge skipped config no resolution path | 📋 規劃中 |
+| [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 📋 規劃中 |
 
 ## 🚧 進行中 / 部分完成（20）
 
