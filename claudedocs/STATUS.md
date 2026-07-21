@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 103 | CHANGE-105 | **CHANGE-106** |
-| FIX | 124 | FIX-122 | **FIX-123** |
+| FIX | 127 | FIX-125 | **FIX-126** |
 
-## 📋 未開始（25）
+## 📋 未開始（26）
 
 > 完全未動工的規劃。
 
@@ -41,6 +41,7 @@
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
+| [FIX-125](4-changes/bug-fixes/FIX-125-company-merge-orphans-document-formats.md) | company merge orphans document formats | 🚧 待修復 |
 
 ## 🚧 進行中 / 部分完成（20）
 
@@ -85,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（178）
+## ✅ 已完成（180）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -267,4 +268,6 @@
 | [FIX-120](4-changes/bug-fixes/FIX-120-resolve-format-id-empty-name-silent-match.md) | resolve format id empty name silent match | ✅ 已修復（含迴歸測試；type-check 通過） |
 | [FIX-121](4-changes/bug-fixes/FIX-121-identification-rules-inline-variability-annotation.md) | identification rules inline variability annotation | ✅ 已完成（本地實測通過；⚠️ 驗收有固有上限，見 §驗收） |
 | [FIX-122](4-changes/bug-fixes/FIX-122-dockerignore-excludes-prompt-configs-breaks-build.md) | dockerignore excludes prompt configs breaks build | ✅ 已修復（映像重建 `ck16` Succeeded，並已部署至 Azure DEV 驗證） |
+| [FIX-123](4-changes/bug-fixes/FIX-123-resolve-format-id-name-match-fragility.md) | resolve format id name match fragility | ✅ 已完成（2026-07-21，程式碼 + 單元測試；實機批次重跑驗證待執行） |
+| [FIX-124](4-changes/bug-fixes/FIX-124-jit-create-format-silent-arbitrary-reuse.md) | jit create format silent arbitrary reuse | ✅ 已完成（2026-07-21，採方案 A；實機批次重跑驗證待執行） |
 
