@@ -4,7 +4,7 @@
 > **發現方式**: Azure DEV 部署 FIX-115 後查證為何多格式辨識仍無效
 > **影響頁面/功能**: 公司合併（admin 合併 UI / 疑似重複審核 / Stage 1 自動合併）→ Stage 2 已知格式清單
 > **優先級**: 高
-> **狀態**: ✅ 程式修復已完成（2026-07-21）；存量資料處理待執行
+> **狀態**: ✅ 程式修復已完成（2026-07-21）；本地存量已清理，Azure DEV 存量待處理
 
 ---
 
@@ -209,19 +209,62 @@ sandbox 資料已清除（`psql` 獨立核實殘留為 0）。
 | `tests/unit/services/company-merge-transfer.test.ts` | **新增** —— 6 條迴歸測試 |
 | `scripts/local-inspect-merged-company-orphans.ts` | **新增** —— 唯讀存量盤點（含撞鍵模擬、`mergedIntoId` 缺失偵測） |
 | `scripts/local-verify-fix125-known-formats.ts` | **新增** —— 端到端驗證：sandbox 實跑合併 → 真實 `loadFormatConfig` → 真實 `${knownFormats}` 組裝 |
+| `scripts/local-cleanup-test-residue.ts` | **新增** —— gated 清除本地測試殘留（安全條件驗證 + dry-run 預設） |
 
 ---
 
-## 存量處理（待執行）
+## 存量處理
 
 程式修復只影響**今後**的合併。現有孤立資料需一次性處理：
 
-| 環境 | 現況 | 障礙 |
-|------|------|------|
-| 本地 | 3 個 `documentFormat` + 1 個 `promptConfig` 孤立於 3 間 MERGED 的 DHL 公司 | 全部 `mergedIntoId = null`，且 3 個格式同為 `INVOICE/GENERAL`（轉入同一目標會撞 2 筆） |
-| Azure DEV | CEVA 曾有 8 格式散落 8 間公司（2026-07-20 已手動修復一部分）；另有 4 筆 `templateFieldMappings` + 1 筆 `fieldDefinitionSets` 遺留於 `7448b7c5-…` | 盤點腳本為 tsx，Azure runner 映像不含 tsx，需另寫 `prisma/*.js` 版本 |
+| 環境 | 現況 |
+|------|------|
+| 本地 | ✅ **已處理（2026-07-21）** —— 查證後為測試殘留，非業務資料，已刪除（見下） |
+| Azure DEV | 🚧 CEVA 曾有 8 格式散落 8 間公司（2026-07-20 已手動修復一部分）；另有 4 筆 `templateFieldMappings` + 1 筆 `fieldDefinitionSets` 遺留於 `7448b7c5-…`。盤點腳本為 tsx，Azure runner 映像不含 tsx，需另寫 `prisma/*.js` 版本 |
 
 依決議，盤點腳本**只列出待辦、不自動推斷目標** —— 公司名稱相似度推斷正是 CHANGE-103 在治理的問題，不應在此重蹈。
+
+### 🔴 本地存量的真相：不是該歸位的知識，是測試殘留
+
+原假設是「3 個孤立格式代表 DHL 的三種版面，應歸位到存活公司」。查證後**推翻**：
+
+| 佐證 | 內容 |
+|------|------|
+| 建立時間 | 3 間公司、3 個格式、4 筆 Prompt 配置全部集中在 **2026-06-16 06:22~06:32 的 10 分鐘內**，TEST 配置與 `AUTO_CREATED` 公司交錯出現 |
+| 使用情況 | 3 個格式 `fileCount` **全為 0**，3 間公司文件數 0 |
+| 命名 | 4 筆 Prompt 配置名稱皆以 `TEST ` 起始，`description` 標明「示範用 COMPANY scope 模板」 |
+| 內容 | 3 個格式的 `identificationRules` 描述高度雷同（DHL Logo、`Type of Service / Total of Charges` 表格、`DUTY TAX PAID`、底部銀行資訊），**連舉例日期都是同一組**（24/11/2025、01/12/2025） |
+
+即三者不是三種版面，而是**同一版面因公司被重複 `AUTO_CREATED` 三次而各建一份** —— 正是 FIX-124 所治問題的歷史遺留。轉移它們反而有害：測試用的版面描述會進入 `${knownFormats}`，讓 GPT 處理真實 DHL 文件時看到三份雷同的假版面。
+
+### 🔴 連帶發現的現行 bug：3 筆啟用中的 TEST override
+
+清查時發現同批的 3 筆 Prompt 配置 `is_active = true` 且掛在**有真實文件的 ACTIVE 公司**上，並非單純殘留：
+
+| 配置 | 掛載公司 | 受影響文件 |
+|------|----------|-----------|
+| `TEST DHL EXPRESS HK Stage2 COMPANY override` | DHL Express | 41 份 |
+| `TEST RICH KING HONG Stage2 COMPANY override` | RICH KING HONG LIMITED | 1 份 |
+| `TEST MODERN LEASING Stage2 COMPANY override` | MODERN LEASING LIMITED | 1 份 |
+
+三者 `merge_strategy = OVERRIDE`、`scope = COMPANY`，會**整個取代**全域 Stage 2 prompt，造成兩項具體損害：
+
+1. **`${knownFormats}` 被洗掉** —— 覆蓋用的 `user_prompt_template` 僅一句「請分析這張 DHL 文件圖片，識別其格式類型，並依指定 JSON 格式輸出。」，不含該變數。FIX-115 的注入對這些公司完全失效，與 Azure CEVA 同病而異因（CEVA 是格式散落，此處是 prompt 覆蓋）。
+2. **誘導 `matchedKnownFormat` 恆為 null** —— `system_prompt` 把 `"matchedKnownFormat": null` 寫死在輸出 JSON 範例裡。該欄位正是 `resolveFormatId` 的比對輸入，等於教模型不要匹配，FIX-123 的比對鏈拿不到有效輸入。
+
+其 `system_prompt` 開頭寫「你是 **DHL EXPRESS (HK) LIMITED** 專屬的…」，指的是已 MERGED 的測試公司，並非它實際掛載的 ACTIVE `DHL Express`。
+
+### 執行結果（2026-07-21）
+
+`scripts/local-cleanup-test-residue.ts`，gated by `RUN_DELETE_TEST_RESIDUE=true`，預設 dry-run。刪除前逐項驗證安全條件，任一不符即中止且不刪任何資料：
+
+- Prompt 配置：名稱須以 `TEST ` 起始、`scope = COMPANY`、`promptType = STAGE_2_FORMAT_IDENTIFICATION`
+- 格式：`fileCount = 0`、5 類子關聯皆為 0、須隸屬於待刪公司
+- 公司：`status = MERGED`、`source = AUTO_CREATED`、16 類關聯皆為 0
+
+實際刪除 **4 筆 Prompt 配置、3 個格式、3 間公司**（交易內，由葉往根）。
+
+驗證（兩個獨立來源）：盤點腳本重跑顯示 MERGED 公司 0 間、孤立 0 筆；`psql` 查詢 `TEST %` 配置 0 筆、MERGED 公司 0 間、MERGED 名下格式 0 個。三間 ACTIVE 公司的格式數維持 2 / 1 / 1 未變動，確認無誤刪。
 
 ---
 

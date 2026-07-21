@@ -269,5 +269,5 @@
 | [FIX-122](4-changes/bug-fixes/FIX-122-dockerignore-excludes-prompt-configs-breaks-build.md) | dockerignore excludes prompt configs breaks build | ✅ 已修復（映像重建 `ck16` Succeeded，並已部署至 Azure DEV 驗證） |
 | [FIX-123](4-changes/bug-fixes/FIX-123-resolve-format-id-name-match-fragility.md) | resolve format id name match fragility | ✅ 已完成（2026-07-21，程式碼 + 單元測試；實機批次重跑驗證待執行） |
 | [FIX-124](4-changes/bug-fixes/FIX-124-jit-create-format-silent-arbitrary-reuse.md) | jit create format silent arbitrary reuse | ✅ 已完成（2026-07-21，採方案 A；實機批次重跑驗證待執行） |
-| [FIX-125](4-changes/bug-fixes/FIX-125-company-merge-orphans-document-formats.md) | company merge orphans document formats | ✅ 程式修復已完成（2026-07-21）；存量資料處理待執行 |
+| [FIX-125](4-changes/bug-fixes/FIX-125-company-merge-orphans-document-formats.md) | company merge orphans document formats | ✅ 程式修復已完成（2026-07-21）；本地存量已清理，Azure DEV 存量待處理 |
 
