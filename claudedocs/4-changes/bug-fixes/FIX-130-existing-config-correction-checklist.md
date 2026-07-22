@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 測試回報的根因追查（FIX-126 ~ FIX-129）
 > **影響頁面/功能**: Field Definition Set、Template Field Mapping、公司管理（**純資料，不改代碼**）
 > **優先級**: 高（代碼修好後仍需這批修正才能真正解決使用者回報的問題）
-> **狀態**: 📋 規劃中
+> **狀態**: 🚧 進行中（2026-07-22 gated 腳本已建立 + 本地 dry-run 驗證通過；Azure dry-run 因 az 登入的 service principal 被切換而受阻，需恢復原 SP 後執行）
 
 ---
 
@@ -150,6 +150,23 @@ Toll 的定義中有 `Documentation Fee - Origin`，但**沒有** `Documentation
 - 每一筆變更前後值都要寫入 log，供事後核對
 
 > ⚠️ 腳本不得使用 `.ts`／`tsx` —— runner 映像不含它們（見 memory `feedback_azure_runner_excludes_scripts_tsx`）。
+
+#### ✅ 腳本已建立（2026-07-22）：`prisma/apply-config-corrections.js`
+
+- 開關：`RUN_CONFIG_CORRECTIONS=dryrun|write`（未設＝不執行；`dryrun` 只讀印計畫；`write` 交易寫入，錯誤 ROLLBACK）——與 FIX-113 同款兩段式 gate
+- **不接 entrypoint**（一次性、避免部署誤觸），經 ad-hoc 執行（Kudu `/home` 上傳 + `node`，pg 由 `require('pg')` fallback 到 `/home/node_modules/pg`）
+- 防呆：每條修正驗證現值（DIRECT 驗 sourceField、FORMULA 驗死 key 在公式中）；FORMULA 僅處理純 `{key} + {key}` 加總形式；rename 目標 key 必須存在於該公司 defset；不符一律跳過報告
+- 修正表分級：
+  - **明確修正**（`MAPPING_FIXES`）：SBS×1 + SBS INTERNATIONAL×2 的 `_charge` 後綴／`d_o_fee`／`sea_document_b_l` 等 20+ 處、Toll×2 的複數／`p_u`／`chage` 拼字 5 處、Nippon×2（底線差異 rename + 死項移除）
+  - **建議級**（含 `note` 標注，dry-run 核對時特別確認）：SBS `drayage→dryage_charge`、Toll `handling_fee_incl_p_u→handling_fee_origin_incl_pu`、Toll Outbound thc 裸 `terminal_handling_charge` 移除（`_destination` 項保留待裁決）
+  - **REPORT_ONLY**（`NEEDS_DECISION`，缺該公司 Azure defset 現值無法判定）：CEVA `freight_charges`、DSV `b_l_bill_of_lading`、Redlines `b_l_charges` —— 腳本會列出規則現值 + 該公司 defset key 全集，供使用者決定後擴充修正表重跑
+  - **aliases**：SBS INTERNATIONAL 三條（§1 表）+ CEVA 過泛 alias 修正（移除 origin THC 的無方向 alias + 給 destination THC 補 `Terminal Handling Charge at Destination`）
+- **§3（公式重複來源）刻意不改**：FIX-127 已在 Stage 3 清除重複金額（翻倍根因在機制層解決）；公式多項屬不同版面的容錯兜底，刪除會造成漏算風險。腳本 E 段會列出這 3 條公式現值供使用者裁決——若裁決要刪，再擴充修正表
+- 本地 dry-run 驗證（2026-07-22）：Azure 專屬 mapping 名稱在本地全部安全跳過 ✓；本地 CEVA defset 驗出同款過泛 alias（與 FIX-126 回放一致）✓；防呆路徑走通 ✓
+
+#### ⚠️ Azure 執行受阻（2026-07-22）
+
+Kudu 存取自 10:59 起回裸 403：az 登入的 service principal 被切換（原 `2ae44f00-…` → 現 `a19dfe76-…`，後者對目標 webapp 無 RBAC 授權；本機有多個併發 session）。**需恢復原 SP 登入後**依序執行：Azure dryrun → 使用者核對 → write → 重跑 17 份文件 + template instance → 驗收。
 
 ---
 
