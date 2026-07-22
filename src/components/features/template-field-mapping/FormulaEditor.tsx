@@ -13,7 +13,7 @@
 
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
-import { Plus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -34,9 +34,10 @@ import {
 } from '@/components/ui/popover';
 
 import {
-  STANDARD_FIELDS,
   getCommonStandardFields,
 } from '@/constants/standard-fields';
+// FIX-128: 動態合成欄位（li_* / _ref_*）豁免未知 key 判定
+import { isSyntheticSourceKey } from '@/lib/template-mapping-source-keys';
 
 // ============================================================================
 // Types
@@ -129,6 +130,14 @@ export function FormulaEditor({
   // Validation
   const validation = React.useMemo(() => validateFormula(value), [value]);
   const usedVariables = React.useMemo(() => extractVariables(value), [value]);
+
+  // FIX-128: 標示不在已知欄位清單中的變數（拼錯 → 執行時被靜默視為 0）。
+  // 無清單可對照時不判定（避免誤報）；li_* / _ref_* 為動態合成欄位一律豁免。
+  const unknownVariables = React.useMemo(() => {
+    if (!availableFields || availableFields.length === 0) return [];
+    const known = new Set(availableFields);
+    return usedVariables.filter((v) => !known.has(v) && !isSyntheticSourceKey(v));
+  }, [usedVariables, availableFields]);
 
   // Common fields for quick insert
   const commonFields = React.useMemo(() => {
@@ -246,11 +255,33 @@ export function FormulaEditor({
           <span className="text-xs text-muted-foreground">
             {t('formula.usedVariables')}:
           </span>
-          {usedVariables.map((v) => (
-            <Badge key={v} variant="secondary" className="text-xs">
-              {v}
-            </Badge>
-          ))}
+          {usedVariables.map((v) => {
+            const isUnknown = unknownVariables.includes(v);
+            return (
+              <Badge
+                key={v}
+                variant={isUnknown ? 'outline' : 'secondary'}
+                className={cn(
+                  'text-xs',
+                  isUnknown && 'border-amber-500 text-amber-600 dark:text-amber-500'
+                )}
+              >
+                {v}
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Unknown Variables Warning（FIX-128） */}
+      {unknownVariables.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-50 dark:bg-amber-950/30 p-2">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+          <p className="text-xs text-amber-700 dark:text-amber-500">
+            {t('formula.unknownVariablesWarning', {
+              variables: unknownVariables.join(', '),
+            })}
+          </p>
         </div>
       )}
 

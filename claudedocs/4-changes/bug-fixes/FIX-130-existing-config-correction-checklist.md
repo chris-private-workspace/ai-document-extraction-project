@@ -85,7 +85,8 @@ terminal_fees_at_origin ← terminal_handling_charges_origin   [DIRECT]
                           ↑ 複數，實際 key 為 terminal_handling_charge_origin
 ```
 
-> 完整掃描應以 [FIX-128](FIX-128-mapping-source-field-validation.md) 的驗收項（對 30 組 mapping 全面掃描）產出的清單為準，上表僅為已查證的部分。
+> ✅ **完整掃描已於 2026-07-22 完成**（[FIX-128](FIX-128-mapping-source-field-validation.md) 實作記錄）：33 組 mapping（啟用 26）中 **10 組含死 key、29 條規則受影響**，遠超上表。新發現：CEVA `freight_charges`、DSV `b_l_bill_of_lading`、Nippon Express Logistics `o_gate_i_o_or_parking_chg`、Nippon Express (HK) `terminal_handling_charge`、Redlines `b_l_charges`、SBS 兩家更多 key（`air_alfa_charge_dest_charge`、`ocean_freight_non_nvocc`、`d_o_fee`、`drayage`、`pick_up_d_o_charge`、`air_local_charge_in_usa_origin_charge` 等）、Toll Outbound（`handling_fee_incl_p_u`、`origin_chage_incl_pick_up` 拼字）。**本項修正以 FIX-128 的完整清單為準**（重跑方式亦見該文件）。
+> 注意：FIX-126 的單複數歸一只作用於 Stage 3 費用回填的名稱比對，**不作用於** mapping 公式的 key 對照（key 必須完全一致）——Toll 的複數 key 仍需修正。
 
 ### 3. 公式重複來源（同一筆錢加兩次）
 

@@ -154,10 +154,19 @@ export async function POST(request: NextRequest) {
     // 創建配置
     const mapping = await templateFieldMappingService.create(result.data);
 
+    // FIX-128: 檢查規則是否引用了不存在的來源 key（警告，不擋儲存）
+    const warnings = await templateFieldMappingService.computeUnknownSourceKeyWarnings({
+      scope: result.data.scope,
+      companyId: result.data.companyId,
+      documentFormatId: result.data.documentFormatId,
+      rules: result.data.mappings,
+    });
+
     return NextResponse.json(
       {
         success: true,
         data: mapping,
+        ...(warnings.length > 0 ? { warnings } : {}),
       },
       { status: 201 }
     );

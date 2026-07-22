@@ -152,6 +152,14 @@ export interface RowResult {
    * 錯誤詳情（欄位名 → 錯誤訊息）
    */
   errors?: Record<string, string>;
+
+  /**
+   * 轉換診斷：targetField → 引用了 row 中不存在的來源 key 清單
+   * @description 非空表示該目標欄位的映射規則引用了不存在的來源欄位
+   *   （拼錯或欄位定義缺失），對應項在計算時被靜默視為 0 / 空值。
+   * @since FIX-128
+   */
+  unresolvedSourceKeys?: Record<string, string[]>;
 }
 
 /**
@@ -257,6 +265,12 @@ export interface PreviewRowResult {
     isValid: boolean;
     errors?: Record<string, string>;
   };
+
+  /**
+   * 轉換診斷：targetField → 引用了 row 中不存在的來源 key 清單
+   * @since FIX-128
+   */
+  unresolvedSourceKeys?: Record<string, string[]>;
 }
 
 /**
@@ -395,6 +409,12 @@ export interface UpsertRowParams {
     isValid: boolean;
     errors?: Record<string, string>;
   };
+
+  /**
+   * 轉換診斷：targetField → 引用了 row 中不存在的來源 key 清單
+   * @since FIX-128
+   */
+  unresolvedSourceKeys?: Record<string, string[]>;
 }
 
 // ============================================================================

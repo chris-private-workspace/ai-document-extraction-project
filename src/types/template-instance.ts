@@ -148,6 +148,8 @@ export interface TemplateInstanceRow {
   fieldValues: Record<string, unknown>;
   /** 驗證錯誤 */
   validationErrors?: Record<string, string> | null;
+  /** 轉換診斷：targetField → 引用了不存在的來源 key 清單（FIX-128） */
+  transformDiagnostics?: Record<string, string[]> | null;
   /** 行狀態 */
   status: TemplateInstanceRowStatus;
   /** 建立時間 */
