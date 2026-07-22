@@ -142,6 +142,11 @@
     "fieldValues": "欄位值",
     "validationErrors": "驗證錯誤",
     "noErrors": "無驗證錯誤",
+    "transformDiagnostics": {
+      "title": "轉換診斷",
+      "description": "部分映射規則引用了此文件資料中不存在的來源欄位，計算時該項被視為 0 / 空值 —— 這通常就是欄位一直空白的原因。",
+      "unknownKeys": "未知的來源欄位：{keys}"
+    },
     "createdAt": "建立時間",
     "updatedAt": "更新時間"
   },

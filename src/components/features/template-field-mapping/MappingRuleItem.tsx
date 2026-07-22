@@ -46,6 +46,9 @@ import type {
   TransformParams,
 } from '@/types/template-field-mapping';
 import { TRANSFORM_TYPE_OPTIONS } from '@/types/template-field-mapping';
+// FIX-128: 公式未知 key 提示所需的已知欄位清單
+import { useResolvedFields } from '@/hooks/use-field-definition-sets';
+import { STANDARD_FIELDS } from '@/constants/standard-fields';
 
 // ============================================================================
 // Types
@@ -107,6 +110,24 @@ export function MappingRuleItem({
   className,
 }: MappingRuleItemProps) {
   const t = useTranslations('templateFieldMapping');
+
+  // FIX-128: 已知來源欄位清單（欄位定義 + 標準欄位），供 FormulaEditor
+  // 標示公式中的未知 key。與 SourceFieldCombobox 共用同一 query（React Query 快取）。
+  const { data: resolvedFieldsData } = useResolvedFields(
+    resolveByContext?.companyId,
+    resolveByContext?.formatId
+  );
+  const knownSourceFields = React.useMemo(() => {
+    // 定義欄位在前（quick insert 取前 10，公司自訂欄位對公式最相關）
+    const names = new Set<string>();
+    for (const entry of resolvedFieldsData?.fields ?? []) {
+      names.add(entry.key);
+    }
+    for (const f of STANDARD_FIELDS) {
+      names.add(f.name);
+    }
+    return [...names];
+  }, [resolvedFieldsData]);
 
   // --- Sortable (drag-and-drop) Setup ---
   const {
@@ -355,6 +376,7 @@ export function MappingRuleItem({
             onTransformTypeChange={handleTransformTypeChange}
             onTransformParamsChange={handleTransformParamsChange}
             companyId={resolveByContext?.companyId}
+            availableFields={knownSourceFields}
             disabled={disabled}
             errors={errors}
           />

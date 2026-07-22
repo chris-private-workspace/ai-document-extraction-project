@@ -290,12 +290,19 @@ function TemplateFieldMappingFormInner({
         })),
       };
 
-      if (isEditing) {
-        await updateMapping(input);
-        toast.success(t('toast.updated.title'));
-      } else {
-        await createMapping(input);
-        toast.success(t('toast.created.title'));
+      const { warnings } = isEditing
+        ? await updateMapping(input)
+        : await createMapping(input);
+      toast.success(isEditing ? t('toast.updated.title') : t('toast.created.title'));
+
+      // FIX-128: 儲存成功但有規則引用了不存在的來源 key → 顯示警告
+      if (warnings && warnings.length > 0) {
+        toast.warning(t('toast.sourceKeyWarning.title', { count: warnings.length }), {
+          description: warnings
+            .map((w) => `${w.targetField}: ${w.unknownKeys.join(', ')}`)
+            .join('\n'),
+          duration: 10000,
+        });
       }
 
       router.push('/admin/template-field-mappings');

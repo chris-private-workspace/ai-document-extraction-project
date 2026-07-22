@@ -74,6 +74,9 @@
     "updateError": {
       "title": "更新失败"
     },
+    "sourceKeyWarning": {
+      "title": "{count} 条规则引用了未知的来源字段"
+    },
     "deleted": {
       "title": "配置已删除",
       "description": "映射配置已被删除。"
@@ -175,6 +178,7 @@
     "quickInsert": "快速插入",
     "valid": "公式格式正确",
     "usedVariables": "使用的变量",
+    "unknownVariablesWarning": "未知的来源字段：{variables}。它们不在此范围的字段列表中，执行时会被视为 0 —— 请检查是否拼错或字段定义尚未创建。",
     "operators": "支持的运算符"
   },
   "lookup": {

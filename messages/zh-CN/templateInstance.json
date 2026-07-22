@@ -142,6 +142,11 @@
     "fieldValues": "字段值",
     "validationErrors": "验证错误",
     "noErrors": "无验证错误",
+    "transformDiagnostics": {
+      "title": "转换诊断",
+      "description": "部分映射规则引用了此文件数据中不存在的来源字段，计算时该项被视为 0 / 空值 —— 这通常就是字段一直空白的原因。",
+      "unknownKeys": "未知的来源字段：{keys}"
+    },
     "createdAt": "创建时间",
     "updatedAt": "更新时间"
   },

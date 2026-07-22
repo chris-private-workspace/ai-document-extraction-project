@@ -74,6 +74,9 @@
     "updateError": {
       "title": "更新失敗"
     },
+    "sourceKeyWarning": {
+      "title": "{count} 條規則引用了未知的來源欄位"
+    },
     "deleted": {
       "title": "配置已刪除",
       "description": "映射配置已被刪除。"
@@ -175,6 +178,7 @@
     "quickInsert": "快速插入",
     "valid": "公式格式正確",
     "usedVariables": "使用的變數",
+    "unknownVariablesWarning": "未知的來源欄位：{variables}。它們不在此範圍的欄位清單中，執行時會被視為 0 —— 請檢查是否拼錯或欄位定義尚未建立。",
     "operators": "支援的運算符"
   },
   "lookup": {

@@ -28,6 +28,8 @@ import { Prisma } from '@prisma/client';
 import { templateFieldMappingService } from './template-field-mapping.service';
 import { templateInstanceService } from './template-instance.service';
 import { TransformExecutor } from './transform';
+// FIX-128: 未知來源 key 診斷
+import { findUnknownRuleSourceKeys } from '@/lib/template-mapping-source-keys';
 import type {
   MatchDocumentsParams,
   MatchResult,
@@ -260,7 +262,8 @@ export class TemplateMatchingEngineService {
       const rowKey = this.extractRowKey(mappedFields, rowKeyField);
 
       // 轉換欄位
-      const transformResult = await this.transformFields(mappedFields, mappingConfig.mappings);
+      const { values: transformResult, unresolvedSourceKeys } =
+        await this.transformFields(mappedFields, mappingConfig.mappings);
 
       // 驗證
       const validation = templateInstanceService.validateRowData(transformResult, templateFields);
@@ -270,6 +273,9 @@ export class TemplateMatchingEngineService {
         rowKey,
         fieldValues: transformResult,
         validation,
+        ...(Object.keys(unresolvedSourceKeys).length > 0
+          ? { unresolvedSourceKeys }
+          : {}),
       });
 
       if (validation.isValid) {
@@ -379,11 +385,12 @@ export class TemplateMatchingEngineService {
           const rowKey = this.extractRowKey(mappedFields, rowKeyField);
 
           // 轉換欄位（含 AGGREGATE 所需的 lineItems context）
-          const transformedFields = await this.transformFields(
-            mappedFields,
-            mappingConfig.mappings,
-            doc.stage3Result
-          );
+          const { values: transformedFields, unresolvedSourceKeys } =
+            await this.transformFields(
+              mappedFields,
+              mappingConfig.mappings,
+              doc.stage3Result
+            );
 
           // 驗證
           let validation: ValidationResult = { isValid: true };
@@ -398,6 +405,7 @@ export class TemplateMatchingEngineService {
             documentId: doc.id,
             fieldValues: transformedFields,
             validation,
+            unresolvedSourceKeys,
           });
 
           results.push({
@@ -406,6 +414,9 @@ export class TemplateMatchingEngineService {
             rowKey,
             status: validation.isValid ? 'VALID' : 'INVALID',
             errors: validation.errors,
+            ...(Object.keys(unresolvedSourceKeys).length > 0
+              ? { unresolvedSourceKeys }
+              : {}),
           });
         } catch (error) {
           results.push({
@@ -432,14 +443,28 @@ export class TemplateMatchingEngineService {
    * 轉換欄位值
    *
    * @description
-   *   根據映射規則將源欄位轉換為目標欄位
+   *   根據映射規則將源欄位轉換為目標欄位。
+   *
+   *   FIX-128：同時收集轉換診斷 —— 規則引用了 row 中不存在的來源 key
+   *   （拼錯 / 欄位定義缺失）時，該項在公式中被靜默視為 0，這裡把
+   *   未解析的 key 記錄為 `unresolvedSourceKeys[targetField]`，供
+   *   儲存與介面顯示，讓設定者能察覺「欄位永遠空白」的原因。
+   *   `li_*` / `_ref_*` 為動態合成欄位（依文件內容產生），缺席不代表
+   *   拼錯，一律豁免。
+   *
+   * @lastModified FIX-128 (2026-07-22)
    */
   private async transformFields(
     sourceFields: Record<string, unknown>,
     mappings: TemplateFieldMappingRule[],
     stage3Result?: unknown
-  ): Promise<Record<string, unknown>> {
+  ): Promise<{
+    values: Record<string, unknown>;
+    unresolvedSourceKeys: Record<string, string[]>;
+  }> {
     const result: Record<string, unknown> = {};
+    const unresolvedSourceKeys: Record<string, string[]> = {};
+    const knownRowKeys = new Set(Object.keys(sourceFields));
 
     // CHANGE-043 Phase 2: 從 stage3Result 提取 lineItems/extraCharges 供 AGGREGATE 使用
     const s3 = (stage3Result && typeof stage3Result === 'object') ? stage3Result as {
@@ -452,6 +477,12 @@ export class TemplateMatchingEngineService {
 
     for (const mapping of sortedMappings) {
       const sourceValue = sourceFields[mapping.sourceField];
+
+      // FIX-128: 記錄引用了 row 中不存在的來源 key（li_* / _ref_* 豁免）
+      const unresolved = findUnknownRuleSourceKeys(mapping, knownRowKeys);
+      if (unresolved.length > 0) {
+        unresolvedSourceKeys[mapping.targetField] = unresolved;
+      }
 
       try {
         const transformedValue = await this.transformExecutor.execute(
@@ -479,7 +510,7 @@ export class TemplateMatchingEngineService {
       }
     }
 
-    return result;
+    return { values: result, unresolvedSourceKeys };
   }
 
   // --------------------------------------------------------------------------
@@ -507,6 +538,13 @@ export class TemplateMatchingEngineService {
       },
     });
 
+    // FIX-128: 診斷反映最近一次處理；無診斷時清空（規則修好後不殘留舊警告）
+    const diagnostics =
+      params.unresolvedSourceKeys &&
+      Object.keys(params.unresolvedSourceKeys).length > 0
+        ? (params.unresolvedSourceKeys as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull;
+
     if (existing) {
       // 合併欄位值
       const mergedValues = this.mergeFieldValues(
@@ -528,6 +566,7 @@ export class TemplateMatchingEngineService {
           validationErrors: params.validation.errors
             ? (params.validation.errors as unknown as Prisma.InputJsonValue)
             : Prisma.JsonNull,
+          transformDiagnostics: diagnostics,
           status: params.validation.isValid ? 'VALID' : 'INVALID',
         },
       });
@@ -551,6 +590,7 @@ export class TemplateMatchingEngineService {
           validationErrors: params.validation.errors
             ? (params.validation.errors as unknown as Prisma.InputJsonValue)
             : Prisma.JsonNull,
+          transformDiagnostics: diagnostics,
           status: params.validation.isValid ? 'VALID' : 'INVALID',
         },
       });

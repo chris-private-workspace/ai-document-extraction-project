@@ -74,6 +74,9 @@
     "updateError": {
       "title": "Failed to Update"
     },
+    "sourceKeyWarning": {
+      "title": "{count} rule(s) reference unknown source fields"
+    },
     "deleted": {
       "title": "Configuration Deleted",
       "description": "Mapping configuration has been deleted."
@@ -175,6 +178,7 @@
     "quickInsert": "Quick Insert",
     "valid": "Formula is valid",
     "usedVariables": "Variables used",
+    "unknownVariablesWarning": "Unknown source fields: {variables}. They are not in this scope's field list and will be treated as 0 at runtime — check for typos or add the field definition.",
     "operators": "Supported operators"
   },
   "lookup": {

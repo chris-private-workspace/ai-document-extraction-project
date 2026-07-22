@@ -142,6 +142,11 @@
     "fieldValues": "Field Values",
     "validationErrors": "Validation Errors",
     "noErrors": "No validation errors",
+    "transformDiagnostics": {
+      "title": "Transform Diagnostics",
+      "description": "Some mapping rules reference source fields that do not exist in this document's data. Those items were treated as 0 / empty during calculation — this is usually why a field stays blank.",
+      "unknownKeys": "unknown source fields: {keys}"
+    },
     "createdAt": "Created At",
     "updatedAt": "Updated At"
   },
