@@ -55,6 +55,13 @@ thc         | "THC"           aliases=["T.H.C","THC","TERMINAL HANDLING CHARGE"]
 | SBS INTERNATIONAL | `air_pick_up_charge_origin` | `(AIR) PICK UP CHARGE ORIGIN CHARGE` |
 
 > ⚠️ 這批 alias 需與 [FIX-126](FIX-126-charge-label-matching-fragility.md) 的方案協調：若採方案 A（單複數正規化），Toll 的兩條 THC alias 就不必手動加。**建議先定 FIX-126 方案，再決定這裡補多少**，避免做白工。
+> ✅ 2026-07-22 更新：FIX-126 已定案並實作（方案 A + C + 非對稱子字串）——Toll 的兩條複數 THC alias **不必補**（單複數歸一已涵蓋）；SBS 的三條仍需補。
+
+**過泛 alias 需移除／改綁**（FIX-126 回放比對時發現，本地 DB；Azure DEV 需一併查核）：
+
+| 公司 | 欄位 key | 問題 alias | 後果 |
+|---|---|---|---|
+| CEVA Logistics | `origin_thc_terminal_handling_charge` | `"Terminal Handling Charge"`（無方向） | FIX-126 前，`Terminal Handling Charge at Destination THB 13,080.00` 這類 **Destination** 行被子字串命中而**誤認領進 origin 欄位**（實測 2 份文件、393.30 / 225.34）。FIX-126 的方向閘已在代碼層擋掉此誤配，但該 alias 仍屬錯置——建議把方向性費用的無方向 alias 移除，或補 `destination_thc_terminal_handling_charge` 的 `Terminal Handling Charge at Destination` alias 讓該行有正確去處（目前落入「寧可不填」）。
 
 ### 2. 公式引用不存在的 key（永遠取不到值）
 

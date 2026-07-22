@@ -70,9 +70,11 @@ import {
 } from '../utils/variable-replacer';
 // CHANGE-046: classifiedAs 正規化
 // CHANGE-094: 費用標籤對照（確定性回填）
+// FIX-126: 方向詞必要條件（方案 C）
 import {
   normalizeClassifiedAs,
   matchLabel,
+  extractChargeDirections,
   type LabelMatchKind,
 } from '../utils/classify-normalizer';
 
@@ -1634,10 +1636,18 @@ Respond in valid JSON format matching the provided schema.`;
    *   精確命中唯一 → 該 key；無精確命中且子字串命中唯一 → 該 key；
    *   未命中或歧義（多個命中）→ null（寧可不填、不可填錯）。
    *
+   *   FIX-126（方案 C）：方向詞為必要條件 —— 定義的 label 帶方向
+   *   （Origin / Destination）時，候選必須帶相同方向才可參與比對；
+   *   候選無方向（如 classifiedAs 被 GPT 去掉方向後綴）不得認領有方向的
+   *   欄位。此閘在 label / aliases 比對之前，確保 FIX-130 補上的無方向
+   *   alias（如 `TERMINAL HANDLING CHARGE`）不會讓帶反向方向的文件文字
+   *   跨方向誤認領。
+   *
    * @param candidate - 對照候選字串（lineItem 的 description 或 classifiedAs）
    * @param chargeDefs - `fieldType === 'lineItem'` 的欄位定義
    * @returns 唯一命中的 field key；未命中或歧義時為 null
    * @since FIX-108（邏輯自 CHANGE-094 backfillLineItemCharges 抽出）
+   * @lastModified FIX-126 (2026-07-22)
    */
   private resolveUniqueChargeKey(
     candidate: string,
@@ -1645,8 +1655,18 @@ Respond in valid JSON format matching the provided schema.`;
   ): string | null {
     const exactKeys: string[] = [];
     const substringKeys: string[] = [];
+    const candidateDirections = extractChargeDirections(candidate);
 
     for (const def of chargeDefs) {
+      // FIX-126 方案 C：定義有方向、候選未帶相同方向 → 不參與（寧可不填）
+      const defDirections = extractChargeDirections(def.label);
+      if (defDirections.size > 0) {
+        const sharesDirection = [...defDirections].some((d) =>
+          candidateDirections.has(d)
+        );
+        if (!sharesDirection) continue;
+      }
+
       const targets = [def.label, ...(def.aliases ?? [])];
       let best: LabelMatchKind = null;
       for (const target of targets) {
