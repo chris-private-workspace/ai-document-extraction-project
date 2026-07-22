@@ -128,6 +128,19 @@ export interface TemplateInstanceSummary {
 }
 
 /**
+ * 過期來源文件
+ * @description CHANGE-106：來源文件在本行產生後被重新處理，本行的欄位值為舊快照
+ */
+export interface StaleSourceDocument {
+  /** 文件 ID */
+  id: string;
+  /** 文件檔名 */
+  fileName: string;
+  /** 該文件最近一次處理完成時間（ISO，晚於本行的 updatedAt） */
+  processedAt: string;
+}
+
+/**
  * 模版實例行
  * @description 實例中的單行數據
  */
@@ -144,6 +157,8 @@ export interface TemplateInstanceRow {
   sourceDocumentIds: string[];
   /** 來源文件（id + 檔名；CHANGE-091 1.6 列表查詢一併回傳，供 UI 顯示檔名） */
   sourceDocuments?: { id: string; fileName: string }[];
+  /** 來源已更新的文件清單（CHANGE-106；空/未提供 = 本行未過期） */
+  staleSources?: StaleSourceDocument[];
   /** 欄位值 */
   fieldValues: Record<string, unknown>;
   /** 驗證錯誤 */
