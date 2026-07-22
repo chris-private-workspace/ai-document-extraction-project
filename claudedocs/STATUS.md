@@ -10,7 +10,7 @@
 | CHANGE | 104 | CHANGE-106 | **CHANGE-107** |
 | FIX | 132 | FIX-130 | **FIX-131** |
 
-## 📋 未開始（26）
+## 📋 未開始（25）
 
 > 完全未動工的規劃。
 
@@ -38,7 +38,6 @@
 | [CHANGE-074](4-changes/feature-changes/CHANGE-074-source-field-dynamic-load-company-global-scope-ux.md) | source field dynamic load company global scope ux | ⏳ 待實作 |
 | [CHANGE-080](4-changes/feature-changes/CHANGE-080-python-services-auth-rate-limit.md) | python services auth rate limit | ⏳ 待實作（H1 架構，用戶暫未 approve，需先確認部署網路拓撲） |
 | [CHANGE-102](4-changes/feature-changes/CHANGE-102-cleanup-legacy-llm-models-stage-config-rename.md) | cleanup legacy llm models stage config rename | ⏳ 待實作 |
-| [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | 📋 規劃中 |
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
@@ -69,7 +68,7 @@
 | [FIX-107](4-changes/bug-fixes/FIX-107-stage2-gpt-transient-failure-batch-ocr-failed.md) | stage2 gpt transient failure batch ocr failed | 🔍 根因已確認（Azure OpenAI 服務端瞬斷，外部因素）；資料已由重試恢復；弱點 A（重試退避）已修並於 2026-07-14 … |
 | [FIX-108](4-changes/bug-fixes/FIX-108-stage3-lineitem-backfill-description-matching.md) | stage3 lineitem backfill description matching | ✅ 已實作並已部署 Azure DEV（2026-07-14，映像 `dev-fix108-20260714135401`）；🔴 §6.… |
 | [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
-| [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 gated 腳本已建立 + 本地 dry-run 驗證通過；Azure dry-run 因 az 登入… |
+| [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通… |
 
 ## ❓ 狀態無法解析（1）
 
@@ -87,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（185）
+## ✅ 已完成（186）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -164,6 +163,7 @@
 | [CHANGE-101](4-changes/feature-changes/CHANGE-101-batch-template-field-mappings-from-excel.md) | batch template field mappings from excel | ✅ 已完成（2026-07-09 部署 Azure DEV，寫入 18 筆） |
 | [CHANGE-103](4-changes/feature-changes/CHANGE-103-stage1-company-matching-anti-duplication.md) | stage1 company matching anti duplication | ✅ 已完成（Phase 1 組件 3 學習迴路 ✅ / Phase 2a `orderBy` ✅ / Phase 2 組件 2+4 tok… |
 | [CHANGE-104](4-changes/feature-changes/CHANGE-104-docs-governance-status-index-ci-gate.md) | docs governance status index ci gate | ✅ 已完成（2026-07-14） |
+| [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | ✅ 已完成（2026-07-22，方案 A 唯讀標記；B 一鍵重跑視使用情況另立 CHANGE；Azure 實機驗證於下次部署批次執行） |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |

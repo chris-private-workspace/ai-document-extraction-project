@@ -105,6 +105,8 @@
       "status": "狀態",
       "actions": "操作"
     },
+    "staleBadge": "來源已更新",
+    "staleTooltip": "{count} 份來源文件在本列產生後被重新處理，此列數值為舊快照",
     "empty": {
       "title": "沒有數據行",
       "description": "此實例尚無任何數據行"
@@ -146,6 +148,11 @@
       "title": "轉換診斷",
       "description": "部分映射規則引用了此文件資料中不存在的來源欄位，計算時該項被視為 0 / 空值 —— 這通常就是欄位一直空白的原因。",
       "unknownKeys": "未知的來源欄位：{keys}"
+    },
+    "staleSources": {
+      "title": "來源已更新",
+      "description": "以下來源文件在本列產生後被重新處理，此列欄位值為舊快照。若要反映最新提取結果，請重新執行模板匹配。",
+      "processedAt": "重新處理於 {date}"
     },
     "createdAt": "建立時間",
     "updatedAt": "更新時間"
