@@ -7,10 +7,15 @@
  *   - 修正 3：僅清除「可證明由 classifiedAs 失真造成的誤填」，不誤傷其他來源
  *   以及 rollback 開關（STAGE3_DETERMINISTIC_BACKFILL=false → CHANGE-094 舊行為）
  *
- *   Fixture 取自 Azure DEV 實測資料（Nippon Express (HK)，NEX_RCIM250020_8925.pdf）
+ *   FIX-127 追加：金額指紋去重 —— GPT 把同一筆費用另填到相近欄位時，該欄位與已認領
+ *   金額相同，留著會被 template mapping 的加總公式重複計入。
+ *
+ *   Fixture 取自 Azure DEV 實測資料（Nippon Express (HK)、RICOH INTERNATIONAL
+ *   LOGISTICS、Toll Global Forwarder）
  *
  * @module tests/unit/services/stage-3-lineitem-backfill.test
  * @since FIX-108
+ * @lastModified 2026-07-22
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
@@ -205,5 +210,137 @@ describe('FIX-108: Stage 3 確定性費用回填', () => {
     expect(fields.thc.value).toBe(2400)
     expect(fields.seal_charge.value).toBe(440)
     expect(fields.bl_fee.value).toBe(680)
+  })
+})
+
+describe('FIX-127: 同一筆費用落入兩個欄位的金額指紋去重', () => {
+  let backfill: BackfillFn
+
+  beforeEach(() => {
+    const service = new Stage3ExtractionService({} as unknown as PrismaClient)
+    backfill = (
+      service as unknown as { backfillLineItemCharges: BackfillFn }
+    ).backfillLineItemCharges.bind(service)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('GPT 另填的欄位與已認領金額相同時應清除（RIL THC 實測情境）', () => {
+    // RIL_RCIM250015_14409.pdf：文件上只有一筆 (SEA) THC (DEST) 325.42，
+    // 但 GPT 另把它填進 thc，回填則認領到 sea_thc → 公式 {thc}+{sea_thc} 得 650.84
+    const defs = [
+      chargeDef('sea_thc', '(Sea) THC'),
+      chargeDef('thc', 'THC'),
+      chargeDef('handling', 'Handling'),
+    ]
+    const items = [
+      lineItem('(SEA) THC (DEST)', '(sea) Thc', 325.42),
+      lineItem('HANDLING CHARGE', 'Handling', 57.48),
+    ]
+    const fields: Record<string, FieldValue> = { thc: gptValue(325.42) }
+
+    backfill(fields, items, defs)
+
+    expect(fields.sea_thc.value).toBe(325.42) // classifiedAs exact 命中
+    expect(fields.sea_thc.source).toBe('lineItem-backfill')
+    expect(fields.thc.value).toBeNull() // 重複記錄被清除
+    expect(fields.thc.source).toBe('duplicate-amount-cleared')
+  })
+
+  it('文件上不存在的費用被 GPT 填入且金額與已認領者相同時應清除（TOLL Docs fee 實測情境）', () => {
+    // TOLL_RCIM240349_58326.PDF：文件上沒有 document fee，只有 Delivery Order Fee 50.82。
+    // GPT 誤填 document_fee_destination，公式 {document_fee_destination}+
+    // {delivery_order_fee_destination} 得 101.64
+    const defs = [
+      chargeDef('delivery_order_fee_destination', 'Delivery Order Fee - Destination'),
+      chargeDef('document_fee_destination', 'Document Fee - Destination'),
+    ]
+    const items = [
+      lineItem('Delivery Order Fee - Destination', 'Delivery Order Fee Destination', 50.82),
+    ]
+    const fields: Record<string, FieldValue> = {
+      document_fee_destination: gptValue(50.82),
+    }
+
+    backfill(fields, items, defs)
+
+    expect(fields.delivery_order_fee_destination.value).toBe(50.82)
+    expect(fields.document_fee_destination.value).toBeNull()
+  })
+
+  it('金額與任何已認領費用都不同時必須保留（summary 區的獨立費用）', () => {
+    const defs = [
+      chargeDef('sea_thc', '(Sea) THC'),
+      chargeDef('fuel_surcharge', 'Fuel Surcharge'),
+    ]
+    const items = [lineItem('(SEA) THC (DEST)', '(sea) Thc', 325.42)]
+    const fields: Record<string, FieldValue> = { fuel_surcharge: gptValue(5000) }
+
+    backfill(fields, items, defs)
+
+    expect(fields.fuel_surcharge.value).toBe(5000)
+  })
+
+  it('浮點加總尾差應視為同一筆金額', () => {
+    // 兩行加總得 982.4000000000001（實測 template instance 出現過此類尾差）
+    const defs = [
+      chargeDef('handling_for_rlchk', 'Handling (For RLCHK)'),
+      chargeDef('handling', 'Handling'),
+    ]
+    const items = [
+      lineItem('HANDLING (FOR RLCHK)', 'Handling For Rlchk', 982.1),
+      lineItem('HANDLING (FOR RLCHK)', 'Handling For Rlchk', 0.3000000000000001),
+    ]
+    const fields: Record<string, FieldValue> = { handling: gptValue(982.4) }
+
+    backfill(fields, items, defs)
+
+    expect(fields.handling_for_rlchk.value).toBeCloseTo(982.4, 5)
+    expect(fields.handling.value).toBeNull() // 尾差不影響判定
+  })
+
+  it('字串型金額（含千分位）也應參與去重判定', () => {
+    const defs = [
+      chargeDef('sea_thc', '(Sea) THC'),
+      chargeDef('thc', 'THC'),
+    ]
+    const items = [lineItem('(SEA) THC (DEST)', '(sea) Thc', 1325.42)]
+    const fields: Record<string, FieldValue> = {
+      thc: { value: '1,325.42', confidence: 90, source: 'gpt' },
+    }
+
+    backfill(fields, items, defs)
+
+    expect(fields.thc.value).toBeNull()
+  })
+
+  it('零額不納入指紋，值為 0 的欄位不得被清除', () => {
+    const defs = [
+      chargeDef('sea_thc', '(Sea) THC'),
+      chargeDef('handling', 'Handling'),
+    ]
+    const items = [lineItem('(SEA) THC (DEST)', '(sea) Thc', 0)]
+    const fields: Record<string, FieldValue> = { handling: gptValue(0) }
+
+    backfill(fields, items, defs)
+
+    expect(fields.handling.value).toBe(0)
+  })
+
+  it('STAGE3_DETERMINISTIC_BACKFILL=false 時不執行去重（rollback）', () => {
+    vi.stubEnv('STAGE3_DETERMINISTIC_BACKFILL', 'false')
+
+    const defs = [
+      chargeDef('sea_thc', '(Sea) THC'),
+      chargeDef('thc', 'THC'),
+    ]
+    const items = [lineItem('(SEA) THC (DEST)', '(sea) Thc', 325.42)]
+    const fields: Record<string, FieldValue> = { thc: gptValue(325.42) }
+
+    backfill(fields, items, defs)
+
+    expect(fields.thc.value).toBe(325.42) // 舊行為：不清除
   })
 })
