@@ -10,7 +10,7 @@
 | CHANGE | 104 | CHANGE-106 | **CHANGE-107** |
 | FIX | 132 | FIX-130 | **FIX-131** |
 
-## 📋 未開始（31）
+## 📋 未開始（30）
 
 > 完全未動工的規劃。
 
@@ -43,7 +43,6 @@
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 | [FIX-126](4-changes/bug-fixes/FIX-126-charge-label-matching-fragility.md) | charge label matching fragility | 📋 規劃中 |
-| [FIX-127](4-changes/bug-fixes/FIX-127-stage3-misattribution-and-dual-source.md) | stage3 misattribution and dual source | 📋 規劃中 |
 | [FIX-128](4-changes/bug-fixes/FIX-128-mapping-source-field-validation.md) | mapping source field validation | 📋 規劃中 |
 | [FIX-129](4-changes/bug-fixes/FIX-129-merge-skipped-config-no-resolution-path.md) | merge skipped config no resolution path | 📋 規劃中 |
 | [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 📋 規劃中 |
@@ -91,7 +90,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（181）
+## ✅ 已完成（182）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -276,4 +275,5 @@
 | [FIX-123](4-changes/bug-fixes/FIX-123-resolve-format-id-name-match-fragility.md) | resolve format id name match fragility | ✅ 已完成（2026-07-21，程式碼 + 單元測試；實機批次重跑驗證待執行） |
 | [FIX-124](4-changes/bug-fixes/FIX-124-jit-create-format-silent-arbitrary-reuse.md) | jit create format silent arbitrary reuse | ✅ 已完成（2026-07-21，採方案 A；實機批次重跑驗證待執行） |
 | [FIX-125](4-changes/bug-fixes/FIX-125-company-merge-orphans-document-formats.md) | company merge orphans document formats | ✅ 程式修復已完成（2026-07-21）；本地存量已清理，Azure DEV 存量待處理 |
+| [FIX-127](4-changes/bug-fixes/FIX-127-stage3-misattribution-and-dual-source.md) | stage3 misattribution and dual source | ✅ 已完成（2026-07-22，採方案 A 保守版；Azure 實機重跑驗證待執行） |
 

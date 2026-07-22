@@ -83,6 +83,13 @@ import {
 /** 確定性回填寫入 fields 時採用的信心度（CHANGE-094） */
 const BACKFILL_CONFIDENCE = 85;
 
+/**
+ * 金額比對容差（FIX-127）
+ * @description
+ *   浮點加總會產生尾差（實測如 982.4000000000001），以半分錢為界視為同一筆金額。
+ */
+const AMOUNT_EPSILON = 0.005;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -1556,11 +1563,41 @@ Respond in valid JSON format matching the provided schema.`;
       };
     }
 
-    // 4. 清除：僅清除「可證明由 classifiedAs 失真造成的誤填」
+    // FIX-127: 蒐集「已被認領」的金額指紋 —— 各 charge key 的加總 + 被認領行的個別金額。
+    //   GPT 常把同一筆費用另填到一個相近欄位（如 THC 也填進 handling fee）；該欄位不會被
+    //   任何 lineItem 認領，金額卻與已認領的相同。留著會被 template mapping 的加總公式
+    //   重複計入（實測 RIL THC 325.42 → 650.84、TOLL Docs fee 50.82 → 101.64）。
+    //   0 不納入指紋：零額行對加總無影響，納入只會製造無謂的清除紀錄。
+    const claimedAmounts: number[] = [...claimed.values()].filter((a) => a !== 0);
+    lineItems.forEach((li, index) => {
+      if (claimedItems.has(index) && typeof li.amount === 'number' && li.amount !== 0) {
+        claimedAmounts.push(li.amount);
+      }
+    });
+
+    // 4. 清除：金額重複記錄（FIX-127）＋ 可證明由 classifiedAs 失真造成的誤填
     const cleared: string[] = [];
+    const duplicateCleared: string[] = [];
     for (const def of chargeDefs) {
       if (claimed.has(def.key)) continue; // 有 lineItem 認領 → 不動
       if (!this.hasFieldValue(fields[def.key])) continue; // 本來就空 → 不動
+
+      // FIX-127: 值與某筆已被認領的費用金額相同 → 判定為同一筆費用的重複記錄 → 清除。
+      //   僅比對「已認領」金額（而非全部 lineItems），確保有「確定性回填已接手這筆錢」
+      //   作為佐證，避免誤清真正來自 summary 區的獨立費用。
+      const amount = this.toNumericAmount(fields[def.key]);
+      if (
+        amount !== null &&
+        claimedAmounts.some((claimedAmount) => Math.abs(claimedAmount - amount) < AMOUNT_EPSILON)
+      ) {
+        fields[def.key] = {
+          value: null,
+          confidence: 0,
+          source: 'duplicate-amount-cleared',
+        };
+        duplicateCleared.push(def.key);
+        continue;
+      }
 
       const hits = classifiedHits.get(def.key);
       // 無 classifiedAs 命中 → 值可能來自 lineItems 以外（如 summary 區）→ 保留
@@ -1576,9 +1613,12 @@ Respond in valid JSON format matching the provided schema.`;
       cleared.push(def.key);
     }
 
-    if (claimed.size > 0 || cleared.length > 0) {
+    if (claimed.size > 0 || cleared.length > 0 || duplicateCleared.length > 0) {
       console.log(
         `[Stage3] FIX-108 backfill: set ${claimed.size} charge field(s) from line items` +
+          (duplicateCleared.length > 0
+            ? `; FIX-127 cleared ${duplicateCleared.length} duplicate amount(s): ${duplicateCleared.join(', ')}`
+            : '') +
           (cleared.length > 0
             ? `; cleared ${cleared.length} misattributed: ${cleared.join(', ')}`
             : '')
@@ -1680,6 +1720,30 @@ Respond in valid JSON format matching the provided schema.`;
       fv.value !== undefined &&
       fv.value !== ''
     );
+  }
+
+  /**
+   * FIX-127: 取出 FieldValue 的數值形式
+   *
+   * @description
+   *   GPT 回傳的金額可能是數字或字串（含千分位逗號），統一轉為數字供金額指紋比對。
+   *   無法解析為有限數字時回 null（該欄位不參與去重判定）。
+   *
+   * @param fv - 欄位值
+   * @returns 數值；無法解析時為 null
+   * @since FIX-127
+   */
+  private toNumericAmount(fv?: FieldValue): number | null {
+    if (!fv) return null;
+    const { value } = fv;
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value.replace(/,/g, '').trim());
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
   }
 
   /**
