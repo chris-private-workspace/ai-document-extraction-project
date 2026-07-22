@@ -39,7 +39,7 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useMergeCompanies, type PendingCompany } from '@/hooks/use-pending-companies'
+import { useMergeCompanies } from '@/hooks/use-pending-companies'
 import { MergeSkippedReportAlert } from './MergeSkippedReportAlert'
 import type { MergeTransferSkip } from '@/services/company-merge-transfer.service'
 import { Loader2, GitMerge, AlertTriangle } from 'lucide-react'
@@ -49,10 +49,25 @@ import { toast } from 'sonner'
 // Types
 // ============================================================
 
+/**
+ * 合併對話框所需的最小公司形狀（FIX-131）
+ *
+ * @description
+ *   原本綁死 `PendingCompany[]`，只適用 PENDING 審核清單。放寬為此最小型別後，
+ *   詳情頁「合併兩間 ACTIVE 公司」可用「當前公司 + 選中公司」組成兩筆傳入。
+ *   `PendingCompany` 結構相容此型別，既有審核頁呼叫端不需改動。
+ */
+export interface MergeableCompany {
+  id: string
+  name: string
+  /** 文件/出現次數（選填——來自公司列表 API 的候選公司不含此欄位） */
+  documentCount?: number
+}
+
 interface CompanyMergeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  companies: PendingCompany[]
+  companies: MergeableCompany[]
   onSuccess?: () => void
 }
 
@@ -214,9 +229,11 @@ export function CompanyMergeDialog({
                     className="flex-1 cursor-pointer"
                   >
                     <div className="font-medium">{company.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t('merge.documentCount', { count: company.documentCount })}
-                    </div>
+                    {company.documentCount !== undefined && (
+                      <div className="text-xs text-muted-foreground">
+                        {t('merge.documentCount', { count: company.documentCount })}
+                      </div>
+                    )}
                   </Label>
                 </div>
               ))}

@@ -166,6 +166,16 @@
     "merging": "合并中...",
     "confirmMerge": "确认合并",
     "close": "关闭",
+    "fromDetail": {
+      "button": "合并公司",
+      "pickerTitle": "选择要合并的公司",
+      "pickerDescription": "搜索另一家公司，将其合并到「{name}」。",
+      "searchPlaceholder": "输入公司名称搜索...",
+      "searchHint": "仅显示启用中的公司。",
+      "searching": "搜索中...",
+      "noResults": "找不到匹配的公司",
+      "loadError": "加载公司列表失败"
+    },
     "skipped": {
       "title": "{count} 笔设置未转移",
       "description": "以下设置因与目标公司的既有设置冲突而保留在原公司，需人工处理：",

@@ -166,6 +166,16 @@
     "merging": "Merging...",
     "confirmMerge": "Confirm Merge",
     "close": "Close",
+    "fromDetail": {
+      "button": "Merge Company",
+      "pickerTitle": "Select a Company to Merge",
+      "pickerDescription": "Search for another company to merge into \"{name}\".",
+      "searchPlaceholder": "Search company name...",
+      "searchHint": "Only active companies are shown.",
+      "searching": "Searching...",
+      "noResults": "No matching companies found",
+      "loadError": "Failed to load companies"
+    },
     "skipped": {
       "title": "{count} configuration(s) were not transferred",
       "description": "The following configurations conflict with existing ones on the target company and remain on the original company. Manual handling is required:",
