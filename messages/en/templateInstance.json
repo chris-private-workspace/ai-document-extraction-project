@@ -105,6 +105,8 @@
       "status": "Status",
       "actions": "Actions"
     },
+    "staleBadge": "Source updated",
+    "staleTooltip": "{count} source document(s) were reprocessed after this row was generated; the values here are a stale snapshot",
     "empty": {
       "title": "No Data Rows",
       "description": "This instance doesn't have any data rows yet"
@@ -146,6 +148,11 @@
       "title": "Transform Diagnostics",
       "description": "Some mapping rules reference source fields that do not exist in this document's data. Those items were treated as 0 / empty during calculation — this is usually why a field stays blank.",
       "unknownKeys": "unknown source fields: {keys}"
+    },
+    "staleSources": {
+      "title": "Source updated",
+      "description": "The following source documents were reprocessed after this row was generated, so the field values here are a stale snapshot. Re-run template matching to reflect the latest extraction results.",
+      "processedAt": "reprocessed at {date}"
     },
     "createdAt": "Created At",
     "updatedAt": "Updated At"

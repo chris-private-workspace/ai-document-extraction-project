@@ -378,16 +378,22 @@ export class TemplateInstanceService {
     ]);
 
     // CHANGE-091 1.6: 批量解析來源文件檔名（id → fileName），供 UI 顯示來源
+    // CHANGE-106: 一併取 processingEndedAt，判斷來源文件是否在 row 產生後被重新處理
     const sourceIds = Array.from(
       new Set(rows.flatMap((row) => row.sourceDocumentIds ?? []))
     );
-    const nameMap = new Map<string, string>();
+    const docMap = new Map<string, { fileName: string; processingEndedAt: Date | null }>();
     if (sourceIds.length > 0) {
       const docs = await prisma.document.findMany({
         where: { id: { in: sourceIds } },
-        select: { id: true, fileName: true },
+        select: { id: true, fileName: true, processingEndedAt: true },
       });
-      docs.forEach((doc) => nameMap.set(doc.id, doc.fileName));
+      docs.forEach((doc) =>
+        docMap.set(doc.id, {
+          fileName: doc.fileName,
+          processingEndedAt: doc.processingEndedAt,
+        })
+      );
     }
 
     return {
@@ -395,8 +401,24 @@ export class TemplateInstanceService {
         ...this.mapRowToDto(row),
         sourceDocuments: (row.sourceDocumentIds ?? []).map((id) => ({
           id,
-          fileName: nameMap.get(id) ?? id,
+          fileName: docMap.get(id)?.fileName ?? id,
         })),
+        // CHANGE-106: 來源文件在本行最後更新之後又完成處理 → 本行是舊快照。
+        // 以 processingEndedAt 為準（只在重新處理完成時更新）；updatedAt 會因
+        // 無關操作（審核、改公司）變動，用它判斷會產生假陽性噪音。
+        staleSources: (row.sourceDocumentIds ?? []).flatMap((id) => {
+          const doc = docMap.get(id);
+          if (!doc?.processingEndedAt || doc.processingEndedAt <= row.updatedAt) {
+            return [];
+          }
+          return [
+            {
+              id,
+              fileName: doc.fileName,
+              processedAt: doc.processingEndedAt.toISOString(),
+            },
+          ];
+        }),
       })),
       total,
     };

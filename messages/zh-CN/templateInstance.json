@@ -105,6 +105,8 @@
       "status": "状态",
       "actions": "操作"
     },
+    "staleBadge": "来源已更新",
+    "staleTooltip": "{count} 份来源文件在本行产生后被重新处理，此行数值为旧快照",
     "empty": {
       "title": "没有数据行",
       "description": "此实例暂无任何数据行"
@@ -146,6 +148,11 @@
       "title": "转换诊断",
       "description": "部分映射规则引用了此文件数据中不存在的来源字段，计算时该项被视为 0 / 空值 —— 这通常就是字段一直空白的原因。",
       "unknownKeys": "未知的来源字段：{keys}"
+    },
+    "staleSources": {
+      "title": "来源已更新",
+      "description": "以下来源文件在本行产生后被重新处理，此行字段值为旧快照。若要反映最新提取结果，请重新执行模板匹配。",
+      "processedAt": "重新处理于 {date}"
     },
     "createdAt": "创建时间",
     "updatedAt": "更新时间"
