@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 測試回報的根因追查（FIX-126 ~ FIX-129）
 > **影響頁面/功能**: Field Definition Set、Template Field Mapping、公司管理（**純資料，不改代碼**）
 > **優先級**: 高（代碼修好後仍需這批修正才能真正解決使用者回報的問題）
-> **狀態**: 🚧 進行中（2026-07-22 gated 腳本已建立 + 本地 dry-run 驗證通過；Azure dry-run 因 az 登入的 service principal 被切換而受阻，需恢復原 SP 後執行）
+> **狀態**: 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通過；剩：部署新映像後重跑 17 份文件與 instance 驗收數值 + §4/§5 業務判斷）
 
 ---
 
@@ -164,9 +164,22 @@ Toll 的定義中有 `Documentation Fee - Origin`，但**沒有** `Documentation
 - **§3（公式重複來源）刻意不改**：FIX-127 已在 Stage 3 清除重複金額（翻倍根因在機制層解決）；公式多項屬不同版面的容錯兜底，刪除會造成漏算風險。腳本 E 段會列出這 3 條公式現值供使用者裁決——若裁決要刪，再擴充修正表
 - 本地 dry-run 驗證（2026-07-22）：Azure 專屬 mapping 名稱在本地全部安全跳過 ✓；本地 CEVA defset 驗出同款過泛 alias（與 FIX-126 回放一致）✓；防呆路徑走通 ✓
 
-#### ⚠️ Azure 執行受阻（2026-07-22）
+#### ⚠️ Azure 執行一度受阻（2026-07-22 10:59–12:0x，已解）
 
-Kudu 存取自 10:59 起回裸 403：az 登入的 service principal 被切換（原 `2ae44f00-…` → 現 `a19dfe76-…`，後者對目標 webapp 無 RBAC 授權；本機有多個併發 session）。**需恢復原 SP 登入後**依序執行：Azure dryrun → 使用者核對 → write → 重跑 17 份文件 + template instance → 驗收。
+Kudu 存取回裸 403：az 登入的 service principal 被併發 session 切換（原 `2ae44f00-…` → `a19dfe76-…`，後者對目標 webapp 無 RBAC 授權）。使用者恢復原 SP 後繼續。
+
+#### ✅ Azure 寫入完成（2026-07-22）
+
+執行序：dryrun（29 筆全驗證通過、0 跳過）→ 使用者核對三項裁決 → 擴充修正表 → dryrun 複驗（32 筆）→ **write（32 筆全部套用：10 組 mapping + 1 組欄位集，交易 COMMIT）** → 冪等驗證（再 dryrun 為可套用 0 筆、跳過 29 筆「已修過」+ 3 筆 alias「已含建議值」）。
+
+使用者裁決記錄（2026-07-22）：
+1. A 段 29 筆**全部寫入**（含 2 筆低信心：Toll `handling_fee_incl_p_u→handling_fee_origin_incl_pu`、SBS `drayage→dryage_charge`）
+2. 原 REPORT_ONLY 三條依 defset 全集佐證**核准對應並寫入**：CEVA `freight_charges` 移除死項（活 key `basic_freight_charge` 已在公式中）、DSV `b_l_bill_of_lading→bl_bill_of_lading`、Redlines `b_l_charges→bl_charges`（皆為底線差異）
+3. §3 三條多來源公式**維持不改**（FIX-127 已解翻倍根因；多項公式為不同版面的容錯兜底）
+
+額外發現：CEVA 過泛 alias 在 Azure 上已被人工修正（origin alias 現值為 `Terminal Handling Charge at Origin`、destination alias 已補）——C 段無需動作；SBS INTERNATIONAL 部分公式先前已有人手動補正確 key 但未刪死項，本次替換 + 自動去重一併收斂。
+
+**剩餘步驟**（依序）：部署新映像（FIX-126~129 + CHANGE-106 代碼，帶 `RUN_SCHEMA_DRIFT_FIX=true`）→ 重跑 17 份文件 → 重跑 template instance → 核對驗收數值（§驗收標準）。注意：重跑必須在**新映像部署後**執行，否則 Stage 3 仍是舊邏輯、驗收數值不會成立。
 
 ---
 

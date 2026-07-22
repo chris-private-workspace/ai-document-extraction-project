@@ -222,32 +222,49 @@ const MAPPING_FIXES = [
       },
     ],
   },
+  // 以下三條原為 REPORT_ONLY；2026-07-22 Azure dryrun 取得 defset 全集後經使用者核准對應
+  {
+    mapping: 'CEVA - inport to logistics template mapping (Full List)',
+    company: 'CEVA LOGISTICS (HONG KONG) LTD',
+    rules: [
+      {
+        target: 'freight',
+        removes: ['freight_charges'],
+        note: 'defset（16 keys）無任何對應概念，活 key basic_freight_charge 已在公式中 → 移除死項',
+      },
+    ],
+  },
+  {
+    mapping: 'DSV Air & Sea Ltd. - Logistics Cost - Outbound Template (Full List)',
+    company: 'DSV Air & Sea Ltd.',
+    rules: [
+      {
+        target: 'document_fee',
+        renames: { b_l_bill_of_lading: 'bl_bill_of_lading' },
+        note: '底線差異：defset 實際 key 為 bl_bill_of_lading',
+      },
+    ],
+  },
+  {
+    mapping: 'Redlines Shipping & Logistics - Logistics Cost - Outbound Template (Full List)',
+    company: 'Redlines Shipping & Logistics',
+    rules: [
+      {
+        target: 'document_fee',
+        renames: { b_l_charges: 'bl_charges' },
+        note: '底線差異：defset 實際 key 為 bl_charges',
+      },
+    ],
+  },
 ]
 
 /**
  * REPORT_ONLY：死 key 無法從留存資料確定對應（該公司 defset 現值未取得）。
  * dryrun / write 都只列出規則現值 + 該公司 defset key 清單，不做任何修改。
+ * 2026-07-22：原有的 CEVA / DSV / Redlines 三條經 Azure dryrun 取得 defset
+ * 全集、使用者核准對應後，已移入 MAPPING_FIXES —— 本清單目前為空。
  */
-const REPORT_ONLY = [
-  {
-    mapping: 'CEVA - inport to logistics template mapping (Full List)',
-    company: 'CEVA LOGISTICS (HONG KONG) LTD',
-    deadKeys: ['freight_charges'],
-    target: 'freight',
-  },
-  {
-    mapping: 'DSV Air & Sea Ltd. - Logistics Cost - Outbound Template (Full List)',
-    company: 'DSV Air & Sea Ltd.',
-    deadKeys: ['b_l_bill_of_lading'],
-    target: 'document_fee',
-  },
-  {
-    mapping: 'Redlines Shipping & Logistics - Logistics Cost - Outbound Template (Full List)',
-    company: 'Redlines Shipping & Logistics',
-    deadKeys: ['b_l_charges'],
-    target: 'document_fee',
-  },
-]
+const REPORT_ONLY = []
 
 /**
  * 欄位定義集 aliases 補齊（FIX-130 §1，依真實文件原文）。
