@@ -16,6 +16,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+// FIX-129: 合併回應帶出處理知識轉移報告（type-only import，不拉入伺服器端 runtime）
+import type { MergeTransferReport } from '@/services/company-merge-transfer.service'
 
 // ============================================================
 // Types
@@ -95,12 +97,24 @@ async function confirmCompanyAsNew(id: string): Promise<void> {
   }
 }
 
-async function confirmCompanyMerge(id: string): Promise<void> {
+async function confirmCompanyMerge(
+  id: string
+): Promise<MergeTransferReport | null> {
   const response = await fetch(`/api/companies/pending/${id}/confirm-merge`, {
     method: 'POST',
   })
   if (!response.ok) {
     await throwFromResponse(response, 'Failed to merge company')
+  }
+  // FIX-129: 帶出處理知識轉移報告，供介面顯示因唯一鍵衝突而跳過的記錄
+  try {
+    const body: unknown = await response.json()
+    const data = (body as { data?: { knowledgeTransfer?: MergeTransferReport } })
+      ?.data
+    return data?.knowledgeTransfer ?? null
+  } catch {
+    // 回應無 JSON body：合併已成功，僅無報告可顯示
+    return null
   }
 }
 
@@ -140,7 +154,7 @@ export function useConfirmCompanyAsNew() {
 /**
  * 確認 PENDING 公司併入疑似目標 Mutation Hook（破壞性合併）。
  *
- * @returns 併入疑似目標的 mutation
+ * @returns 併入疑似目標的 mutation；成功時回傳處理知識轉移報告（FIX-129）
  */
 export function useConfirmCompanyMerge() {
   const queryClient = useQueryClient()

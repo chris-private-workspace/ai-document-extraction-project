@@ -165,7 +165,21 @@
     "error": "Failed to merge companies",
     "merging": "Merging...",
     "confirmMerge": "Confirm Merge",
-    "close": "Close"
+    "close": "Close",
+    "skipped": {
+      "title": "{count} configuration(s) were not transferred",
+      "description": "The following configurations conflict with existing ones on the target company and remain on the original company. Manual handling is required:",
+      "toast": "Merge completed, but {count} configuration(s) were not transferred due to conflicts",
+      "resultTitle": "Merge completed (some configurations not transferred)",
+      "relations": {
+        "documentFormats": "Document Format",
+        "fieldDefinitionSets": "Field Definition Set",
+        "templateFieldMappings": "Template Field Mapping",
+        "promptConfigs": "Prompt Config",
+        "pipelineConfigs": "Pipeline Config",
+        "fieldMappingConfigs": "Field Mapping Config"
+      }
+    }
   },
   "companyType": {
     "forwarder": "Forwarder",

@@ -107,12 +107,14 @@ terminal_fees_at_origin ← terminal_handling_charges_origin   [DIRECT]
 | NIPPON EXPRESS (HK) CO., LTD.（NIPPON EXPRESS） | 1 | 1 | 1 | ACTIVE | 同上，僅 1 份文件 |
 | SBS | **0** | 1 | 2 | ACTIVE | 設定掛在**沒有文件**的公司上，永遠不會被使用 |
 | RICOH INTERNATIONAL LOGISTICS (HK) LTD. | 43 | 1 | 2 | ACTIVE | 真正有文件的是這筆 |
-| CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics） | 0 | 1 | 4 | **MERGED** | 孤兒設定（見 [FIX-129](FIX-129-merge-skipped-config-no-resolution-path.md)） |
+| CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics） | 0 | 1 | 4 | **MERGED** | 孤兒設定（見 [FIX-129](FIX-129-merge-skipped-config-no-resolution-path.md)；已查證為 FIX-125 前的存量——合併於 2026-07-16，當時機制完全不轉移處理知識） |
+| RICON ASIA PACIFIC OPERATIONS LIMITED | 3 | 0 | 0 | ACTIVE | FIX-129 查證時新發現（2026-07-22）：疑似 CEVA 變體但未合併，持 1 個格式 + 3 份文件 |
 
 **需使用者決策**：
 - Nippon 三筆是否合併？合併到哪一筆？（設定會撞鍵，需逐筆決定保留哪一份）
 - `SBS` 那 2 組 mapping 是要轉移到 `RICOH INTERNATIONAL LOGISTICS (HK) LTD.`，還是捨棄？
 - CEVA MERGED 公司的 4 組 mapping 與存活公司的 4 組是否重複？
+- `RICON ASIA PACIFIC OPERATIONS LIMITED`（ACTIVE，3 份文件）是否為 CEVA 變體、要併入 `CEVA LOGISTICS (HONG KONG) LTD`？（合併現已有 FIX-125 轉移 + FIX-129 跳過明細回報，撞鍵時介面會列出需人工處理的項目）
 
 ### 5. 缺少的欄位定義
 
