@@ -165,7 +165,21 @@
     "error": "合併公司失敗",
     "merging": "合併中...",
     "confirmMerge": "確認合併",
-    "close": "關閉"
+    "close": "關閉",
+    "skipped": {
+      "title": "{count} 筆設定未轉移",
+      "description": "以下設定因與目標公司的既有設定衝突而保留在原公司，需人工處理：",
+      "toast": "合併完成，但有 {count} 筆設定因衝突未轉移",
+      "resultTitle": "合併完成（部分設定未轉移）",
+      "relations": {
+        "documentFormats": "文件格式",
+        "fieldDefinitionSets": "欄位定義集",
+        "templateFieldMappings": "模板欄位映射",
+        "promptConfigs": "Prompt 配置",
+        "pipelineConfigs": "管線配置",
+        "fieldMappingConfigs": "欄位映射配置"
+      }
+    }
   },
   "companyType": {
     "forwarder": "貨運代理商",

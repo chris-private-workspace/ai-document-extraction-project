@@ -165,7 +165,21 @@
     "error": "合并公司失败",
     "merging": "合并中...",
     "confirmMerge": "确认合并",
-    "close": "关闭"
+    "close": "关闭",
+    "skipped": {
+      "title": "{count} 笔设置未转移",
+      "description": "以下设置因与目标公司的既有设置冲突而保留在原公司，需人工处理：",
+      "toast": "合并完成，但有 {count} 笔设置因冲突未转移",
+      "resultTitle": "合并完成（部分设置未转移）",
+      "relations": {
+        "documentFormats": "文件格式",
+        "fieldDefinitionSets": "字段定义集",
+        "templateFieldMappings": "模板字段映射",
+        "promptConfigs": "Prompt 配置",
+        "pipelineConfigs": "管线配置",
+        "fieldMappingConfigs": "字段映射配置"
+      }
+    }
   },
   "companyType": {
     "forwarder": "货运代理商",

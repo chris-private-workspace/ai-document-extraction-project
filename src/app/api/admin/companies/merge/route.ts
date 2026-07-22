@@ -143,7 +143,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 執行合併
-    const mergedCompany = await autoMergeCompanies(primaryId, secondaryIds)
+    const { company: mergedCompany, knowledgeTransfer } = await autoMergeCompanies(
+      primaryId,
+      secondaryIds
+    )
 
     return NextResponse.json({
       success: true,
@@ -154,6 +157,8 @@ export async function POST(request: NextRequest) {
         mergedCount: secondaryIds.length,
         mergedIds: secondaryIds,
       },
+      // FIX-129: 處理知識轉移報告（含因唯一鍵衝突而跳過的記錄），供前端顯示
+      knowledgeTransfer,
     })
   } catch (error) {
     console.error('Error merging companies:', error)

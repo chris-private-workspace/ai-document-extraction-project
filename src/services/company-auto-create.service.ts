@@ -32,6 +32,7 @@ import { CompanyStatus, CompanySource, CompanyType, Company } from '@prisma/clie
 import {
   transferCompanyKnowledge,
   logMergeTransferSkips,
+  type MergeTransferReport,
 } from './company-merge-transfer.service'
 import {
   findMatchingCompany,
@@ -457,12 +458,12 @@ export async function addNameVariant(
  *
  * @param primaryId - 主公司 ID（保留）
  * @param secondaryIds - 副公司 ID 列表（將被合併）
- * @returns 合併後的主公司
+ * @returns 合併後的主公司 + 處理知識轉移報告（FIX-129：供介面顯示跳過明細）
  */
 export async function autoMergeCompanies(
   primaryId: string,
   secondaryIds: string[]
-): Promise<Company> {
+): Promise<{ company: Company; knowledgeTransfer: MergeTransferReport }> {
   // 獲取主公司
   const primaryCompany = await prisma.company.findUnique({
     where: { id: primaryId },
@@ -536,7 +537,7 @@ export async function autoMergeCompanies(
       `autoMergeCompanies [${secondaryIds.join(', ')}] → ${primaryId}`
     )
 
-    return updatedPrimary
+    return { company: updatedPrimary, knowledgeTransfer }
   })
 
   clearMatcherCache()
