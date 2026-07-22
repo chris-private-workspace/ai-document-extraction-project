@@ -10,6 +10,9 @@
  *   FIX-127 追加：金額指紋去重 —— GPT 把同一筆費用另填到相近欄位時，該欄位與已認領
  *   金額相同，留著會被 template mapping 的加總公式重複計入。
  *
+ *   FIX-126 追加：比對強化 —— 單複數歸一（方案 A）+ 方向詞必要條件（方案 C）+
+ *   非對稱子字串（僅允許文件文字 ⊇ 定義名稱），修正實務費用名稱變體大量落空。
+ *
  *   Fixture 取自 Azure DEV 實測資料（Nippon Express (HK)、RICOH INTERNATIONAL
  *   LOGISTICS、Toll Global Forwarder）
  *
@@ -342,5 +345,118 @@ describe('FIX-127: 同一筆費用落入兩個欄位的金額指紋去重', () =
     backfill(fields, items, defs)
 
     expect(fields.thc.value).toBe(325.42) // 舊行為：不清除
+  })
+})
+
+describe('FIX-126: 費用名稱比對強化（單複數 + 方向必要條件 + 非對稱子字串）', () => {
+  let backfill: BackfillFn
+
+  beforeEach(() => {
+    const service = new Stage3ExtractionService({} as unknown as PrismaClient)
+    backfill = (
+      service as unknown as { backfillLineItemCharges: BackfillFn }
+    ).backfillLineItemCharges.bind(service)
+  })
+
+  /** TOLL 實測欄位（節錄，方向成對 + aliases 全空） */
+  const TOLL_THC_DEFS = [
+    chargeDef('terminal_handling_charge_origin', 'Terminal Handling Charge - Origin'),
+    chargeDef(
+      'terminal_handling_charge_destination',
+      'Terminal Handling Charge - Destination'
+    ),
+  ]
+
+  it('模式 1：複數 + 計價後綴的 description 應命中同方向定義（TOLL THC 實測）', () => {
+    // TOLL_RHIM260048_79294.PDF：修正前 fields 完全沒有 terminal_handling_charge_origin
+    const items = [
+      lineItem(
+        'Terminal Handling Charges - Origin - 4 40HC Container(s) @ THB 4300.00/Container',
+        'Terminal Handling Charge',
+        17200
+      ),
+    ]
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, items, TOLL_THC_DEFS)
+
+    expect(fields.terminal_handling_charge_origin.value).toBe(17200)
+    expect(fields.terminal_handling_charge_origin.source).toBe('lineItem-backfill')
+    expect(fields.terminal_handling_charge_destination).toBeUndefined()
+  })
+
+  it('模式 4：無方向的 classifiedAs 不得認領有方向的欄位（明確定義為不填）', () => {
+    // classifiedAs 被 GPT 去掉方向後綴 → 修正前是歧義放棄，修正後同樣不填
+    const items = [
+      lineItem('THC CHARGE', 'Terminal Handling Charge', 4300),
+    ]
+    const fields: Record<string, FieldValue> = {
+      terminal_handling_charge_origin: gptValue(4300),
+    }
+
+    backfill(fields, items, TOLL_THC_DEFS)
+
+    // 不填：destination 未被填；不清：GPT 已填的 origin 保留（無認領佐證）
+    expect(fields.terminal_handling_charge_destination).toBeUndefined()
+    expect(fields.terminal_handling_charge_origin.value).toBe(4300)
+  })
+
+  it('模式 5：較泛的費用名不得被較具體的定義名稱認領', () => {
+    // 修正前 HANDLING CHARGE 子字串誤命中 Terminal handling charge
+    const defs = [chargeDef('terminal_handling_charge', 'Terminal handling charge')]
+    const items = [lineItem('HANDLING CHARGE', 'Handling Charge', 100)]
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, items, defs)
+
+    expect(fields.terminal_handling_charge).toBeUndefined()
+  })
+
+  it('方向衝突防護：無方向 alias 不得讓反向的文件文字跨方向認領', () => {
+    // FIX-130 將補的無方向 alias（如 TERMINAL HANDLING CHARGE）不可成為跨方向漏洞
+    const defs = [
+      chargeDef('thc_origin', 'THC - Origin', ['TERMINAL HANDLING CHARGE']),
+    ]
+    const items = [
+      lineItem('TERMINAL HANDLING CHARGES - DESTINATION', 'Terminal Handling Charge', 8700),
+    ]
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, items, defs)
+
+    expect(fields.thc_origin).toBeUndefined()
+  })
+
+  it('FIX-130 aliases 與非對稱子字串協同：帶後綴的 description 命中 alias', () => {
+    const defs = [
+      chargeDef('document_fee_destination', 'Document Fee - Destination', [
+        'Documentation Fee - Destination',
+      ]),
+      chargeDef('document_fee', 'Document Fee'),
+    ]
+    // TOLL_RHIM260062_51857.PDF 實測明細行（修正前因 Base Rate 後綴而落空）
+    const items = [
+      lineItem(
+        'Documentation Fee - Destination - Base Rate HKD 650.00',
+        'Document Fee',
+        650
+      ),
+    ]
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, items, defs)
+
+    expect(fields.document_fee_destination.value).toBe(650)
+    expect(fields.document_fee).toBeUndefined()
+  })
+
+  it('迴歸：Nippon Express (HK) 既有 aliases 行為完全不變', () => {
+    const fields: Record<string, FieldValue> = { thc: gptValue(2400) }
+
+    backfill(fields, NEHK_LINE_ITEMS, NEHK_DEFS)
+
+    expect(fields.thc.value).toBe(8700) // T.H.C. alias exact，1500 + 7200
+    expect(fields.nehk_bl_fee.value).toBe(680)
+    expect(fields.vgm_admin_charge.value).toBe(936)
   })
 })
