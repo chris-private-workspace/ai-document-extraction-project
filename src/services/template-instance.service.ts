@@ -982,6 +982,8 @@ export class TemplateInstanceService {
       sourceDocumentIds: row.sourceDocumentIds || [],
       fieldValues: (row.fieldValues as Record<string, unknown>) || {},
       validationErrors: row.validationErrors as Record<string, string> | null,
+      // FIX-128: 轉換診斷（引用了不存在來源 key 的清單）
+      transformDiagnostics: row.transformDiagnostics as Record<string, string[]> | null,
       status: row.status as TemplateInstanceRowStatus,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

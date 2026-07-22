@@ -4,7 +4,7 @@
 > **發現方式**: 盤點 Azure DEV 公司記錄時發現已 MERGED 的公司仍持有欄位定義集與模板映射
 > **影響頁面/功能**: 公司合併（`mergeCompanies` / `confirmCompanyMerge`）→ 公司處理知識關聯
 > **優先級**: 中（不影響現有文件處理，但設定會逐步流失且無人察覺）
-> **狀態**: 📋 規劃中
+> **狀態**: ✅ 已完成（2026-07-22，方案 A 合併結果回報 + CEVA 時間點查證；存量清理［方案 C］由 FIX-130 承接；Azure 實機驗證於下次部署批次執行）
 
 ---
 
@@ -68,7 +68,9 @@ CEVA 相關公司共 8 筆，其中 7 筆已 MERGED：
 
 第二列是典型孤兒：文件已全數轉走（0 份），卻還握著 1 個欄位定義集、4 組模板映射、1 個格式。
 
-⚠️ **待查證**：這筆的合併時間點是在 FIX-125 部署（2026-07-21）之前還是之後。若在之前，是「當時根本不轉移」的存量；若在之後，才是唯一鍵跳過。兩者的存量規模不同，但**處理路徑缺失**這件事一樣成立。
+✅ **已查證（2026-07-22，Kudu 唯讀 q7.js）**：該筆孤兒（`CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics）`）的 `updated_at = 2026-07-16T03:08:13Z`，同批 5 筆 MERGED 全部同一時刻（一次批量合併），另 2 筆為 2026-06-28 —— **全部早於 FIX-125 部署（2026-07-21）**。結論：這批是「當時根本不轉移」的**存量**，不是唯一鍵跳過。存量清理由 [FIX-130](FIX-130-existing-config-correction-checklist.md) §4 承接。
+
+同次查證的額外發現：`RICON ASIA PACIFIC OPERATIONS LIMITED`（無 CEVA 後綴那筆）仍為 **ACTIVE**、持有 3 份文件 + 1 個格式，不在原先 8 筆盤點表內 —— 疑似 CEVA 變體但未合併，已補記入 FIX-130 §4 待使用者決策。
 
 ---
 
@@ -91,14 +93,35 @@ CEVA 相關公司共 8 筆，其中 7 筆已 MERGED：
 
 ---
 
+## 實作記錄（2026-07-22，方案 A）
+
+合併回應把 `MergeTransferReport` 帶到前端，兩個合併入口都會顯示跳過明細：
+
+| 層 | 檔案 | 改動 |
+|---|---|---|
+| 服務 | `src/services/company-auto-create.service.ts` | `autoMergeCompanies` 回傳改為 `{ company, knowledgeTransfer }` |
+| API | `src/app/api/admin/companies/merge/route.ts` | 回應附 `knowledgeTransfer`（confirm-merge route 原本就帶，不用改） |
+| Hook | `src/hooks/use-pending-companies.ts` | `MergeCompaniesResponse` 型別附 `knowledgeTransfer` |
+| Hook | `src/hooks/use-duplicate-review.ts` | `confirmCompanyMerge` 解析回應、回傳 `MergeTransferReport \| null` |
+| 組件 | `src/components/features/companies/MergeSkippedReportAlert.tsx`（新建） | 琥珀色警示：逐筆列出 relation（i18n 翻譯）+ label + reason |
+| 組件 | `src/components/features/companies/CompanyMergeDialog.tsx` | 合併成功且有跳過項 → 切換為結果視圖（明細 + 手動關閉），不自動關閉；結果用快照避免列表刷新清掉視圖 |
+| 頁面 | `admin/companies/duplicate-review/duplicate-review-content.tsx` | 合併成功且有跳過項 → 頁面頂部顯示明細警示（可關閉）+ toast 警告 |
+| i18n | `messages/{en,zh-TW,zh-CN}/companies.json` | 新增 `merge.skipped.*`（title / description / toast / resultTitle / relations.6 類） |
+
+`skip.reason` 為服務層生成的中文說明（FIX-125 既有行為），直接顯示；relation 類別名經 i18n 翻譯（未知類別 fallback 原字串）。
+
+**rollback**：無 schema 變更、無 flag；回退＝重部署舊映像。
+
+---
+
 ## 驗收標準
 
-- [ ] 查證 CEVA 那筆孤兒的合併時間點，確認是「FIX-125 前的存量」還是「唯一鍵跳過」
-- [ ] 合併完成後，介面能看到本次跳過的筆數與原因
-- [ ] 存量孤兒（CEVA 1 欄位集 + 4 mapping + 1 格式）處理完畢，且處理方式經使用者逐筆確認
-- [ ] 迴歸：合併本身的行為（文件 / 提取結果 / 規則轉移）不變
-- [ ] 涉及 UI 字串 → 三語言同步 + `npm run i18n:check` 通過
-- [ ] `npm run type-check` / `npm run lint` 通過
+- [x] 查證 CEVA 那筆孤兒的合併時間點，確認是「FIX-125 前的存量」還是「唯一鍵跳過」→ **存量**（合併於 2026-07-16，早於 FIX-125 部署 2026-07-21；見上方查證記錄）
+- [x] 合併完成後，介面能看到本次跳過的筆數與原因（方案 A，兩個合併入口皆覆蓋）
+- [ ] 存量孤兒（CEVA 1 欄位集 + 4 mapping + 1 格式）處理完畢，且處理方式經使用者逐筆確認 → **移交 [FIX-130](FIX-130-existing-config-correction-checklist.md) §4**（方案 C，需業務判斷）
+- [x] 迴歸：合併本身的行為（文件 / 提取結果 / 規則轉移）不變（FIX-125 單元測試 6/6 通過）
+- [x] 涉及 UI 字串 → 三語言同步 + `npm run i18n:check` 通過
+- [x] `npm run type-check` / `npm run lint` 通過
 
 ---
 

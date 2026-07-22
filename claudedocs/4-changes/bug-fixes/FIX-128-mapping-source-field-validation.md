@@ -4,7 +4,7 @@
 > **發現方式**: 追查「delivery order charge / pick up charge cannot display」時發現公式 key 拼寫與實際欄位定義不符
 > **影響頁面/功能**: Template Field Mapping 設定頁 → Template Instance 產出
 > **優先級**: 中高（不會產生錯誤數字，但會讓設定者無從察覺自己打錯字）
-> **狀態**: 📋 規劃中
+> **狀態**: ✅ 已完成（2026-07-22，B + C + A 降級警告；Azure 實機重跑驗證於下次部署批次執行）
 
 ---
 
@@ -85,12 +85,68 @@ Outbound 的 `thc` 公式 `{terminal_handling_charge_origin} + {terminal_handlin
 
 ## 驗收標準
 
-- [ ] 對現有 30 組 mapping 執行一次全面掃描，產出「公式引用了不存在 key」的清單（此清單即 [FIX-130](FIX-130-existing-config-correction-checklist.md) 的修正依據）
-- [ ] `RIL_RCIM250313_22084` 重跑 template instance 後，介面可看出 `delivery` / `pick_up_fee_at_origin` 空白是因為引用了未知 key
-- [ ] 公式編輯器對未知 key 有可見提示
-- [ ] 迴歸：合法公式（所有 key 都存在）不產生任何警示
-- [ ] 涉及 UI 字串 → `messages/{en,zh-TW,zh-CN}` 三語言同步 + `npm run i18n:check` 通過
-- [ ] `npm run type-check` / `npm run lint` 通過
+- [x] 對現有 mapping 執行一次全面掃描（實際 33 組，啟用 26），產出「公式引用了不存在 key」的清單（見下方實作記錄；此清單即 [FIX-130](FIX-130-existing-config-correction-checklist.md) 的修正依據）
+- [ ] `RIL_RCIM250313_22084` 重跑 template instance 後，介面可看出 `delivery` / `pick_up_fee_at_origin` 空白是因為引用了未知 key（代碼已具備：診斷存入 row + RowDetailDrawer 顯示；**實機重跑待下次 Azure 部署批次**）
+- [x] 公式編輯器對未知 key 有可見提示（FormulaEditor 琥珀色 badge + 警告文字）
+- [x] 迴歸：合法公式（所有 key 都存在）不產生任何警示（單元測試覆蓋）
+- [x] 涉及 UI 字串 → `messages/{en,zh-TW,zh-CN}` 三語言同步 + `npm run i18n:check` 通過
+- [x] `npm run type-check` / `npm run lint` 通過（lint 無新增警告）
+
+---
+
+## 實作記錄（2026-07-22）
+
+### 實作範圍（照規劃建議：B 優先 + C 次之 + A 降為警告）
+
+| 方案 | 實作 |
+|---|---|
+| **B 執行時警示** | `template-matching-engine` 的 `transformFields` 在轉換時收集「引用了 row 中不存在的來源 key」（FORMULA 取公式變數、非 AGGREGATE 取 sourceField；AGGREGATE 讀 lineItems 故豁免），存入 `TemplateInstanceRow.transformDiagnostics`（新增 nullable Json 欄位），`RowDetailDrawer` 以琥珀色警告區塊顯示「哪個欄位引用了哪些未知 key」——欄位空白的原因首次可見。診斷反映最近一次處理（規則修好後重跑即清空）。`previewMatch` / `matchDocuments` 結果同步帶出 `unresolvedSourceKeys` |
+| **C UI 即時提示** | `MappingRuleItem` 以既有 `useResolvedFields`（與 SourceFieldCombobox 共用 React Query 快取，無額外請求）+ 標準欄位組出已知清單，經 `TransformConfigEditor` 既有的 `availableFields` prop（原本無人傳入）餵給 `FormulaEditor`；未知變數 badge 轉琥珀色 + 警告文字，打字當下即可見 |
+| **A 儲存時警告（不擋）** | `templateFieldMappingService.computeUnknownSourceKeyWarnings`（GLOBAL scope 不判定、解析失敗回空，best-effort 不影響儲存）；POST / PATCH 回應附 `warnings`，表單以 toast 顯示 |
+
+**共用判定核心**：`src/lib/template-mapping-source-keys.ts`（三個使用端共用同一套規則）。`li_*` / `_ref_*` 動態合成欄位一律豁免（依文件內容產生，缺席不代表拼錯）。
+
+### 修改檔案
+
+| 檔案 | 變更 |
+|---|---|
+| `src/lib/template-mapping-source-keys.ts` | 新建：`extractFormulaKeys` / `collectRuleSourceKeys` / `findUnknownRuleSourceKeys` / `isSyntheticSourceKey` |
+| `prisma/schema.prisma` + migration `20260722020000` | `TemplateInstanceRow.transformDiagnostics Json?`（純加 nullable） |
+| `prisma/apply-schema-drift.js` | 加 FIX-128 冪等條目（Azure 部署需帶 `RUN_SCHEMA_DRIFT_FIX=true`） |
+| `src/services/template-matching-engine.service.ts` | `transformFields` 收集診斷；`upsertRow` 存 `transformDiagnostics` |
+| `src/services/template-instance.service.ts` | `mapRowToDto` 帶出診斷 |
+| `src/services/template-field-mapping.service.ts` | 新增 `computeUnknownSourceKeyWarnings` |
+| `src/app/api/v1/template-field-mappings/route.ts` + `[id]/route.ts` | 回應附 `warnings` |
+| `src/types/{template-matching-engine,template-instance,template-field-mapping}.ts` | 型別擴充 |
+| `src/hooks/use-template-field-mappings.ts` | create/update 回傳 `{ mapping, warnings }` |
+| `src/components/.../MappingRuleItem.tsx` / `FormulaEditor.tsx` / `TemplateFieldMappingForm.tsx` / `RowDetailDrawer.tsx` | UI 提示三處 |
+| `messages/{en,zh-TW,zh-CN}/{templateFieldMapping,templateInstance}.json` | i18n 三語言 |
+| `tests/unit/lib/template-mapping-source-keys.test.ts` + `tests/unit/services/template-matching-engine-diagnostics.test.ts` | 新建 14 項測試 |
+| `scripts/local-verify-fix128-dead-keys.ts` | 死 key 掃描分析工具（讀 Kudu 唯讀查詢輸出，不連 DB） |
+
+### 全面掃描結果（Azure DEV，2026-07-22 唯讀查詢）
+
+**33 組 mapping（啟用 26）中 10 組含死 key、29 條規則受影響**——遠超規劃時已知的 SBS/Toll。GLOBAL scope 2 組不判定。
+
+| Mapping（皆 active） | 死 key 規則 | 死 key |
+|---|---:|---|
+| CEVA - inport to logistics (Full List) | 1/7 | `freight` ← `freight_charges` |
+| DSV Air & Sea - Outbound (Full List) | 1/6 | `document_fee` ← `b_l_bill_of_lading` |
+| Nippon Express Logistics - Inbound (Full List) | 1/13 | `car_park_fee` ← `o_gate_i_o_or_parking_chg` |
+| Nippon Express (HK) - Inbound (Full List) | 1/6 | `terminal_fees_at_origin` ← `terminal_handling_charge` |
+| Redlines - Outbound (Full List) | 1/5 | `document_fee` ← `b_l_charges` |
+| SBS INTERNATIONAL - Inbound (Full List) | 7/17 | `air_alfa_charge_dest_charge`、`air_import_service_fee_dest_charge`、`ocean_freight_non_nvocc`、`air_cfs_charge_dest_charge`、`air_airline_document_charge_dest_charge`、`sea_document_b_l`、`air_delivery_order_dest_charge`、`d_o_fee`、`air_delivery_order_charge`、`air_pick_up_charge_original_charge`、`air_delivery_charge_dest_charge`、`air_gate_charge_dest_charge` |
+| SBS INTERNATIONAL - Outbound (Full List) | 1/11 | `air_alfa_charge_dest_charge`、`air_import_service_fee_dest_charge` |
+| SBS - Inbound (Full List) | 11/19 | 上列 SBS 死 key + `air_terminal_charge_dest_charge`、`air_pick_up_charge_origin_charge`、`air_local_charge_in_usa_origin_charge`、`drayage`、`pick_up_d_o_charge` |
+| Toll - Inbound (Full List) | 2/15 | `terminal_handling_charges_origin`（複數）、`terminal_handling_charges_destination`（複數） |
+| Toll - Outbound (Full List) | 3/14 | `handling_fee_incl_p_u`、`terminal_handling_charges_origin`、`terminal_handling_charge`、`handling_fee_origin_incl_p_u`、`origin_chage_incl_pick_up`（注意 `chage` 拼字） |
+
+> 重跑方式：Kudu 唯讀 `node /home/q6.js`（腳本保留於容器 /home）取資料 → `npx tsx scripts/local-verify-fix128-dead-keys.ts <輸出檔>`。
+
+### 部署注意
+
+1. **Schema 變更**：Azure 部署需帶 `RUN_SCHEMA_DRIFT_FIX=true` 套用 `transform_diagnostics` 欄位（entrypoint 不跑 migrate deploy）。
+2. 舊 row 的診斷為 null（無警告顯示），重跑 instance 後填入 —— 無需 backfill。
 
 ---
 

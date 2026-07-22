@@ -70,9 +70,11 @@ import {
 } from '../utils/variable-replacer';
 // CHANGE-046: classifiedAs 正規化
 // CHANGE-094: 費用標籤對照（確定性回填）
+// FIX-126: 方向詞必要條件（方案 C）
 import {
   normalizeClassifiedAs,
   matchLabel,
+  extractChargeDirections,
   type LabelMatchKind,
 } from '../utils/classify-normalizer';
 
@@ -82,6 +84,13 @@ import {
 
 /** 確定性回填寫入 fields 時採用的信心度（CHANGE-094） */
 const BACKFILL_CONFIDENCE = 85;
+
+/**
+ * 金額比對容差（FIX-127）
+ * @description
+ *   浮點加總會產生尾差（實測如 982.4000000000001），以半分錢為界視為同一筆金額。
+ */
+const AMOUNT_EPSILON = 0.005;
 
 // ============================================================================
 // Types
@@ -1556,11 +1565,41 @@ Respond in valid JSON format matching the provided schema.`;
       };
     }
 
-    // 4. 清除：僅清除「可證明由 classifiedAs 失真造成的誤填」
+    // FIX-127: 蒐集「已被認領」的金額指紋 —— 各 charge key 的加總 + 被認領行的個別金額。
+    //   GPT 常把同一筆費用另填到一個相近欄位（如 THC 也填進 handling fee）；該欄位不會被
+    //   任何 lineItem 認領，金額卻與已認領的相同。留著會被 template mapping 的加總公式
+    //   重複計入（實測 RIL THC 325.42 → 650.84、TOLL Docs fee 50.82 → 101.64）。
+    //   0 不納入指紋：零額行對加總無影響，納入只會製造無謂的清除紀錄。
+    const claimedAmounts: number[] = [...claimed.values()].filter((a) => a !== 0);
+    lineItems.forEach((li, index) => {
+      if (claimedItems.has(index) && typeof li.amount === 'number' && li.amount !== 0) {
+        claimedAmounts.push(li.amount);
+      }
+    });
+
+    // 4. 清除：金額重複記錄（FIX-127）＋ 可證明由 classifiedAs 失真造成的誤填
     const cleared: string[] = [];
+    const duplicateCleared: string[] = [];
     for (const def of chargeDefs) {
       if (claimed.has(def.key)) continue; // 有 lineItem 認領 → 不動
       if (!this.hasFieldValue(fields[def.key])) continue; // 本來就空 → 不動
+
+      // FIX-127: 值與某筆已被認領的費用金額相同 → 判定為同一筆費用的重複記錄 → 清除。
+      //   僅比對「已認領」金額（而非全部 lineItems），確保有「確定性回填已接手這筆錢」
+      //   作為佐證，避免誤清真正來自 summary 區的獨立費用。
+      const amount = this.toNumericAmount(fields[def.key]);
+      if (
+        amount !== null &&
+        claimedAmounts.some((claimedAmount) => Math.abs(claimedAmount - amount) < AMOUNT_EPSILON)
+      ) {
+        fields[def.key] = {
+          value: null,
+          confidence: 0,
+          source: 'duplicate-amount-cleared',
+        };
+        duplicateCleared.push(def.key);
+        continue;
+      }
 
       const hits = classifiedHits.get(def.key);
       // 無 classifiedAs 命中 → 值可能來自 lineItems 以外（如 summary 區）→ 保留
@@ -1576,9 +1615,12 @@ Respond in valid JSON format matching the provided schema.`;
       cleared.push(def.key);
     }
 
-    if (claimed.size > 0 || cleared.length > 0) {
+    if (claimed.size > 0 || cleared.length > 0 || duplicateCleared.length > 0) {
       console.log(
         `[Stage3] FIX-108 backfill: set ${claimed.size} charge field(s) from line items` +
+          (duplicateCleared.length > 0
+            ? `; FIX-127 cleared ${duplicateCleared.length} duplicate amount(s): ${duplicateCleared.join(', ')}`
+            : '') +
           (cleared.length > 0
             ? `; cleared ${cleared.length} misattributed: ${cleared.join(', ')}`
             : '')
@@ -1594,10 +1636,18 @@ Respond in valid JSON format matching the provided schema.`;
    *   精確命中唯一 → 該 key；無精確命中且子字串命中唯一 → 該 key；
    *   未命中或歧義（多個命中）→ null（寧可不填、不可填錯）。
    *
+   *   FIX-126（方案 C）：方向詞為必要條件 —— 定義的 label 帶方向
+   *   （Origin / Destination）時，候選必須帶相同方向才可參與比對；
+   *   候選無方向（如 classifiedAs 被 GPT 去掉方向後綴）不得認領有方向的
+   *   欄位。此閘在 label / aliases 比對之前，確保 FIX-130 補上的無方向
+   *   alias（如 `TERMINAL HANDLING CHARGE`）不會讓帶反向方向的文件文字
+   *   跨方向誤認領。
+   *
    * @param candidate - 對照候選字串（lineItem 的 description 或 classifiedAs）
    * @param chargeDefs - `fieldType === 'lineItem'` 的欄位定義
    * @returns 唯一命中的 field key；未命中或歧義時為 null
    * @since FIX-108（邏輯自 CHANGE-094 backfillLineItemCharges 抽出）
+   * @lastModified FIX-126 (2026-07-22)
    */
   private resolveUniqueChargeKey(
     candidate: string,
@@ -1605,8 +1655,18 @@ Respond in valid JSON format matching the provided schema.`;
   ): string | null {
     const exactKeys: string[] = [];
     const substringKeys: string[] = [];
+    const candidateDirections = extractChargeDirections(candidate);
 
     for (const def of chargeDefs) {
+      // FIX-126 方案 C：定義有方向、候選未帶相同方向 → 不參與（寧可不填）
+      const defDirections = extractChargeDirections(def.label);
+      if (defDirections.size > 0) {
+        const sharesDirection = [...defDirections].some((d) =>
+          candidateDirections.has(d)
+        );
+        if (!sharesDirection) continue;
+      }
+
       const targets = [def.label, ...(def.aliases ?? [])];
       let best: LabelMatchKind = null;
       for (const target of targets) {
@@ -1680,6 +1740,30 @@ Respond in valid JSON format matching the provided schema.`;
       fv.value !== undefined &&
       fv.value !== ''
     );
+  }
+
+  /**
+   * FIX-127: 取出 FieldValue 的數值形式
+   *
+   * @description
+   *   GPT 回傳的金額可能是數字或字串（含千分位逗號），統一轉為數字供金額指紋比對。
+   *   無法解析為有限數字時回 null（該欄位不參與去重判定）。
+   *
+   * @param fv - 欄位值
+   * @returns 數值；無法解析時為 null
+   * @since FIX-127
+   */
+  private toNumericAmount(fv?: FieldValue): number | null {
+    if (!fv) return null;
+    const { value } = fv;
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value.replace(/,/g, '').trim());
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
   }
 
   /**

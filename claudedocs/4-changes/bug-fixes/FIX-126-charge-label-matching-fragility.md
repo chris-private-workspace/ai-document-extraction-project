@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 測試回報（Quentin Liu，2026-07-14 ~ 07-21）+ 真實資料查證
 > **影響頁面/功能**: V3.1 Stage 3 費用回填（`backfillLineItemCharges`）→ 下游 template field mapping
 > **優先級**: 高
-> **狀態**: 📋 規劃中
+> **狀態**: ✅ 已完成（2026-07-22，採方案 A + C + 非對稱子字串；Azure 實機重跑驗證於下次部署批次執行）
 
 ---
 
@@ -122,13 +122,55 @@ thc         | "THC"           aliases=["T.H.C","THC","TERMINAL HANDLING CHARGE"]
 
 ## 驗收標準
 
-- [ ] 以本次 17 份真實文件的 `lineItems` 原文為測試集，建立單元測試，涵蓋上述 5 種模式
-- [ ] 模式 1（單複數）：`Terminal Handling Charges - Origin` 能命中 `terminal_handling_charge_origin`
-- [ ] 模式 4（歧義）：`Terminal Handling Charge`（無方向）在有 origin/destination 兩個定義時的行為**明確定義**（命中其一或維持放棄，二選一但需一致）
-- [ ] 模式 5（誤配）：`HANDLING CHARGE` **不再**命中 `Terminal handling charge`
-- [ ] 迴歸：Nippon Express (HK) 現有正確行為不變（`T.H.C.` → `thc = 8700`）
-- [ ] `npm run type-check` / `npm run lint` 通過
-- [ ] 本地批次重跑既有文件，比對修改前後的 `fields` 差異，逐筆確認無新增誤配
+- [x] 以本次 17 份真實文件的 `lineItems` 原文為測試集，建立單元測試，涵蓋上述 5 種模式（`classify-normalizer.test.ts` 13 項 + `stage-3-lineitem-backfill.test.ts` FIX-126 區塊 6 項）
+- [x] 模式 1（單複數）：`Terminal Handling Charges - Origin` 能命中 `terminal_handling_charge_origin`
+- [x] 模式 4（歧義）：明確定義為**一律不填**——無方向的候選不參與有方向的欄位（方案 C），與「寧可不填、不可填錯」一致
+- [x] 模式 5（誤配）：`HANDLING CHARGE` **不再**命中 `Terminal handling charge`（非對稱子字串）
+- [x] 迴歸：Nippon Express (HK) 現有正確行為不變（`T.H.C.` → `thc = 8700`，單元測試 + 本地回放皆驗證）
+- [x] `npm run type-check` / `npm run lint` 通過（lint 無新增警告）
+- [x] 本地批次回放既有 79 份文件，比對修改前後認領差異，逐筆確認無新增誤配（見下方實作記錄；以確定性回放代替 GPT 全量重跑）
+
+---
+
+## 實作記錄（2026-07-22）
+
+### 定案方案
+
+經用戶確認：**方案 A + 方案 C + 非對稱子字串**（模式 5 的補充機制，A+C 覆蓋不到它），不採 B；D（aliases 補齊）作為補充由 [FIX-130](FIX-130-existing-config-correction-checklist.md) 執行。
+
+| 機制 | 實作位置 | 內容 |
+|---|---|---|
+| A 單複數歸一 | `canonicalizeLabel` | 白名單查表（charges/fees/costs/surcharges/expenses/containers/documents/services/orders/rates/taxes/duties → 單數），不做通用 stemming |
+| 非對稱子字串 | `matchLabel` | 子字串命中僅允許「候選（文件文字）⊇ 目標（定義名稱）」；反向（定義名稱 ⊇ 較短的文件文字）一律不命中——模式 5 的根治，模式 4 隨之明確化為不填 |
+| C 方向必要條件 | `resolveUniqueChargeKey` | 新增 `extractChargeDirections`（origin/orig；destination/dest/dst）；定義 label 帶方向時，候選必須帶相同方向才可參與比對（閘在 aliases 之前，防 FIX-130 補的無方向 alias 成為跨方向漏洞） |
+
+### 修改檔案
+
+| 檔案 | 變更 |
+|---|---|
+| `src/services/extraction-v3/utils/classify-normalizer.ts` | `PLURAL_TO_SINGULAR` 白名單、`canonicalizeLabel` 逐詞歸一、`matchLabel` 非對稱化、新增 `extractChargeDirections` / `ChargeDirection` |
+| `src/services/extraction-v3/stages/stage-3-extraction.service.ts` | `resolveUniqueChargeKey` 加方向閘 |
+| `tests/unit/services/classify-normalizer.test.ts` | 新建，13 項（5 種模式真實字串） |
+| `tests/unit/services/stage-3-lineitem-backfill.test.ts` | 新增 FIX-126 區塊 6 項（TOLL 實測、方向防護、aliases 協同、Nippon 迴歸） |
+| `scripts/local-verify-fix126-replay.ts` | 新建，本地回放比對工具（唯讀） |
+
+### 本地回放比對結果（79 份）
+
+以既有 `stage_3_result.lineItems` + 各公司 field definitions 確定性回放新舊認領流程（不重打 GPT——全量重跑的 GPT 非確定性會混淆前後比較）：
+
+- **72/79 完全一致**；0 筆金額改變
+- **7 筆 LOST 全部是舊邏輯的跨方向誤配被修掉**：CEVA `origin_thc_terminal_handling_charge` 帶過泛 alias `"Terminal Handling Charge"`，舊邏輯把 `Terminal Handling Charge at Destination THB ...` 行（實為 Destination）誤認領進 origin 欄位（2 份文件、393.30 / 225.34）；方向閘修正
+- **1 筆 GAINED 為正確認領**：同一行在 classifiedAs 帶方向的版本改認領 `destination_thc_terminal_handling_charge` ✅
+- 過泛 alias 本身已回寫 [FIX-130](FIX-130-existing-config-correction-checklist.md) 存量修正清單
+
+### ⚠️ Rollback 注意
+
+`STAGE3_DETERMINISTIC_BACKFILL=false` 只回退 FIX-108 的回填行為，**回退不了本次比對變更**（legacy 路徑共用 `resolveUniqueChargeKey`）。FIX-126 的回退 = 重新部署前一版映像。
+
+### 已知能力邊界（交由 FIX-130 aliases）
+
+- 模式 2（插入詞，如 `(AIR) DELIVERY ORDER CHARGE DEST CHARGE`）與模式 3（目標 < 8 字元，如 `B/L fee`）維持不命中——需 aliases
+- CEVA `43397` 類（description 與 classifiedAs 皆無法安全歸戶）落入「寧可不填」——需 destination 欄位補 `Terminal Handling Charge at Destination` alias
 
 ---
 

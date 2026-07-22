@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 測試回報的根因追查（FIX-126 ~ FIX-129）
 > **影響頁面/功能**: Field Definition Set、Template Field Mapping、公司管理（**純資料，不改代碼**）
 > **優先級**: 高（代碼修好後仍需這批修正才能真正解決使用者回報的問題）
-> **狀態**: 📋 規劃中
+> **狀態**: 🚧 進行中（2026-07-22 gated 腳本已建立 + 本地 dry-run 驗證通過；Azure dry-run 因 az 登入的 service principal 被切換而受阻，需恢復原 SP 後執行）
 
 ---
 
@@ -55,6 +55,13 @@ thc         | "THC"           aliases=["T.H.C","THC","TERMINAL HANDLING CHARGE"]
 | SBS INTERNATIONAL | `air_pick_up_charge_origin` | `(AIR) PICK UP CHARGE ORIGIN CHARGE` |
 
 > ⚠️ 這批 alias 需與 [FIX-126](FIX-126-charge-label-matching-fragility.md) 的方案協調：若採方案 A（單複數正規化），Toll 的兩條 THC alias 就不必手動加。**建議先定 FIX-126 方案，再決定這裡補多少**，避免做白工。
+> ✅ 2026-07-22 更新：FIX-126 已定案並實作（方案 A + C + 非對稱子字串）——Toll 的兩條複數 THC alias **不必補**（單複數歸一已涵蓋）；SBS 的三條仍需補。
+
+**過泛 alias 需移除／改綁**（FIX-126 回放比對時發現，本地 DB；Azure DEV 需一併查核）：
+
+| 公司 | 欄位 key | 問題 alias | 後果 |
+|---|---|---|---|
+| CEVA Logistics | `origin_thc_terminal_handling_charge` | `"Terminal Handling Charge"`（無方向） | FIX-126 前，`Terminal Handling Charge at Destination THB 13,080.00` 這類 **Destination** 行被子字串命中而**誤認領進 origin 欄位**（實測 2 份文件、393.30 / 225.34）。FIX-126 的方向閘已在代碼層擋掉此誤配，但該 alias 仍屬錯置——建議把方向性費用的無方向 alias 移除，或補 `destination_thc_terminal_handling_charge` 的 `Terminal Handling Charge at Destination` alias 讓該行有正確去處（目前落入「寧可不填」）。
 
 ### 2. 公式引用不存在的 key（永遠取不到值）
 
@@ -78,7 +85,8 @@ terminal_fees_at_origin ← terminal_handling_charges_origin   [DIRECT]
                           ↑ 複數，實際 key 為 terminal_handling_charge_origin
 ```
 
-> 完整掃描應以 [FIX-128](FIX-128-mapping-source-field-validation.md) 的驗收項（對 30 組 mapping 全面掃描）產出的清單為準，上表僅為已查證的部分。
+> ✅ **完整掃描已於 2026-07-22 完成**（[FIX-128](FIX-128-mapping-source-field-validation.md) 實作記錄）：33 組 mapping（啟用 26）中 **10 組含死 key、29 條規則受影響**，遠超上表。新發現：CEVA `freight_charges`、DSV `b_l_bill_of_lading`、Nippon Express Logistics `o_gate_i_o_or_parking_chg`、Nippon Express (HK) `terminal_handling_charge`、Redlines `b_l_charges`、SBS 兩家更多 key（`air_alfa_charge_dest_charge`、`ocean_freight_non_nvocc`、`d_o_fee`、`drayage`、`pick_up_d_o_charge`、`air_local_charge_in_usa_origin_charge` 等）、Toll Outbound（`handling_fee_incl_p_u`、`origin_chage_incl_pick_up` 拼字）。**本項修正以 FIX-128 的完整清單為準**（重跑方式亦見該文件）。
+> 注意：FIX-126 的單複數歸一只作用於 Stage 3 費用回填的名稱比對，**不作用於** mapping 公式的 key 對照（key 必須完全一致）——Toll 的複數 key 仍需修正。
 
 ### 3. 公式重複來源（同一筆錢加兩次）
 
@@ -99,12 +107,14 @@ terminal_fees_at_origin ← terminal_handling_charges_origin   [DIRECT]
 | NIPPON EXPRESS (HK) CO., LTD.（NIPPON EXPRESS） | 1 | 1 | 1 | ACTIVE | 同上，僅 1 份文件 |
 | SBS | **0** | 1 | 2 | ACTIVE | 設定掛在**沒有文件**的公司上，永遠不會被使用 |
 | RICOH INTERNATIONAL LOGISTICS (HK) LTD. | 43 | 1 | 2 | ACTIVE | 真正有文件的是這筆 |
-| CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics） | 0 | 1 | 4 | **MERGED** | 孤兒設定（見 [FIX-129](FIX-129-merge-skipped-config-no-resolution-path.md)） |
+| CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics） | 0 | 1 | 4 | **MERGED** | 孤兒設定（見 [FIX-129](FIX-129-merge-skipped-config-no-resolution-path.md)；已查證為 FIX-125 前的存量——合併於 2026-07-16，當時機制完全不轉移處理知識） |
+| RICON ASIA PACIFIC OPERATIONS LIMITED | 3 | 0 | 0 | ACTIVE | FIX-129 查證時新發現（2026-07-22）：疑似 CEVA 變體但未合併，持 1 個格式 + 3 份文件 |
 
 **需使用者決策**：
 - Nippon 三筆是否合併？合併到哪一筆？（設定會撞鍵，需逐筆決定保留哪一份）
 - `SBS` 那 2 組 mapping 是要轉移到 `RICOH INTERNATIONAL LOGISTICS (HK) LTD.`，還是捨棄？
 - CEVA MERGED 公司的 4 組 mapping 與存活公司的 4 組是否重複？
+- `RICON ASIA PACIFIC OPERATIONS LIMITED`（ACTIVE，3 份文件）是否為 CEVA 變體、要併入 `CEVA LOGISTICS (HONG KONG) LTD`？（合併現已有 FIX-125 轉移 + FIX-129 跳過明細回報，撞鍵時介面會列出需人工處理的項目）
 
 ### 5. 缺少的欄位定義
 
@@ -140,6 +150,23 @@ Toll 的定義中有 `Documentation Fee - Origin`，但**沒有** `Documentation
 - 每一筆變更前後值都要寫入 log，供事後核對
 
 > ⚠️ 腳本不得使用 `.ts`／`tsx` —— runner 映像不含它們（見 memory `feedback_azure_runner_excludes_scripts_tsx`）。
+
+#### ✅ 腳本已建立（2026-07-22）：`prisma/apply-config-corrections.js`
+
+- 開關：`RUN_CONFIG_CORRECTIONS=dryrun|write`（未設＝不執行；`dryrun` 只讀印計畫；`write` 交易寫入，錯誤 ROLLBACK）——與 FIX-113 同款兩段式 gate
+- **不接 entrypoint**（一次性、避免部署誤觸），經 ad-hoc 執行（Kudu `/home` 上傳 + `node`，pg 由 `require('pg')` fallback 到 `/home/node_modules/pg`）
+- 防呆：每條修正驗證現值（DIRECT 驗 sourceField、FORMULA 驗死 key 在公式中）；FORMULA 僅處理純 `{key} + {key}` 加總形式；rename 目標 key 必須存在於該公司 defset；不符一律跳過報告
+- 修正表分級：
+  - **明確修正**（`MAPPING_FIXES`）：SBS×1 + SBS INTERNATIONAL×2 的 `_charge` 後綴／`d_o_fee`／`sea_document_b_l` 等 20+ 處、Toll×2 的複數／`p_u`／`chage` 拼字 5 處、Nippon×2（底線差異 rename + 死項移除）
+  - **建議級**（含 `note` 標注，dry-run 核對時特別確認）：SBS `drayage→dryage_charge`、Toll `handling_fee_incl_p_u→handling_fee_origin_incl_pu`、Toll Outbound thc 裸 `terminal_handling_charge` 移除（`_destination` 項保留待裁決）
+  - **REPORT_ONLY**（`NEEDS_DECISION`，缺該公司 Azure defset 現值無法判定）：CEVA `freight_charges`、DSV `b_l_bill_of_lading`、Redlines `b_l_charges` —— 腳本會列出規則現值 + 該公司 defset key 全集，供使用者決定後擴充修正表重跑
+  - **aliases**：SBS INTERNATIONAL 三條（§1 表）+ CEVA 過泛 alias 修正（移除 origin THC 的無方向 alias + 給 destination THC 補 `Terminal Handling Charge at Destination`）
+- **§3（公式重複來源）刻意不改**：FIX-127 已在 Stage 3 清除重複金額（翻倍根因在機制層解決）；公式多項屬不同版面的容錯兜底，刪除會造成漏算風險。腳本 E 段會列出這 3 條公式現值供使用者裁決——若裁決要刪，再擴充修正表
+- 本地 dry-run 驗證（2026-07-22）：Azure 專屬 mapping 名稱在本地全部安全跳過 ✓；本地 CEVA defset 驗出同款過泛 alias（與 FIX-126 回放一致）✓；防呆路徑走通 ✓
+
+#### ⚠️ Azure 執行受阻（2026-07-22）
+
+Kudu 存取自 10:59 起回裸 403：az 登入的 service principal 被切換（原 `2ae44f00-…` → 現 `a19dfe76-…`，後者對目標 webapp 無 RBAC 授權；本機有多個併發 session）。**需恢復原 SP 登入後**依序執行：Azure dryrun → 使用者核對 → write → 重跑 17 份文件 + template instance → 驗收。
 
 ---
 

@@ -150,6 +150,18 @@ export type TransformParams =
   | AggregateTransformParams
   | null;
 
+/**
+ * FIX-128: 儲存時的未知來源 key 警告
+ * @description 規則引用了該 scope 欄位定義 + 標準欄位之外的來源 key
+ *   （拼錯或欄位尚未建立），執行時該項會被靜默視為 0 / 空值。
+ */
+export interface MappingSourceKeyWarning {
+  /** 受影響的目標欄位 */
+  targetField: string;
+  /** 引用了但不存在的來源 key */
+  unknownKeys: string[];
+}
+
 // ============================================================================
 // Mapping Rule Types
 // ============================================================================

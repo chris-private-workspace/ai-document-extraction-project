@@ -25,6 +25,7 @@ import {
   CheckCircle,
   RefreshCw,
   Loader2,
+  X,
 } from 'lucide-react'
 import {
   useDuplicateReviewQueue,
@@ -32,6 +33,8 @@ import {
   useConfirmCompanyMerge,
   type DuplicateReviewCompany,
 } from '@/hooks/use-duplicate-review'
+import { MergeSkippedReportAlert } from '@/components/features/companies/MergeSkippedReportAlert'
+import type { MergeTransferSkip } from '@/services/company-merge-transfer.service'
 import type { Locale } from '@/i18n/config'
 import { DuplicateReviewRow } from './duplicate-review-row'
 import { Button } from '@/components/ui/button'
@@ -77,6 +80,10 @@ export function DuplicateReviewContent({
   // --- State ---
   const [mergeCandidate, setMergeCandidate] =
     React.useState<DuplicateReviewCompany | null>(null)
+  // FIX-129: 最近一次合併未轉移的設定明細（顯示於頁面頂部，可手動關閉）
+  const [lastSkipped, setLastSkipped] = React.useState<
+    MergeTransferSkip[] | null
+  >(null)
 
   // --- Hooks ---
   const { data, isLoading, isFetching, error, refetch } =
@@ -110,8 +117,16 @@ export function DuplicateReviewContent({
   const handleConfirmMerge = React.useCallback(async () => {
     if (!mergeCandidate) return
     try {
-      await confirmMerge.mutateAsync(mergeCandidate.id)
+      const report = await confirmMerge.mutateAsync(mergeCandidate.id)
       toast.success(t('duplicateReview.toast.confirmMergeSuccess'))
+      // FIX-129: 有設定因唯一鍵衝突未轉移 → 顯示明細警示
+      const skipped = report?.skipped ?? []
+      if (skipped.length > 0) {
+        toast.warning(t('merge.skipped.toast', { count: skipped.length }))
+        setLastSkipped(skipped)
+      } else {
+        setLastSkipped(null)
+      }
       setMergeCandidate(null)
     } catch (err) {
       toast.error(
@@ -166,6 +181,22 @@ export function DuplicateReviewContent({
           </Button>
         </div>
       </div>
+
+      {/* FIX-129: 最近一次合併的未轉移設定明細 */}
+      {lastSkipped && lastSkipped.length > 0 && (
+        <div className="relative">
+          <MergeSkippedReportAlert skipped={lastSkipped} />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-2 h-6 w-6"
+            onClick={() => setLastSkipped(null)}
+            aria-label={t('merge.close')}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-lg border bg-card">

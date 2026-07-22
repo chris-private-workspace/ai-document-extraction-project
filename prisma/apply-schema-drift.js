@@ -63,6 +63,12 @@ const MIGRATIONS = [
         on delete set null on update cascade;
     exception when duplicate_object then null; end $$;`,
   },
+  // FIX-128：template_instance_rows.transform_diagnostics（轉換診斷：引用了不存在來源 key 的清單）。
+  // 對應 migration 20260722020000；Azure 既有表非空，bootstrap 不會套用，需此增量補上。
+  {
+    id: 'FIX-128 column template_instance_rows.transform_diagnostics',
+    sql: `alter table "template_instance_rows" add column if not exists "transform_diagnostics" jsonb;`,
+  },
 ]
 
 async function main() {

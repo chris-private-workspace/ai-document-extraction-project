@@ -128,9 +128,20 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
     // 更新配置
     const mapping = await templateFieldMappingService.update(id, result.data);
 
+    // FIX-128: 規則有變更時，檢查是否引用了不存在的來源 key（警告，不擋儲存）
+    const warnings = result.data.mappings
+      ? await templateFieldMappingService.computeUnknownSourceKeyWarnings({
+          scope: mapping.scope,
+          companyId: mapping.companyId,
+          documentFormatId: mapping.documentFormatId,
+          rules: result.data.mappings,
+        })
+      : [];
+
     return NextResponse.json({
       success: true,
       data: mapping,
+      ...(warnings.length > 0 ? { warnings } : {}),
     });
   } catch (error) {
     console.error('[PATCH /api/v1/template-field-mappings/:id] Error:', error);
