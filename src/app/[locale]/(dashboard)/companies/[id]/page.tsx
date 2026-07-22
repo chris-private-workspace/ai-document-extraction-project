@@ -25,6 +25,9 @@
 
 import { getTranslations } from 'next-intl/server'
 
+import { auth } from '@/lib/auth'
+import { hasPermission } from '@/lib/auth/city-permission'
+import { PERMISSIONS } from '@/types/permissions'
 import { ForwarderDetailView } from '@/components/features/forwarders/ForwarderDetailView'
 
 // ============================================================
@@ -66,9 +69,15 @@ export default async function CompanyDetailPage({ params }: PageProps) {
   const resolvedParams = await params
   const forwarderId = resolvedParams.id
 
+  // FIX-131: 合併入口需 FORWARDER_MANAGE 權限（與合併 API 一致）
+  const session = await auth()
+  const canManage = session?.user
+    ? hasPermission(session.user, PERMISSIONS.FORWARDER_MANAGE)
+    : false
+
   return (
     <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
-      <ForwarderDetailView forwarderId={forwarderId} />
+      <ForwarderDetailView forwarderId={forwarderId} canManage={canManage} />
     </div>
   )
 }

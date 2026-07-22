@@ -166,6 +166,16 @@
     "merging": "合併中...",
     "confirmMerge": "確認合併",
     "close": "關閉",
+    "fromDetail": {
+      "button": "合併公司",
+      "pickerTitle": "選擇要合併的公司",
+      "pickerDescription": "搜尋另一間公司，將其合併到「{name}」。",
+      "searchPlaceholder": "輸入公司名稱搜尋...",
+      "searchHint": "只顯示啟用中的公司。",
+      "searching": "搜尋中...",
+      "noResults": "找不到符合的公司",
+      "loadError": "載入公司列表失敗"
+    },
     "skipped": {
       "title": "{count} 筆設定未轉移",
       "description": "以下設定因與目標公司的既有設定衝突而保留在原公司，需人工處理：",

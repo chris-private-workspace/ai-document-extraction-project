@@ -25,4 +25,7 @@ export {
 } from './CompanyTypeSelector'
 
 // 公司合併對話框
-export { CompanyMergeDialog } from './CompanyMergeDialog'
+export { CompanyMergeDialog, type MergeableCompany } from './CompanyMergeDialog'
+
+// 公司詳情頁合併入口（FIX-131）
+export { MergeCompanyButton } from './MergeCompanyButton'

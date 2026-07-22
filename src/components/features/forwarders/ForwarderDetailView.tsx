@@ -36,6 +36,7 @@ import { ForwarderStatsPanel } from './ForwarderStatsPanel'
 import { ForwarderRulesTable } from './ForwarderRulesTable'
 import { RecentDocumentsTable } from './RecentDocumentsTable'
 import { FormatList } from '@/components/features/formats'
+import { MergeCompanyButton } from '@/components/features/companies'
 import { TemplateMatchingConfigAlert } from '@/components/features/template-match/TemplateMatchingConfigAlert'
 // REFACTOR-001: 從 company.ts 導入 ForwarderDetailView 類型（已棄用的 forwarder 類型）
 import type { ForwarderDetailView } from '@/types/company'
@@ -53,6 +54,8 @@ import Link from 'next/link'
 interface ForwarderDetailViewProps {
   /** Forwarder ID */
   forwarderId: string
+  /** 是否具管理權限（FORWARDER_MANAGE），控制合併等操作入口顯示（FIX-131） */
+  canManage?: boolean
 }
 
 // ============================================================
@@ -146,7 +149,10 @@ function NotFoundDisplay({ t }: { t: (key: string) => string }) {
  * @param props - 組件屬性
  * @param props.forwarderId - Forwarder ID
  */
-export function ForwarderDetailView({ forwarderId }: ForwarderDetailViewProps) {
+export function ForwarderDetailView({
+  forwarderId,
+  canManage = false,
+}: ForwarderDetailViewProps) {
   const t = useTranslations('companies')
 
   // 獲取 Forwarder 詳情
@@ -208,6 +214,17 @@ export function ForwarderDetailView({ forwarderId }: ForwarderDetailViewProps) {
 
         {/* 操作按鈕 */}
         <div className="flex items-center gap-2">
+          {/* FIX-131: 合併公司入口（僅具管理權限時顯示） */}
+          {canManage && (
+            <MergeCompanyButton
+              currentCompany={{
+                id: forwarderId,
+                name: forwarder.name,
+                documentCount: forwarder.stats.totalDocuments,
+              }}
+              onMerged={() => refetch()}
+            />
+          )}
           <Button
             variant="outline"
             size="sm"
