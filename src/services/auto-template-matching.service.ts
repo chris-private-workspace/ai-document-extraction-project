@@ -544,6 +544,12 @@ export class AutoTemplateMatchingService {
         errorCount += batch.length;
         const message = error instanceof Error ? error.message : 'Unknown error';
         errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${message}`);
+        // FIX-132: 不再靜默吞掉——寫 server log，讓連線池耗盡(P2028)等失敗在容器
+        // log 可見。本次調查最大的盲點就是這個 catch 沒有留下任何 log。
+        console.error(
+          `[batchMatch] Batch ${Math.floor(i / batchSize) + 1} failed (instance ${templateInstanceId}, ${batch.length} docs):`,
+          error
+        );
       }
 
       // 進度回調

@@ -415,6 +415,13 @@ export interface UpsertRowParams {
    * @since FIX-128
    */
   unresolvedSourceKeys?: Record<string, string[]>;
+
+  /**
+   * 新列使用的 rowIndex（由 processBatch 於交易前統一分配並遞增，
+   * 取代每列各查一次 findFirst；僅在建立新列時生效）
+   * @since FIX-132
+   */
+  rowIndex: number;
 }
 
 // ============================================================================
