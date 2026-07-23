@@ -4,7 +4,7 @@
 > **發現方式**: 用戶回報（FIX-130 §4 Nippon 收斂：頁面上找不到任何合併按鈕）
 > **影響頁面/功能**: 公司詳情頁（/companies/[id]）、公司管理合併流程
 > **優先級**: 中
-> **狀態**: 🚧 進行中（代碼實作完成 2026-07-22；type-check / lint / i18n:check 通過；待瀏覽器/部署驗證）
+> **狀態**: 🚧 進行中（代碼實作 + 本地瀏覽器實測完成 2026-07-23；實測揪出並修掉一個 `stats` undefined 崩潰 bug；待合併 PR #138 + 部署驗證）
 
 ---
 
@@ -75,14 +75,33 @@ Nippon Express (HK) 有兩筆 ACTIVE 重複公司（`Nippon Express (HK) Co., Lt
 
 修復完成後需驗證：
 
-- [x] `npm run type-check` 通過（2026-07-22）
-- [x] `npm run lint` 無 warning（改動 5 檔，0 warning）
+- [x] `npm run type-check` 通過（2026-07-22 / 修 bug 後 2026-07-23 再次通過）
+- [x] `npm run lint` 無 warning
 - [x] `npm run i18n:check` 三語言同步通過
 - [x] 既有兩個 PENDING 合併頁面行為不受影響（`CompanyMergeDialog` 型別放寬後 `PendingCompany` 結構相容，type-check 通過即證回歸安全）
-- [ ] ACTIVE 公司詳情頁出現「合併公司」按鈕（僅 canManage 時）— 待瀏覽器驗證
-- [ ] 選擇器能搜尋 ACTIVE 公司且不含當前公司自己、不含 MERGED 公司 — 待瀏覽器驗證
-- [ ] 合併後副公司轉 MERGED、文件/提取結果轉移到主公司 — 待瀏覽器/部署驗證
-- [ ] 撞鍵情境（如 Nippon 兩筆的 INVOICE/GENERAL 格式）正確顯示 MergeSkippedReportAlert，不刪除格式 — 待瀏覽器/部署驗證
+- [x] ACTIVE 公司詳情頁出現「合併公司」按鈕（僅 canManage 時）— **本地 Playwright 實測通過**（2026-07-23，dev globalAdmin，CARGO LINK 詳情頁）
+- [x] 選擇器能搜尋 ACTIVE 公司且不含當前公司自己 — **實測通過**（列出 10 間 ACTIVE、CARGO LINK 自己被排除；輸入「DSV」即時過濾到單筆）
+- [x] 選中後合併對話框正確帶入兩筆（當前公司預設為主 + 選中公司）— **實測通過**（RadioGroup、預覽、Confirm/Cancel 正常）
+- [~] 合併執行（副公司轉 MERGED、文件/提取結果轉移）+ 撞鍵報告 — **未在本地執行合併**（避免無謂改動本地資料）；此為既有 `autoMergeCompanies` + `MergeSkippedReportAlert` 路徑，與審核頁共用，已由 FIX-125/129 驗證。留待 Azure 部署後對 Nippon 兩筆實際合併時一併驗證撞鍵報告
+
+---
+
+## Implementation Notes
+
+### 瀏覽器實測揪出的 bug（2026-07-23）
+
+本地 Playwright 實測時，公司詳情頁整頁崩潰：
+
+```
+Runtime TypeError: Cannot read properties of undefined (reading 'totalDocuments')
+ForwarderDetailView.tsx:223  documentCount: forwarder.stats.totalDocuments,
+```
+
+**根因**：`CompanyDetailView` 型別宣告 `stats: CompanyStats`（非選填），騙過 type-check；但**執行期**某些公司的詳情回應 `stats` 為 `undefined`，我新增的 header 區塊直接 `forwarder.stats.totalDocuments` → 崩潰（且發生在 header render，早於 stats tab，整頁掛掉）。
+
+**修法**：`forwarder.stats?.totalDocuments`（optional chaining）。`MergeableCompany.documentCount` 本就設為選填，傳 `undefined` 安全、對話框不顯示該行。
+
+**教訓**：型別非選填 ≠ 執行期一定有值；瀏覽器實測才抓得到這種「type-check 綠燈但實際崩潰」的缺口。
 
 ---
 
