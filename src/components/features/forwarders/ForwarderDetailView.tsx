@@ -220,7 +220,7 @@ export function ForwarderDetailView({
               currentCompany={{
                 id: forwarderId,
                 name: forwarder.name,
-                documentCount: forwarder.stats.totalDocuments,
+                documentCount: forwarder.stats?.totalDocuments,
               }}
               onMerged={() => refetch()}
             />
