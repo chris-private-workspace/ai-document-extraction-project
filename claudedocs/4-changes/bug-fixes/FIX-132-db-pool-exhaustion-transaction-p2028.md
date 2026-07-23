@@ -4,7 +4,7 @@
 > **發現方式**: 用戶回報（Azure DEV 環境）+ Azure 容器 log 證實
 > **影響頁面/功能**: Template Instance 批量加入文件（`/api/v1/documents/match`）、文件列表（`GET /api/documents`）—— 凡在 extraction pipeline 併發負載下需要資料庫連線的操作
 > **優先級**: 高
-> **狀態**: 🚧 進行中（代碼實作完成 2026-07-23，type-check/lint 通過；待本地無回歸驗證 + Azure 部署後驗證）
+> **狀態**: ✅ 已完成（2026-07-23 Azure DEV 部署上線，映像 `dev-fix131-132-20260723111721`，PR #140 已合併；功能驗收待使用者重跑 CEVA 20 份場景，見部署記錄）
 
 ---
 
