@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 104 | CHANGE-106 | **CHANGE-107** |
-| FIX | 133 | FIX-131 | **FIX-132** |
+| FIX | 134 | FIX-132 | **FIX-133** |
 
 ## 📋 未開始（25）
 
@@ -42,7 +42,7 @@
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 
-## 🚧 進行中 / 部分完成（22）
+## 🚧 進行中 / 部分完成（23）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -69,7 +69,8 @@
 | [FIX-108](4-changes/bug-fixes/FIX-108-stage3-lineitem-backfill-description-matching.md) | stage3 lineitem backfill description matching | ✅ 已實作並已部署 Azure DEV（2026-07-14，映像 `dev-fix108-20260714135401`）；🔴 §6.… |
 | [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
 | [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通… |
-| [FIX-131](4-changes/bug-fixes/FIX-131-company-detail-merge-entry-active-companies.md) | company detail merge entry active companies | 🚧 進行中（代碼實作完成 2026-07-22；type-check / lint / i18n:check 通過；待瀏覽器/部署驗證） |
+| [FIX-131](4-changes/bug-fixes/FIX-131-company-detail-merge-entry-active-companies.md) | company detail merge entry active companies | 🚧 進行中（代碼實作 + 本地瀏覽器實測完成 2026-07-23；實測揪出並修掉一個 `stats` undefined 崩潰 bug… |
+| [FIX-132](4-changes/bug-fixes/FIX-132-db-pool-exhaustion-transaction-p2028.md) | db pool exhaustion transaction p2028 | 🚧 進行中（代碼實作完成 2026-07-23，type-check/lint 通過；待本地無回歸驗證 + Azure 部署後驗證） |
 
 ## ❓ 狀態無法解析（1）
 

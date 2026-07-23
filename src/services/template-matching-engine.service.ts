@@ -377,6 +377,15 @@ export class TemplateMatchingEngineService {
     return prisma.$transaction(async (tx) => {
       const results: RowResult[] = [];
 
+      // FIX-132: 交易前查一次目前最大 rowIndex，之後以記憶體計數器遞增，
+      // 取代每份文件各查一次 findFirst（縮短交易佔用連線的時間，緩解連線池壓力）。
+      const maxRow = await tx.templateInstanceRow.findFirst({
+        where: { templateInstanceId: instance.id },
+        orderBy: { rowIndex: 'desc' },
+        select: { rowIndex: true },
+      });
+      let nextRowIndex = (maxRow?.rowIndex ?? -1) + 1;
+
       for (const doc of documents) {
         try {
           const mappedFields = doc.mappedFields as Record<string, unknown> || {};
@@ -398,15 +407,17 @@ export class TemplateMatchingEngineService {
             validation = templateInstanceService.validateRowData(transformedFields, templateFields);
           }
 
-          // 創建或更新行
-          const row = await this.upsertRow(tx, {
+          // 創建或更新行（FIX-132: 傳入預分配的 rowIndex，新建列時消耗並遞增）
+          const { row, created } = await this.upsertRow(tx, {
             instanceId: instance.id,
             rowKey,
             documentId: doc.id,
             fieldValues: transformedFields,
             validation,
             unresolvedSourceKeys,
+            rowIndex: nextRowIndex,
           });
+          if (created) nextRowIndex++;
 
           results.push({
             documentId: doc.id,
@@ -523,6 +534,9 @@ export class TemplateMatchingEngineService {
    * @description
    *   同 rowKey 的多個文件會合併到同一行
    *   合併策略：新值覆蓋空值，追加 documentId
+   *
+   * @returns `{ row, created }` —— `created` 為 true 表示建立了新列
+   *   （processBatch 依此遞增 rowIndex 計數器，FIX-132）
    */
   private async upsertRow(
     tx: Prisma.TransactionClient,
@@ -558,7 +572,7 @@ export class TemplateMatchingEngineService {
         params.documentId,
       ])];
 
-      return tx.templateInstanceRow.update({
+      const row = await tx.templateInstanceRow.update({
         where: { id: existing.id },
         data: {
           fieldValues: mergedValues as Prisma.InputJsonValue,
@@ -570,21 +584,14 @@ export class TemplateMatchingEngineService {
           status: params.validation.isValid ? 'VALID' : 'INVALID',
         },
       });
+      return { row, created: false };
     } else {
-      // 取得當前最大 rowIndex
-      const maxRow = await tx.templateInstanceRow.findFirst({
-        where: { templateInstanceId: params.instanceId },
-        orderBy: { rowIndex: 'desc' },
-        select: { rowIndex: true },
-      });
-
-      const newRowIndex = (maxRow?.rowIndex ?? -1) + 1;
-
-      return tx.templateInstanceRow.create({
+      // FIX-132: rowIndex 由 processBatch 於交易前統一分配（不再每列各查一次 findFirst）
+      const row = await tx.templateInstanceRow.create({
         data: {
           templateInstanceId: params.instanceId,
           rowKey: params.rowKey,
-          rowIndex: newRowIndex,
+          rowIndex: params.rowIndex,
           sourceDocumentIds: [params.documentId],
           fieldValues: params.fieldValues as Prisma.InputJsonValue,
           validationErrors: params.validation.errors
@@ -594,6 +601,7 @@ export class TemplateMatchingEngineService {
           status: params.validation.isValid ? 'VALID' : 'INVALID',
         },
       });
+      return { row, created: true };
     }
   }
 

@@ -52,7 +52,11 @@ function createPrismaClient(): PrismaClient {
     keepAliveInitialDelayMillis: 30_000,
     connectionTimeoutMillis: 10_000,
     idleTimeoutMillis: 30_000,
-    max: 10,
+    // FIX-132: pool 上限 10 在 extraction pipeline 併發下會被佔滿，其他查詢/交易
+    // 在 maxWait 內取不到連線 → Prisma P2028「Unable to start a transaction」
+    // （Azure log 證實）。調高到 20（安全低於 Azure PG max_connections=50，留餘裕
+    // 給 admin/migration/多實例；本地 PG 預設 100 亦無虞）。
+    max: 20,
   })
 
   // CHANGE-098: 監聽閒置 client 錯誤，避免 pg Pool 的 'error' 事件無 listener 時
@@ -65,6 +69,12 @@ function createPrismaClient(): PrismaClient {
 
   return new PrismaClient({
     adapter,
+    // FIX-132: 私有端點連線取得延遲較高，預設 maxWait 2s / timeout 5s 太緊，
+    // 併發負載下互動式交易易報 P2028。放寬到 maxWait 10s / timeout 20s。
+    transactionOptions: {
+      maxWait: 10_000,
+      timeout: 20_000,
+    },
     // FIX-100: dev 預設不記錄 query log。處理 pipeline 會跑數十個查詢，每個 'query' log 都是
     // 一次同步 console.log（stdout 被導向檔案時更會累積阻塞主 event loop），拖慢上傳後的
     // documents 載入。需逐查詢除錯時設 PRISMA_QUERY_LOG=true 開回。生產不受影響（本就只 error）。
