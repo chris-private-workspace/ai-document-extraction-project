@@ -101,6 +101,10 @@ RUN npm run build
 RUN node node_modules/prisma/build/index.js migrate diff \
       --from-empty --to-schema prisma/schema.prisma --script > prisma/init.sql
 
+# FIX-133: 追加 Prisma schema 無法表示的 DB 物件（部分唯一索引 / NULLS NOT DISTINCT）。
+# 少了這一步，全新空庫將完全沒有 template_field_mappings 的唯一性保護。
+RUN cat prisma/post-init-indexes.sql >> prisma/init.sql
+
 # 將 production essential seed 編譯為純 JS（runtime 精簡映像不含 ts-node / prisma CLI）。
 RUN node node_modules/typescript/bin/tsc prisma/seed-prod-essential.ts \
       --outDir prisma/dist --module commonjs --target es2020 \
