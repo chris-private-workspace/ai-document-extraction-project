@@ -1,22 +1,83 @@
 /**
  * @fileoverview 創建模版欄位映射頁面
+ * @description
+ *   支援 `?copyFrom=<id>` 複製模式（CHANGE-107）：於 server 端載入來源記錄，
+ *   讓表單第一次 render 就持有預填值 —— 避免 Radix Select 無法顯示異步載入值
+ *   的問題（見 TemplateFieldMappingForm 檔頭說明）。
+ *
  * @module src/app/[locale]/(dashboard)/admin/template-field-mappings/new
  * @since Epic 19 - Story 19.4
- * @lastModified 2026-01-22
+ * @lastModified 2026-07-25
  */
 
 import { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 
-import { TemplateFieldMappingForm } from '@/components/features/template-field-mapping';
+import {
+  TemplateFieldMappingForm,
+  type TemplateFieldMappingCopySource,
+} from '@/components/features/template-field-mapping';
 import { prisma } from '@/lib/prisma';
+import type { TemplateFieldMappingRule } from '@/types/template-field-mapping';
 
-export async function generateMetadata(): Promise<Metadata> {
+interface PageProps {
+  searchParams: Promise<{ copyFrom?: string }>;
+}
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const t = await getTranslations('templateFieldMapping');
+  const { copyFrom } = await searchParams;
+
+  if (copyFrom) {
+    return {
+      title: t('page.copyTitle'),
+      description: t('page.copyDescription'),
+    };
+  }
 
   return {
     title: t('page.createTitle'),
     description: t('page.createDescription'),
+  };
+}
+
+/**
+ * 載入複製來源
+ * @description
+ *   只取可重用的內容欄位。四個身分欄位刻意不取 —— 它們構成
+ *   unique_template_mapping 唯一鍵，複製時必須由使用者重選。
+ *   找不到來源時回傳 null（退化為一般新建，不阻斷流程）。
+ */
+async function getCopySource(
+  copyFrom: string | undefined
+): Promise<TemplateFieldMappingCopySource | null> {
+  if (!copyFrom) {
+    return null;
+  }
+
+  const source = await prisma.templateFieldMapping.findUnique({
+    where: { id: copyFrom },
+    select: {
+      name: true,
+      description: true,
+      priority: true,
+      isActive: true,
+      mappings: true,
+    },
+  });
+
+  if (!source) {
+    return null;
+  }
+
+  return {
+    name: source.name,
+    description: source.description,
+    priority: source.priority,
+    isActive: source.isActive,
+    mappings: Array.isArray(source.mappings)
+      ? (source.mappings as unknown as TemplateFieldMappingRule[])
+      : [],
   };
 }
 
@@ -66,18 +127,30 @@ async function getFormData() {
   };
 }
 
-export default async function CreateTemplateFieldMappingPage() {
+export default async function CreateTemplateFieldMappingPage({ searchParams }: PageProps) {
   const t = await getTranslations('templateFieldMapping');
-  const { dataTemplates, companies, documentFormats } = await getFormData();
+  const { copyFrom } = await searchParams;
+
+  const [{ dataTemplates, companies, documentFormats }, copySource] = await Promise.all([
+    getFormData(),
+    getCopySource(copyFrom),
+  ]);
+
+  const isCopying = !!copySource;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">{t('page.createTitle')}</h1>
-        <p className="text-muted-foreground">{t('page.createDescription')}</p>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isCopying ? t('page.copyTitle') : t('page.createTitle')}
+        </h1>
+        <p className="text-muted-foreground">
+          {isCopying ? t('page.copyDescription') : t('page.createDescription')}
+        </p>
       </div>
 
       <TemplateFieldMappingForm
+        copySource={copySource ?? undefined}
         dataTemplates={dataTemplates}
         companies={companies}
         documentFormats={documentFormats}

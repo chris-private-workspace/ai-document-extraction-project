@@ -4,6 +4,8 @@
     "description": "Configure mappings from standard fields to template fields",
     "createTitle": "Create Mapping Configuration",
     "createDescription": "Create a new field mapping configuration",
+    "copyTitle": "Copy Mapping Configuration",
+    "copyDescription": "Copy rules from an existing configuration, then choose a new template and scope",
     "editTitle": "Edit: {name}",
     "editDescription": "Modify mapping configuration and rules",
     "notFound": "Mapping Not Found"
@@ -44,6 +46,7 @@
   "actions": {
     "create": "Create Configuration",
     "edit": "Edit",
+    "copy": "Copy",
     "delete": "Delete",
     "retry": "Retry"
   },
@@ -98,6 +101,7 @@
     "dataTemplatePlaceholder": "Select a data template",
     "dataTemplateDescription": "The template to map fields to",
     "scope": "Scope",
+    "scopePlaceholder": "Select a scope",
     "scopeDescription": "Determines when this mapping is applied",
     "company": "Company",
     "companyPlaceholder": "Select a company",
@@ -107,6 +111,8 @@
     "priorityDescription": "Higher priority mappings override lower ones (0-1000)",
     "isActive": "Active",
     "isActiveDescription": "Enable or disable this mapping",
+    "copyBanner": "Copied {count} rules from \"{name}\". Select a data template and scope before saving.",
+    "copyNameSuffix": " (Copy)",
     "mappingRules": {
       "title": "Mapping Rules",
       "description": "Define how standard fields map to template fields",
@@ -118,7 +124,8 @@
     "saving": "Saving...",
     "errors": {
       "noRules": "Please add at least one mapping rule",
-      "incompleteRules": "Please complete all mapping rules"
+      "incompleteRules": "Please complete all mapping rules",
+      "invalidTargetFields": "{count} rules have a target field that does not belong to the selected template"
     }
   },
   "mappingRules": {
@@ -154,7 +161,8 @@
     "noResults": "No matching fields",
     "alreadyMapped": "Mapped",
     "required": "Required",
-    "noTemplate": "Select a data template first"
+    "noTemplate": "Select a data template first",
+    "invalidValue": "Not in selected template"
   },
   "transformType": {
     "label": "Transform Type",

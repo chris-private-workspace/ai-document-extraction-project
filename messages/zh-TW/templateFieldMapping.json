@@ -4,6 +4,8 @@
     "description": "配置標準欄位到模版欄位的映射關係",
     "createTitle": "建立映射配置",
     "createDescription": "建立新的欄位映射配置",
+    "copyTitle": "複製映射配置",
+    "copyDescription": "從現有配置複製規則，重新選擇模版與範圍",
     "editTitle": "編輯：{name}",
     "editDescription": "修改映射配置和規則",
     "notFound": "找不到映射配置"
@@ -44,6 +46,7 @@
   "actions": {
     "create": "建立配置",
     "edit": "編輯",
+    "copy": "複製",
     "delete": "刪除",
     "retry": "重試"
   },
@@ -98,6 +101,7 @@
     "dataTemplatePlaceholder": "選擇數據模版",
     "dataTemplateDescription": "映射目標的模版",
     "scope": "範圍",
+    "scopePlaceholder": "選擇範圍",
     "scopeDescription": "決定此映射的適用範圍",
     "company": "公司",
     "companyPlaceholder": "選擇公司",
@@ -107,6 +111,8 @@
     "priorityDescription": "較高優先級會覆蓋較低的映射（0-1000）",
     "isActive": "啟用",
     "isActiveDescription": "啟用或停用此映射",
+    "copyBanner": "已從「{name}」複製 {count} 條規則。請選擇數據模版與範圍後儲存。",
+    "copyNameSuffix": "（複製）",
     "mappingRules": {
       "title": "映射規則",
       "description": "定義標準欄位到模版欄位的映射方式",
@@ -118,7 +124,8 @@
     "saving": "儲存中...",
     "errors": {
       "noRules": "請至少新增一條映射規則",
-      "incompleteRules": "請完成所有映射規則"
+      "incompleteRules": "請完成所有映射規則",
+      "invalidTargetFields": "{count} 條規則的目標欄位不屬於所選模版，請修正後再儲存"
     }
   },
   "mappingRules": {
@@ -154,7 +161,8 @@
     "noResults": "找不到符合的欄位",
     "alreadyMapped": "已映射",
     "required": "必填",
-    "noTemplate": "請先選擇數據模版"
+    "noTemplate": "請先選擇數據模版",
+    "invalidValue": "不存在於所選模版"
   },
   "transformType": {
     "label": "轉換類型",

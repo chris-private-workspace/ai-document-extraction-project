@@ -220,6 +220,13 @@ export function MappingRuleItem({
     (f) => f !== rule.targetField
   );
 
+  // CHANGE-107: guarded by templateFields.length so an unresolved template
+  // (empty field list) does not mark every rule as invalid.
+  const hasInvalidTargetField =
+    !!rule.targetField &&
+    templateFields.length > 0 &&
+    !templateFields.some((f) => f.name === rule.targetField);
+
   return (
     <div
       ref={setNodeRef}
@@ -301,7 +308,22 @@ export function MappingRuleItem({
             />
           ) : (
             <div className="text-sm truncate">
-              {rule.targetField || (
+              {rule.targetField ? (
+                // CHANGE-107: mark a target field that does not exist in the
+                // selected template. Only one rule is expanded at a time, so
+                // without a marker here the user would have to expand every
+                // rule to find the broken ones after a copy.
+                hasInvalidTargetField ? (
+                  <span className="flex min-w-0 items-center gap-1.5 text-destructive">
+                    <span className="truncate">{rule.targetField}</span>
+                    <Badge variant="destructive" className="shrink-0 text-[10px] px-1 py-0">
+                      {t('targetField.invalidValue')}
+                    </Badge>
+                  </span>
+                ) : (
+                  rule.targetField
+                )
+              ) : (
                 <span className="text-muted-foreground">{t('rule.noTargetField')}</span>
               )}
             </div>
