@@ -69,7 +69,7 @@
 | [FIX-108](4-changes/bug-fixes/FIX-108-stage3-lineitem-backfill-description-matching.md) | stage3 lineitem backfill description matching | ✅ 已實作並已部署 Azure DEV（2026-07-14，映像 `dev-fix108-20260714135401`）；🔴 §6.… |
 | [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
 | [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通… |
-| [FIX-133](4-changes/bug-fixes/FIX-133-template-mapping-unique-constraint-never-enforced.md) | template mapping unique constraint never enforced | 🚧 進行中 —— 選項 A（盤點 + 語意判定）已完成（2026-07-25）；清理方案（選項 B/C）待使用者決策 |
+| [FIX-133](4-changes/bug-fixes/FIX-133-template-mapping-unique-constraint-never-enforced.md) | template mapping unique constraint never enforced | 🚧 進行中 —— 選項 A（盤點 + 判定）與 B-1（CEVA 重複組修正）+ Outbound 補齊已完成並驗證（2026-07-2… |
 
 ## ❓ 狀態無法解析（1）
 

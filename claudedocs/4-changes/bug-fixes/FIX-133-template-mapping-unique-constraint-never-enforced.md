@@ -4,7 +4,7 @@
 > **發現方式**: CHANGE-107 實作期間的 Playwright 實測（本地）
 > **影響頁面/功能**: Template Field Mapping 資料完整性（`template_field_mappings` 表）；間接影響 `resolveMapping` 的映射解析結果
 > **優先級**: 中 → **高**（2026-07-25 盤點後上調：Azure DEV 存在 1 組同時啟用的重複，造成 6 個 targetField 的解析結果非確定性）
-> **狀態**: 🚧 進行中 —— 選項 A（盤點 + 語意判定）已完成（2026-07-25）；清理方案（選項 B/C）待使用者決策
+> **狀態**: 🚧 進行中 —— 選項 A（盤點 + 判定）與 B-1（CEVA 重複組修正）+ Outbound 補齊**已完成並驗證**（2026-07-25）；剩 B-2（清潔）與 C（`NULLS NOT DISTINCT` migration）待決
 
 ---
 
@@ -148,22 +148,44 @@ const sortedConfigs = configs.sort((a, b) => {
 | `cmrimxy970` CEVA - inport to logistics template mapping (Full List) | 2026-07-13 03:00:59 | 7 |
 | `cmrwu7bqb0` CEVA LOGISTICS (HONG KONG) LTD - Inbound Template (Full List) | 2026-07-23 01:33:00 | 10 |
 
-`targetField` 聯集 11 個、各筆合計 17 個 → **重疊 6 個**。其中 **2 個的取值來源實際不同**：
+`targetField` 聯集 11 個、各筆合計 17 個 → **重疊 6 個**。逐條比對**公式內容**（非僅 `sourceField`）後的實際差異：
 
-| targetField | `cmrimxy970` 的 sourceField | `cmrwu7bqb0` 的 sourceField | 差異 |
+| targetField | `cmrimxy970` 公式 | `cmrwu7bqb0` 公式 | 差異 |
 |---|---|---|---|
-| `docs_fee` | `destination_document_processing_fee` [FORMULA] | `delivery_order_fee` [FORMULA] | 🔴 **來源欄位不同** |
-| `handling` | `destination_handling` [DIRECT] | `destination_handling` [FORMULA] | 🔴 **轉換類型不同** |
-| `shipment_number` / `freight` / `others_local_charge` / `thc` | — | — | 相同，無實際差異 |
+| `docs_fee` | `{destination_document_processing_fee} + {delivery_order_fee}` | `{delivery_order_fee} + {destination_document_processing_fee}` | ✅ **等價**（加法可交換） |
+| `handling` | `{destination_handling}`（DIRECT） | `{destination_handling} + {vat_7_percent}` | 🔴 新筆多 `vat_7_percent` |
+| `freight` | `{basic_freight_charge}` | `{basic_freight_charge} + {ftl_freight_truck} + {freight_charges}` | 🔴 新筆多 2 項 |
+| `others_local_charge` | `{other_destination_charge} + {cleaning_at_destination}` | 同左 | ✅ 相同 |
+| `thc` / `shipment_number` | — | — | ✅ 相同 |
+
+> ⚠️ **修正一項先前的誤判**：初次盤點只比對 `sourceField`，據此判斷 `docs_fee` 的「取值來源衝突」。實際上 `FORMULA` 型別下 `sourceField` 僅為代表性來源，真正的來源清單在 `transformParams.formula` 內 —— 兩筆的 `docs_fee` 公式數學等價，**從無衝突**。使用者亦於 2026-07-25 確認「`Destination Document Processing Fee` 與 `Delivery Order Fee` 兩者都要併入 `Docs Fee`」，與兩筆公式一致。此更正使 B-1 原本認定的業務判斷障礙消失。
 
 `mergeMappings`（`service.ts:518-535`）以 `[...configs].reverse()` 從低往高遍歷、`targetFieldMap.set()` 後者覆蓋前者，故**排序最前者勝出**。而排序鍵在此情境下完全失效：
 
 1. `orderBy: [{ priority: 'desc' }]` —— 兩筆 priority 皆 0，PostgreSQL **不保證** tie 時的回傳順序
 2. JS `.sort()` 的比較函數對「同 scope 同 priority」返回 0，V8 穩定排序 → **原封不動沿用 DB 回傳順序**
 
-結論：`docs_fee` 取哪個來源欄位、`handling` 走 DIRECT 或 FORMULA，**取決於 PostgreSQL 的實體列順序**，會隨 `UPDATE` / `VACUUM` 改變。這不是理論風險 —— 是已在正式環境成立的非確定性。
+結論：`handling` 是否含 `vat_7_percent`、`freight` 是否含 `ftl_freight_truck` 與 `freight_charges`，**取決於 PostgreSQL 的實體列順序**，會隨 `UPDATE` / `VACUUM` 改變。這不是理論風險 —— 是已在正式環境成立的非確定性，且**會直接改變匯出金額**（少算或多算費用項）。
 
 > 另兩筆只由 `cmrwu7bqb0` 定義的 `docs_fee_at_origin` / `handling_at_origin` / `vgm_at_origin` / `clearance_at_origin`，以及只由 `cmrimxy970` 定義的 `clearance`，則不論順序都會被合併進來 —— 即實際解析結果是**兩筆的混合體**，而非任一筆的原貌。這比「其中一筆完全失效」更難察覺。
+
+### 對照使用者提供的需求規格（2026-07-25）
+
+使用者提供「提取費用名稱 → data template 欄位」的需求對照表，其中一組陸運費用（FTL Freight Truck／SADAO border／APDC FZ Clearance／APDC IOR／VAT 7%）揭露**兩筆配置各只對一半**：
+
+| 需求規格 | `cmrimxy970`（舊） | `cmrwu7bqb0`（新） |
+|---|---|---|
+| FTL Freight Truck → `Freight` | ❌ 公式無此項 | ✅ 已含 |
+| VAT 7% → `Handling` | ❌ 公式無此項 | ✅ 已含 |
+| APDC FZ Clearance → `Clearance` | ✅ 對到 `clearance` | ❌ 對到 `clearance_at_origin` |
+| SADAO border → `Handling` | ❌ 無此規則 | ❌ 併入 `handling_at_origin` |
+| APDC IOR → `Handling` | ❌ 無此規則 | ❌ 併入 `docs_fee_at_origin` |
+
+使用者於同日確認後三項的歸屬：**APDC FZ Clearance → `Clearance`；SADAO border 與 APDC IOR → `Handling`**（皆為 destination 側，非 `*_at_origin`）。
+
+模版欄位驗證：`Logistics Cost - Inbound Template (Full List)` 共 45 欄，`clearance`(#16)／`clearance_at_origin`(#32)／`handling`(#20)／`handling_at_origin`(#33)／`docs_fee`(#17)／`docs_fee_at_origin`(#31) 皆存在，故兩筆的 `targetField` **全部合法**；9 筆 CEVA 配置的 `targetField` 亦無任何無效項。差異純粹是「該費用歸 destination 側或 origin 側」的歸類問題，而非欄位錯誤。
+
+**因此 B-1 不是「二選一停用另一筆」** —— 保留 `cmrwu7bqb0` 後仍須修 3 條規則才符合需求規格（見 §解決方案 B-1）。
 
 ### 額外發現：5 筆配置指向已 MERGED 的公司（死配置）
 
@@ -240,12 +262,100 @@ curl --resolve <SCMhost>:443:<公開IP> -X POST https://<SCMhost>/api/command
 
 | 項 | 內容 | 建議 | 需要什麼 |
 |---|------|------|----------|
-| **B-1** | 停用（非刪除）CEVA 的 `cmrimxy970`，保留較新且較完整的 `cmrwu7bqb0`（10 條規則 vs 7 條） | ⭐ **建議優先做** —— 這是唯一有實質影響的一組，處理後解析立即恢復確定性 | 前置快照 + gated 腳本；需先確認 `cmrimxy970` 獨有的 `clearance ← apdc_fz_clearance` 是否要併入保留筆（否則該欄位會消失） |
+| **B-1** | 修正並保留 `cmrwu7bqb0`（3 條規則需改）+ 停用 `cmrimxy970` | ⭐ **建議優先做** —— 這是唯一有實質影響的一組，處理後解析恢復確定性且符合需求規格 | 業務判斷**已取得**（見下方修正清單）；剩下需決定執行方式（UI 手改 or gated 腳本）+ 前置快照 |
 | **B-2** | 刪除或停用 Cargo Partner 組的停用筆 `cmrvug69v0` | 可延後 —— 已停用、無功能影響，僅為清潔 | 低風險，可與 B-1 併做 |
 | **B-3** | 5 筆指向 MERGED 公司的死配置 | **不在本 FIX 處理** —— 交由 FIX-125（合併時轉移關聯資料）統一解決 | — |
 | **C** | 加 `NULLS NOT DISTINCT` migration 讓 DB 約束真正生效 | ⭐ 建議做，但**必須在 B-1 之後** | 需依 memory「Prisma migration 不會自動到 Azure」加 `apply-schema-drift.js` 條目 + `RUN_SCHEMA_DRIFT_FIX=true` 部署；Prisma 7.2 是否支援此語法需先驗證，若不支援則需 raw SQL migration |
 
-> **B-1 的關鍵未決點**：`cmrimxy970` 的 `docs_fee ← destination_document_processing_fee` 與 `cmrwu7bqb0` 的 `docs_fee ← delivery_order_fee` 是兩個不同的費用來源。**哪一個才是 CEVA Inbound 的正確配置，需要業務判斷**，不能由技術面推定。同理 `handling` 的 DIRECT vs FORMULA。
+#### B-1 修正清單（業務判斷已於 2026-07-25 取得）
+
+以 `cmrwu7bqb0` 為基礎，依需求規格修 3 條規則：
+
+| # | targetField | 現況公式 | 修正後 | 動作 |
+|---|---|---|---|---|
+| 1 | `handling` | `{destination_handling} + {vat_7_percent}` | `{destination_handling} + {vat_7_percent} + {sadao_border} + {apdc_ior}` | **加** 2 項 |
+| 2 | `clearance_at_origin` → **`clearance`** | `{apdc_fz_clearance}` | 公式不變，**改 targetField** 為 `clearance` | 改欄位 |
+| 3 | `handling_at_origin` | `{sealing_charge} + {origin_thc_terminal_handling_charge} + {sadao_border}` | 移除 `{sadao_border}` | **減** 1 項 |
+| 4 | `docs_fee_at_origin` | `{origin_document_processing_fee} + {apdc_ior}` | 移除 `{apdc_ior}` | **減** 1 項 |
+
+> 🔴 **第 3、4 項的減項與第 1 項的加項必須同一次完成**。`sadao_border` 與 `apdc_ior` 目前分別在 `handling_at_origin` 與 `docs_fee_at_origin` 的公式內；若只加不減，這兩筆費用會**同時計入 destination 與 origin 兩個欄位**，導致匯出的總成本虛增。這是本次修正中最容易漏掉、且後果最直接的一點。
+
+`docs_fee`／`freight`／`others_local_charge`／`thc`／`shipment_number`／`vgm_at_origin` 六條維持原樣（已符合需求規格）。修畢後停用 `cmrimxy970`（其唯一獨有的 `clearance ← apdc_fz_clearance` 已由第 2 項承接，不會遺失）。
+
+---
+
+## 執行記錄：B-1 + Outbound 補齊（2026-07-25 已完成）
+
+執行方式：使用者選定 gated 腳本。經 Kudu `/api/command` 執行一次性 node 腳本，`RUN_FIX133_CLEANUP=true` 才寫入，先以 dry-run 核對計畫變更與快照後才實際套用。單一交易 + 每個 `UPDATE` 的 `rowCount !== 1` 即 `ROLLBACK`。
+
+### 實際變更（11 項，全部成功）
+
+**[A] Inbound 保留筆 `cmrwu7bqb001101miqgc5e989`（10 條規則）**
+
+| targetField | 變更後公式 |
+|---|---|
+| `handling` | `{destination_handling} + {vat_7_percent} + {sadao_border} + {apdc_ior}` |
+| `clearance` | `apdc_fz_clearance`（原 `clearance_at_origin`，改 targetField） |
+| `handling_at_origin` | `{sealing_charge} + {origin_thc_terminal_handling_charge}`（移除 `{sadao_border}`） |
+| `docs_fee_at_origin` | `{origin_document_processing_fee}`（移除 `{apdc_ior}`） |
+
+**[B] Inbound 舊筆 `cmrimxy97000001r6xs9s4wfy`** → `is_active = false`
+
+**[C] Outbound 生效筆 `cmrin1af9000101r6gsv3674m`（5 → 9 條）**
+
+| targetField | 內容 |
+|---|---|
+| `document_fee` | `{origin_document_processing_fee} + {delivery_order_fee}+{awb_fee}`（加 `awb_fee`） |
+| `delivery` | ← `pick_up_at_origin` [DIRECT]（新增，order=5） |
+| `x_ray_fee` | ← `x_ray` [DIRECT]（新增，order=6） |
+| `cfs_charge` | ← `cfs` [DIRECT]（新增，order=7） |
+| `gate_charge` | ← `gate_charge` [DIRECT]（新增，order=8） |
+
+### 事前技術驗證
+
+- **公式空白格式**：`awb_fee` 沿用來源筆的無空格寫法 `+{awb_fee}`。因該來源筆是死配置、公式從未實際執行，故先查證 `formula.transform.ts:380` —— `safeEval` 在求值前 `replace(/\s+/g, '')` 移除所有空白，空格有無完全等價。
+- **缺失欄位**：`replaceVariables`（`formula.transform.ts:351-353`）將 `undefined`/`null`/非數值一律視為 `0`，故新增的來源欄位在未出現該費用的發票上不會拋錯。
+- **變數命名**：`vat_7_percent` / `sadao_border` / `apdc_ior` / `ftl_freight_truck` 皆符合 `VARIABLE_PATTERN`（`/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/`）。
+- **單項 FORMULA**：`docs_fee_at_origin` 移除加項後只剩單一變數，仍為合法算術式（既有 `cmrimxy970` 的 `freight` 即為同樣寫法）。
+
+### 獨立驗證（重跑原盤點腳本，非依腳本自報）
+
+| 指標 | 修正前 | 修正後 |
+|---|---|---|
+| 多筆同時啟用 | **1 組** | **0** ✅ |
+| `resolveMapping` 同範圍多筆組 | **1 組** | **0** ✅ |
+| 四元組重複組 | 2 | 2（不變，屬預期 —— 停用非刪除，兩組現各僅 1 筆啟用） |
+| scope/身分欄位不一致 | 0 | 0 |
+
+**解析非確定性已消除。** `resolveMapping` 有 5 分鐘 in-memory 快取（`CACHE_TTL`），最多 5 分鐘後生效，不需重啟容器。
+
+> ⚠️ 本次修正**繞過應用層**（未經 `service.update`），故未經 Zod 驗證與 `targetField` 有效性檢查。事前已用獨立查詢確認全部 `targetField` 存在於對應模版（Inbound Full List 45 欄、Outbound Full List 37 欄），但仍建議在 UI 檢視配置顯示正常，並實際跑一次 template 匹配核對金額。
+
+### 還原依據（前置快照）
+
+以下為修改前的原始 `mappings` JSON，可直接用於還原：
+
+<details>
+<summary>inboundKeep <code>cmrwu7bqb001101miqgc5e989</code>（原 10 條，is_active=true）</summary>
+
+```json
+[{"id":"AblUcC0hCfSLKZVYqPc5k","order":0,"isRequired":false,"description":"","sourceField":"_ref_number","targetField":"shipment_number","transformType":"DIRECT","transformParams":null},{"id":"u6rACLIqsqRoebK5fV1H0","order":1,"isRequired":false,"description":"","sourceField":"basic_freight_charge","targetField":"freight","transformType":"FORMULA","transformParams":{"formula":"{basic_freight_charge} + {ftl_freight_truck} + {freight_charges}"}},{"id":"CdmtxGflbn-VfRJdB4uSY","order":2,"isRequired":false,"description":"","sourceField":"destination_thc_terminal_handling_charge","targetField":"thc","transformType":"DIRECT","transformParams":null},{"id":"meiL-gRwK21iyyu7QyjoA","order":3,"isRequired":false,"description":"","sourceField":"delivery_order_fee","targetField":"docs_fee","transformType":"FORMULA","transformParams":{"formula":"{delivery_order_fee} + {destination_document_processing_fee}"}},{"id":"NPUpktDIx4V8i5yDEKatd","order":4,"isRequired":false,"description":"","sourceField":"other_destination_charge","targetField":"others_local_charge","transformType":"FORMULA","transformParams":{"formula":"{other_destination_charge} + {cleaning_at_destination}"}},{"id":"Juvjn1Yvyu8GIYOkNmhPH","order":5,"isRequired":false,"description":"","sourceField":"destination_handling","targetField":"handling","transformType":"FORMULA","transformParams":{"formula":"{destination_handling} + {vat_7_percent}"}},{"id":"fOoTiFI9w-9Rdpd-2Srpo","order":6,"isRequired":false,"description":"","sourceField":"origin_document_processing_fee","targetField":"docs_fee_at_origin","transformType":"FORMULA","transformParams":{"formula":"{origin_document_processing_fee} + {apdc_ior}"}},{"id":"64MMe9IE63QnMfVorec4g","order":7,"isRequired":false,"description":"","sourceField":"sealing_charge","targetField":"handling_at_origin","transformType":"FORMULA","transformParams":{"formula":"{sealing_charge} + {origin_thc_terminal_handling_charge} + {sadao_border}"}},{"id":"ANlqMfQVOaiHOYSQ2jXbC","order":8,"isRequired":false,"description":"","sourceField":"solas_vgm_management_fee","targetField":"vgm_at_origin","transformType":"DIRECT","transformParams":null},{"id":"s8p2aHAKadz-HCOTm7vE0","order":9,"isRequired":false,"description":"","sourceField":"apdc_fz_clearance","targetField":"clearance_at_origin","transformType":"DIRECT","transformParams":null}]
+```
+
+</details>
+
+<details>
+<summary>outboundKeep <code>cmrin1af9000101r6gsv3674m</code>（原 5 條，is_active=true）</summary>
+
+```json
+[{"id":"FwZIGyKxRj1dqhlqggfns","order":0,"isRequired":false,"description":"","sourceField":"_ref_number","targetField":"shipment_number","transformType":"DIRECT","transformParams":null},{"id":"v1SHWe142-bLbsr7jIdU0","order":1,"isRequired":false,"description":"","sourceField":"origin_thc_terminal_handling_charge","targetField":"thc","transformType":"DIRECT","transformParams":null},{"id":"s9MnA9zIDKxnjkLjnnqp8","order":2,"isRequired":false,"description":"","sourceField":"origin_document_processing_fee","targetField":"document_fee","transformType":"FORMULA","transformParams":{"formula":"{origin_document_processing_fee} + {delivery_order_fee}"}},{"id":"912q0uqJRyVWl_p46We_h","order":3,"isRequired":false,"description":"","sourceField":"sealing_charge","targetField":"seal_fee","transformType":"DIRECT","transformParams":null},{"id":"lR7fAsHinv5bJ_dRQNv-m","order":4,"isRequired":false,"description":"","sourceField":"solas_vgm_management_fee","targetField":"vgm","transformType":"DIRECT","transformParams":null}]
+```
+
+</details>
+
+> `inboundOld` `cmrimxy97000001r6xs9s4wfy` 只改 `is_active`（true → false），`mappings` 未動，還原僅需改回 `is_active = true`。
+
+---
 
 ### 附帶建議：澄清 spec 矛盾
 
@@ -277,8 +387,15 @@ curl --resolve <SCMhost>:443:<公開IP> -X POST https://<SCMhost>/api/command
 - [x] ~~判定為刻意分層 → 放寬 CHANGE-107 擋阻~~ —— 不成立，CHANGE-107 的擋阻範圍正確、無需修改
 - [x] 結論回寫本文件 + `known-discrepancies.md`
 - [x] `npm run docs:status` 已重新生成並提交
-- [ ] **（待決）** B-1：CEVA 重複組清理 —— 需業務判斷 `docs_fee` / `handling` 的正確來源
-- [ ] **（待決）** C：`NULLS NOT DISTINCT` migration —— 須在 B-1 之後，且需 `apply-schema-drift.js` 條目
+- [x] B-1 的業務判斷已取得（2026-07-25）—— `docs_fee` 兩來源皆併入（原判定為衝突係誤讀 `sourceField`，已更正）；APDC FZ Clearance → `Clearance`；SADAO border 與 APDC IOR → `Handling`
+- [x] B-1 前置快照已完成並**持久化於本文件**（§執行記錄 → 還原依據），非僅存於 session 暫存
+- [x] B-1 已執行：`cmrwu7bqb0` 改 4 條規則 + 停用 `cmrimxy970`；加項與減項於**同一交易**完成，`sadao_border` / `apdc_ior` 不再同時計入 destination 與 origin（無重複計算）
+- [x] Outbound 補齊已執行：`cmrin1af90` 由 5 條增至 9 條（`awb_fee` + `delivery` / `x_ray_fee` / `cfs_charge` / `gate_charge`）
+- [x] 獨立驗證（重跑原盤點腳本）：「多筆同時啟用」1 → **0**、「同範圍多筆組」1 → **0**，解析非確定性已消除
+- [ ] **（建議）** UI 檢視配置顯示正常 + 實際跑一次 template 匹配核對金額 —— 本次繞過應用層驗證，需端到端確認
+- [ ] **（待決）** C：`NULLS NOT DISTINCT` migration —— 須在 B-1 之後（前提已滿足），需 `apply-schema-drift.js` 條目
+- [ ] **（待決）** B-2：Cargo Partner 停用筆 `cmrvug69v0` 清理（純清潔，無功能影響）
+- [ ] **（移交 FIX-125）** 5 筆指向 MERGED 公司的死配置，含 Outbound 的 `cmrcxw6ul0`（其內容已由本次補齊承接，可安全停用）
 
 ---
 
