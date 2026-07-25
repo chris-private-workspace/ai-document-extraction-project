@@ -1,10 +1,13 @@
 # CHANGE-107: Template Field Mapping 複製記錄功能
 
 > **建立日期**: 2026-07-25
-> **狀態**: ⏳ 待實作
+> **狀態**: ✅ 已完成（2026-07-25，本地實機驗證 10/10 驗收項通過；Azure 實機驗證於下次部署批次執行）
 > **優先級**: 中（不影響資料正確性，但嚴重影響設定效率）
 > **類型**: Feature
-> **影響範圍**: Template Field Mapping 列表、新建頁、表單、目標欄位選擇器、建立 API
+> **影響範圍**: Template Field Mapping 列表、新建頁、表單、目標欄位選擇器、建立 API + 服務層
+
+> ⚠️ **規劃前提已被實測推翻**：原文假設「相同四元組在 DB 層必被擋」，實測為**不成立**（PostgreSQL 的 NULL 語意）。
+> 詳見 §實作記錄 → 「規劃前提的更正」。結論是 §變更內容 的設計方向仍然正確，但理由不同、且必須額外加應用層重複檢查。
 
 ---
 
@@ -43,7 +46,11 @@ Template Field Mapping 目前只能從空白表單逐筆建立。實際使用上
 
 ### 由此推導出的設計約束
 
-因為那條唯一約束，同一組 (dataTemplateId, scope, companyId, documentFormatId) **只能存在一筆**。因此「原地複製一份完全相同的記錄」在 DB 層必然被擋（409）。複製的價值必然是「規則照抄、換一個目標」——**清空身分欄位讓使用者重選，是唯一可行且乾淨的設計，不是妥協**。
+~~因為那條唯一約束，同一組 (dataTemplateId, scope, companyId, documentFormatId) **只能存在一筆**。因此「原地複製一份完全相同的記錄」在 DB 層必然被擋（409）。~~
+
+🔴 **上段已於 2026-07-25 實測推翻**（見 §實作記錄 → 規劃前提的更正）。該唯一約束因 PostgreSQL 的 NULL 語意而**實務上從未生效**，相同四元組可以無聲重複建立。
+
+修正後的結論：複製的價值仍然是「規則照抄、換一個目標」，**清空身分欄位讓使用者重選仍是正確設計** —— 但理由從「DB 會擋所以必須改」變成「**沒有任何機制會擋，所以更需要強制重選**」。缺口另以應用層重複檢查補上。
 
 ---
 
@@ -117,7 +124,12 @@ Template Field Mapping 目前只能從空白表單逐筆建立。實際使用上
 | `form.copyBanner` | Copied {count} rules from "{name}". Select a data template and scope before saving. | 已從「{name}」複製 {count} 條規則。請選擇數據模版與範圍後儲存。 | 已从「{name}」复制 {count} 条规则。请选择数据模版与范围后保存。 |
 | `form.copyNameSuffix` | (Copy) | （複製） | （复制） |
 | `form.errors.invalidTargetFields` | {count} rules have a target field that does not belong to the selected template | {count} 條規則的目標欄位不屬於所選模版，請修正後再儲存 | {count} 条规则的目标字段不属于所选模版，请修正后再保存 |
-| `targetField.invalidValue` | Not in selected template | 不存在於所選模版 | 不存在于所选模版 |
+| `targetField.invalidValue` | Not in selected template | 不存在於所選模版 | 不存在于所选模板 |
+| `form.scopePlaceholder` 🆕 | Select a scope | 選擇範圍 | 选择范围 |
+
+> 🆕 `form.scopePlaceholder` 為實作時新增（規劃原列 7 組，實際 **8** 組）—— 讓 `scope` 有真正的未選狀態所必需，理由見 §實作記錄 → 規劃判斷有誤的兩點 #2。
+> `form.copyNameSuffix` 的 en 值刻意含前導空格（` (Copy)`），中文用全形括號故不需空格。
+> zh-CN 一律沿用該檔既有的「模板／字段」用語（非 zh-TW 的「模版／欄位」）。
 
 命名空間 `templateFieldMapping` 已存在並已註冊於 `src/i18n/request.ts`，無需新增命名空間。
 
@@ -154,6 +166,71 @@ Template Field Mapping 目前只能從空白表單逐筆建立。實際使用上
 | 409 錯誤訊息的 i18n | `route.ts:185` 的 `detail` 是後端硬編碼中文，en 介面會露中文。屬全站 API `detail` 未 i18n 的既有狀況，非本次引入；要改需動 hook 的錯誤傳遞結構（目前 `use-template-field-mappings.ts:207-212` 只 throw `new Error(detail)`，不帶 status），會擴大範圍 |
 | `targetField` 的後端驗證 | 只加前端擋。後端要驗需在 Zod 之外查 DataTemplate 欄位定義，屬 FIX-128「未知來源 key 警告」機制的同類延伸，另議 |
 | 批量複製（一次複製到多間公司） | 本次先解決單筆複製。若批量需求成立，宜比照 CHANGE-101 的腳本路徑或另立 CHANGE |
+| **修 DB 約束（`NULLS NOT DISTINCT` migration）** | 🔴 實測發現 `unique_template_mapping` 實務上從未生效（見 §實作記錄）。本次以應用層檢查補上缺口，未改 DB。改約束需先清理既有重複資料，且 `resolveMapping` 同範圍按 `priority` 合併暗示多筆同範圍配置可能是刻意分層 —— 風險高於收益，留作獨立資料完整性議題 |
+| 既有重複資料的盤點與清理 | 因約束從未生效，正式環境可能已存在重複配置（本地驗證前無）。盤點屬獨立議題，需先確認「同範圍多筆」是否為刻意設計 |
+| PATCH 路徑的重複檢查 | PATCH 不能改身分欄位，但可把停用的重複記錄改回 `isActive: true`。此邊緣情境未處理 |
+
+---
+
+## 實作記錄（2026-07-25）
+
+### 規劃前提的更正 🔴
+
+規劃時斷定「相同四元組在 DB 層必被擋（409）」。實測（複製 CEVA 配置並把身分欄位設成與來源完全相同）回的是 **201 Created**，成功建出兩筆身分完全相同的記錄。
+
+根因：**PostgreSQL 的唯一約束把 NULL 視為互不相同**（預設 `NULLS DISTINCT`）。`unique_template_mapping` 的四欄組合在每一種範圍下都必然含至少一個 NULL：
+
+| 範圍 | companyId | documentFormatId | 約束是否生效 |
+|------|-----------|------------------|--------------|
+| GLOBAL | NULL | NULL | ❌ 不生效 |
+| COMPANY | 有值 | NULL | ❌ 不生效 |
+| FORMAT | NULL | 有值 | ❌ 不生效 |
+
+即 `unique_template_mapping` **對任何範圍都不生效**，是一條實務上從未發揮作用的約束。這是既有的資料完整性缺口，非本次改動造成，但複製功能會讓「無聲建出重複」變成日常路徑。
+
+**處置（使用者 2026-07-25 決定：加應用層檢查，真的回 409）**：於 `service.create()` 前置 `findFirst` 比對四元組（Prisma 的 `companyId: null` 會產生 `IS NULL`，NULL 處理正確），命中則丟 `createConflictError`（既有 `AppError`，409 + RFC 7807）。
+
+兩個設計細節：
+- **只比對 `isActive: true`** —— API 的 DELETE 是軟刪除，若把停用記錄也算重複，使用者將無法重建。且 `resolveMapping` 只撈啟用配置，不會產生解析歧義。
+- **未改 DB 約束** —— 曾評估 `NULLS NOT DISTINCT` migration，但那需先清理既有重複資料，且 `resolveMapping`／`mergeMappings`（`service.ts:452-459`）在**同範圍內**按 `priority` 排序合併，暗示多筆同範圍配置可能是刻意的分層設計。改 DB 約束會消滅該能力，風險高於收益，故留作獨立議題。
+
+### 規劃判斷有誤的兩點（實作時修正）
+
+| # | 規劃寫的 | 實際 | 修正 |
+|---|----------|------|------|
+| 1 | `MappingRuleItem.tsx` 不需修改 | **錯**。一次只有一條規則展開（`MappingRuleEditor` 的 `expandedId`），若無效標示只在展開時出現，使用者需逐條展開才找得到壞規則 —— 實測 5 條無效規則有 4 條處於折疊狀態 | 折疊態也加無效標示（`hasInvalidTargetField`，以 `templateFields.length > 0` 防止模版未解析時誤標全部） |
+| 2 | 清空 `scope` | **不可能**。表單 schema 是 `z.enum(['GLOBAL','COMPANY','FORMAT'])`，沒有空狀態；落回預設 `GLOBAL` 有實質危害 —— GLOBAL 是唯一不需再填任何欄位就能存檔的範圍，從 COMPANY 配置複製後未察覺即會建出套用到**所有公司**的映射 | 讓 `''` 成為合法未選狀態 + `請選擇範圍` 驗證 + 新增 `form.scopePlaceholder`（故 i18n 為 **8** 組 key 而非規劃的 7 組）。僅複製模式產生 `''`，一般新建仍預設 `GLOBAL`（不改既有行為） |
+
+另有一個型別陷阱：`scope` 型別放寬後，`onSubmit` 內 `if (!values.scope) return` 的窄化**不會**透過 `...values` 展開傳遞（TS 展開用原始宣告型別），`npm run type-check` 抓到後改為先解構 `const { scope: selectedScope, ...restValues } = values`。
+
+### 改動清單
+
+| 層 | 檔案 | 改動 |
+|---|---|---|
+| 列表 | `TemplateFieldMappingList.tsx` | `Copy` icon 按鈕（編輯與刪除之間）+ `handleCopyClick` → `new?copyFrom=<id>` |
+| 頁面 | `admin/template-field-mappings/new/page.tsx` | `searchParams.copyFrom` → `getCopySource()`（server 端載入，找不到則退化為一般新建）+ 標題／metadata 切換 |
+| 表單 | `TemplateFieldMappingForm.tsx` | 匯出 `TemplateFieldMappingCopySource` 型別；`copySource` prop 初始化規則與 name／description／priority／isActive；`scope: ''` 未選狀態 + 驗證；複製橫幅（Alert）；submit 前 `targetField` 有效性擋存 |
+| 組件 | `TargetFieldSelector.tsx` | `hasInvalidValue` → trigger 顯示原值 + 紅框 + 「不存在於所選模版」徽章（取代靜默 placeholder） |
+| 組件 | `MappingRuleItem.tsx` | 折疊態的無效標示（見上表 #1） |
+| 服務 | `template-field-mapping.service.ts` | `create()` 前置應用層重複檢查 → `createConflictError`（409） |
+| API | `api/v1/template-field-mappings/route.ts` | `isAppError` → 409 分支；唯一約束判斷改 `Prisma.PrismaClientKnownRequestError` + `code === 'P2002'`（保留為 defence in depth） |
+| 匯出 | `template-field-mapping/index.ts` | 一併匯出 `TemplateFieldMappingCopySource` |
+| i18n | `messages/{en,zh-TW,zh-CN}/templateFieldMapping.json` | 8 組 key（見 §i18n 影響，另加 `form.scopePlaceholder`） |
+| 腳本 | `scripts/local-cleanup-change107-test-records.ts`（新建） | 驗證期間 2 筆測試配置的 gated 硬刪除（API DELETE 只軟刪除）；已執行，本地資料庫回復原狀 |
+
+### 本地實機驗證（Playwright，localhost:3200）
+
+以既有 `CEVA outbound to logistics outbound template - v1`（COMPANY / CEVA / 5 條規則）為來源：
+
+- **正向**：複製 → 改選 DHL Express（同模版）→ 建立成功，來源記錄完全未變；列表 4→5 筆
+- **無效目標欄位**：改選 `ERP 標準匯入格式` → 5 條規則全部顯示「不存在於所選模版」（1 條展開 + 4 條折疊皆標示）→ 按建立被擋，toast「5 條規則的目標欄位不屬於所選模版」；改回原模版後標示歸零
+- **重複**：身分欄位設成與來源完全相同 → 修正前回 **201**（建出重複）；加應用層檢查後回 **409**，toast 指出撞到哪一筆
+- **回歸**：既有記錄編輯頁三個身分欄位仍 `disabled`、無複製橫幅；一般新建（不帶 `?copyFrom=`）行為不變
+- 全程 console 0 錯誤（僅 favicon 404 與預期的 409）
+
+附帶觀察：跨公司複製會觸發 FIX-128 的「來源欄位未知」警告（來源欄位屬 CEVA 的 field definition set，換公司後對不上）。這是正確且有價值的行為 —— 兩道防護互補：本次加的管**目標**側，FIX-128 管**來源**側。
+
+**rollback**：無 schema 變更、無 migration、無 feature flag；回退＝還原這批 commit。
 
 ---
 
@@ -181,6 +258,23 @@ Template Field Mapping 目前只能從空白表單逐筆建立。實際使用上
 | 9 | 既有行為不變 | 既有記錄編輯頁四欄仍 disabled，PATCH 契約未變 | High |
 | 10 | 品質閘 | `npm run i18n:check` / `npm run type-check` / `npm run lint` 通過（改動檔 0 新增警告） | High |
 
+### 驗收結果（2026-07-25 本地 Playwright 實測）
+
+- [x] 1 —— 4 列皆有複製按鈕，導向 `new?copyFrom=<id>`，頁面標題切換為「複製映射配置」
+- [x] 2 —— `…v1（複製）`；5 條規則全帶入，含 rule 2 的「公式計算」transformType
+- [x] 3 —— 模版與範圍皆顯示 placeholder；公司／格式依範圍條件顯示且為空。**Radix Select 收到 `defaultValue=""` 正常顯示 placeholder，無錯誤**
+- [x] 4 —— 橫幅正確帶出來源名稱與 5 條；同時規則卡顯示「請先選擇數據模版」，證實橫幅正是避免誤判「複製失敗」的關鍵
+- [x] 5 —— 改選 `ERP 標準匯入格式` 後 5 條全標示（1 展開 + 4 折疊）；改回原模版後標示歸零
+- [x] 6 —— toast「5 條規則的目標欄位不屬於所選模版，請修正後再儲存」，`type=error`，未提交
+- [x] 7 —— 建立成功，列表 4→5 筆，來源 CEVA 記錄完全未變
+- [x] 8 —— **修正前回 201（建出重複）**；加應用層重複檢查後回 **409** + toast 指出撞到哪一筆
+- [x] 9 —— 編輯頁三個身分欄位 `disabled: true`、無複製橫幅、規則層照常可編輯
+- [x] 10 —— 三閘全綠；`lint` exit 0、0 錯誤、改動檔 0 新增警告
+
+驗證期間建立的 2 筆測試配置已用 `scripts/local-cleanup-change107-test-records.ts` 硬刪除，本地資料庫回復為原始 4 筆。
+
+**提報但未處理**（非本次改動造成，依 Karpathy 1.3／H3 只提不刪）：`MappingRuleItem.tsx` 有 4 個既有 dead import —— `Collapsible`／`CollapsibleContent`／`CollapsibleTrigger`（第 35-37 行）與 `TargetFieldDisplay`（第 41 行）。
+
 ---
 
 ## 測試場景
@@ -190,7 +284,7 @@ Template Field Mapping 目前只能從空白表單逐筆建立。實際使用上
 | 1 | 同公司換模版 | 複製 CEVA 的 COMPANY 範圍配置 → 選另一份 data template → 範圍 COMPANY → 同一間公司 → 儲存 | 建立成功；規則照抄；`targetField` 若在新模版不存在則先被標示並擋存 |
 | 2 | 換公司同模版 | 複製 CEVA 配置 → 保持同一份 data template → 範圍 COMPANY → 換另一間公司 → 儲存 | 建立成功；規則完全照抄；無效欄位標示不應出現（同模版） |
 | 3 | 同公司換格式 | 複製配置 → 選 data template → 範圍 FORMAT → 選該公司的另一個文件格式 → 儲存 | 建立成功；FORMAT 範圍生效 |
-| 4 | 撞唯一約束（負向） | 複製配置 → 四欄選成與來源記錄完全相同 → 儲存 | 回 409，toast 顯示「相同範圍和關聯的映射配置已存在」，**不是** 500 |
+| 4 | 撞重複（負向） | 複製配置 → 四欄選成與來源記錄完全相同 → 儲存 | 回 409，toast 顯示「相同範圍和關聯的映射配置已存在：「<名稱>」」，**不是** 500，也**不是**無聲建出重複。攔阻來自**應用層檢查**而非 DB 約束（後者因 NULL 語意不生效） |
 | 5 | 無效目標欄位（負向） | 複製配置 → 選一份欄位定義不同的 data template → 直接儲存 | 擋下儲存；toast 指出無效條數；對應規則有無效標示 |
 | 6 | 未選模版直接儲存（負向） | 複製配置 → 不選任何身分欄位 → 儲存 | Zod 擋下（`dataTemplateId` 必填、範圍需對應 company／format） |
 | 7 | 既有編輯不受影響（回歸） | 開啟任一既有記錄的編輯頁 | 四個身分欄位仍為 disabled；儲存規則變更正常 |

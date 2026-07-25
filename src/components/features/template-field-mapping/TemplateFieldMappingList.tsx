@@ -13,7 +13,7 @@
 import * as React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/routing';
-import { Plus, Search, Edit, Trash2, RefreshCcw } from 'lucide-react';
+import { Plus, Search, Edit, Copy, Trash2, RefreshCcw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -215,6 +215,16 @@ export function TemplateFieldMappingList({ className }: TemplateFieldMappingList
     [router]
   );
 
+  // CHANGE-107: copy opens the create form pre-filled from this record. The
+  // four identity fields are cleared there, so the user must retarget before
+  // saving — an identical copy would violate unique_template_mapping.
+  const handleCopyClick = React.useCallback(
+    (id: string) => {
+      router.push(`/admin/template-field-mappings/new?copyFrom=${id}`);
+    },
+    [router]
+  );
+
   // --- Column 定義 ---
   const columns = React.useMemo<DataTableColumn<TemplateFieldMappingSummary>[]>(
     () => [
@@ -294,6 +304,14 @@ export function TemplateFieldMappingList({ className }: TemplateFieldMappingList
             <Button
               variant="ghost"
               size="icon"
+              onClick={() => handleCopyClick(mapping.id)}
+            >
+              <Copy className="h-4 w-4" />
+              <span className="sr-only">{t('actions.copy')}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setDeleteId(mapping.id)}
             >
               <Trash2 className="h-4 w-4 text-destructive" />
@@ -303,7 +321,7 @@ export function TemplateFieldMappingList({ className }: TemplateFieldMappingList
         ),
       },
     ],
-    [t, handleEditClick]
+    [t, handleEditClick, handleCopyClick]
   );
 
   // Render
