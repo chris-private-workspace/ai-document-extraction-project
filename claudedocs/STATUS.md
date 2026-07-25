@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 105 | CHANGE-107 | **CHANGE-108** |
-| FIX | 134 | FIX-132 | **FIX-133** |
+| FIX | 135 | FIX-133 | **FIX-134** |
 
-## 📋 未開始（26）
+## 📋 未開始（27）
 
 > 完全未動工的規劃。
 
@@ -42,6 +42,7 @@
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
+| [FIX-133](4-changes/bug-fixes/FIX-133-template-mapping-unique-constraint-never-enforced.md) | template mapping unique constraint never enforced | 🚧 待修復 |
 
 ## 🚧 進行中 / 部分完成（21）
 
