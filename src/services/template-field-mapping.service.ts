@@ -22,6 +22,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { nanoid } from 'nanoid';
+import { createConflictError } from '@/lib/errors';
 import type { Prisma } from '@prisma/client';
 import type {
   TemplateFieldMapping,
@@ -186,11 +187,39 @@ export class TemplateFieldMappingService {
    * @param input - 創建輸入資料
    * @param createdBy - 創建者 ID
    * @returns 新建的配置
+   * @throws AppError(409) 若相同範圍與關聯的啟用配置已存在
    */
   async create(
     input: CreateTemplateFieldMappingInput,
     createdBy?: string
   ): Promise<TemplateFieldMapping> {
+    // CHANGE-107: 應用層重複檢查。
+    //
+    // 為何不能只靠 DB 的 unique_template_mapping：PostgreSQL 的唯一約束把 NULL
+    // 視為互不相同，而這四欄組合在每一種範圍下都必然含至少一個 NULL
+    //（GLOBAL: companyId + documentFormatId 皆 NULL；COMPANY: documentFormatId
+    // 為 NULL；FORMAT: companyId 為 NULL），因此該約束實務上從未生效，
+    // 相同四元組可以無聲重複建立（2026-07-25 實測確認）。
+    //
+    // 只比對 isActive: true —— 軟刪除（DELETE 只設 isActive: false）留下的舊記錄
+    // 不應阻擋重建，且 resolveMapping 只撈啟用配置，故不會造成解析歧義。
+    const duplicate = await prisma.templateFieldMapping.findFirst({
+      where: {
+        dataTemplateId: input.dataTemplateId,
+        scope: input.scope,
+        companyId: input.companyId || null,
+        documentFormatId: input.documentFormatId || null,
+        isActive: true,
+      },
+      select: { name: true },
+    });
+
+    if (duplicate) {
+      throw createConflictError(
+        `相同範圍和關聯的映射配置已存在：「${duplicate.name}」。請改選其他數據模版、範圍或目標。`
+      );
+    }
+
     // 為每條規則生成 ID
     const mappingsWithIds = input.mappings.map((rule, index) => ({
       ...rule,

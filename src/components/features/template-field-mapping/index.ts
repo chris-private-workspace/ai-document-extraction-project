@@ -6,7 +6,10 @@
  */
 
 export { TemplateFieldMappingList } from './TemplateFieldMappingList';
-export { TemplateFieldMappingForm } from './TemplateFieldMappingForm';
+export {
+  TemplateFieldMappingForm,
+  type TemplateFieldMappingCopySource,
+} from './TemplateFieldMappingForm';
 export { MappingRuleEditor } from './MappingRuleEditor';
 export { MappingRuleItem } from './MappingRuleItem';
 export { SourceFieldSelector, SourceFieldDisplay } from './SourceFieldSelector';
