@@ -69,6 +69,22 @@ const MIGRATIONS = [
     id: 'FIX-128 column template_instance_rows.transform_diagnostics',
     sql: `alter table "template_instance_rows" add column if not exists "transform_diagnostics" jsonb;`,
   },
+  // FIX-133：template_field_mappings 唯一性改為 NULLS NOT DISTINCT 的部分唯一索引。
+  // 原 @@unique 因 PostgreSQL 預設 NULLS DISTINCT 而對任何範圍都不生效（每種 scope 必含
+  // ≥1 個 NULL），從未擋下任何重複。改限定 is_active = true —— 對應 service.create() 的
+  // 檢查條件，且既有停用列不受約束、無需刪除任何資料。
+  // 對應 migration 20260725060000 與 prisma/post-init-indexes.sql（三處須保持一致）。
+  {
+    id: 'FIX-133 drop ineffective full-table unique index on template_field_mappings',
+    sql: `drop index if exists "template_field_mappings_data_template_id_scope_company_id_d_key";`,
+  },
+  {
+    id: 'FIX-133 index template_field_mappings_active_unique (NULLS NOT DISTINCT, partial)',
+    sql: `create unique index if not exists "template_field_mappings_active_unique"
+      on "template_field_mappings" ("data_template_id", "scope", "company_id", "document_format_id")
+      nulls not distinct
+      where "is_active" = true;`,
+  },
 ]
 
 async function main() {

@@ -4,7 +4,7 @@
 > **發現方式**: CHANGE-107 實作期間的 Playwright 實測（本地）
 > **影響頁面/功能**: Template Field Mapping 資料完整性（`template_field_mappings` 表）；間接影響 `resolveMapping` 的映射解析結果
 > **優先級**: 中 → **高**（2026-07-25 盤點後上調：Azure DEV 存在 1 組同時啟用的重複，造成 6 個 targetField 的解析結果非確定性）
-> **狀態**: 🚧 進行中 —— 選項 A（盤點 + 判定）與 B-1（CEVA 重複組修正）+ Outbound 補齊**已完成並驗證**（2026-07-25）；剩 B-2（清潔）與 C（`NULLS NOT DISTINCT` migration）待決
+> **狀態**: ✅ 已完成（2026-07-25）—— BUG-1（約束不生效）以部分唯一索引 `NULLS NOT DISTINCT WHERE is_active` 修復並在本地與 Azure DEV 驗證生效；BUG-2（存量重複）已盤點並修正；BUG-3（語意）已判定為資料污染。5 筆指向 MERGED 公司的死配置移交 [FIX-125](FIX-125-company-merge-orphans-document-formats.md)
 
 ---
 
@@ -357,6 +357,109 @@ curl --resolve <SCMhost>:443:<公開IP> -X POST https://<SCMhost>/api/command
 
 ---
 
+---
+
+## 執行記錄：選項 C（部分唯一索引）—— 2026-07-25 已實作，待套用 Azure
+
+### 關鍵前提修正：全表方案不可行
+
+原記載「C 的前提已滿足（B-1 已完成）」**是錯的**。唯一索引**不看 `is_active`**，而 Azure DEV 仍有 2 組四元組重複（各 1 筆啟用 + 1 筆停用）：
+
+| 組 | 記錄 |
+|---|---|
+| Cargo Partner | `5efa9e02`（啟用）+ `cmrvug69v0`（停用） |
+| CEVA Inbound | `cmrwu7bqb0`（啟用）+ `cmrimxy970`（停用 ← B-1 停用的那筆） |
+
+全表 `NULLS NOT DISTINCT` 會被這 2 組擋下，**必須先刪除**那 2 筆停用記錄。而實測確認：
+
+```
+✅ 啟用列中無四元組重複 → partial unique index (WHERE is_active) 可直接建立，無需刪除任何資料
+```
+
+### 採用方案：部分唯一索引 + `NULLS NOT DISTINCT`
+
+```sql
+DROP INDEX IF EXISTS "template_field_mappings_data_template_id_scope_company_id_d_key";
+
+CREATE UNIQUE INDEX IF NOT EXISTS "template_field_mappings_active_unique"
+  ON "template_field_mappings" ("data_template_id", "scope", "company_id", "document_format_id")
+  NULLS NOT DISTINCT
+  WHERE "is_active" = true;
+```
+
+選擇理由（使用者 2026-07-25 決定）：
+
+| | 部分索引（採用） | 全表 |
+|---|---|---|
+| 需刪除資料 | ❌ 不需 | ✅ 需刪 2 筆停用記錄 |
+| 對應應用層檢查 | ✅ 精確對應 `service.create()`（四元組 + `isActive: true`） | ⚠️ 比應用層更嚴 |
+| 保留「停用舊配置」模式 | ✅ 保留（既有資料確實這樣用） | ❌ 失去 |
+| Prisma 漂移 | 需移除 schema 的 `@@unique` | 最小 |
+
+### 事前技術查證
+
+- **Prisma 7.2 不支援 `nullsNotDistinct`** —— 實測 `prisma validate` 回 `P1012 error: No such argument`，故必須 raw SQL。亦不支援部分索引。
+- **DB 上是唯一索引而非 constraint** —— `pg_constraint` 只有 `pkey`，故用 `DROP INDEX` 而非 `ALTER TABLE DROP CONSTRAINT`。索引實名為 `template_field_mappings_data_template_id_scope_company_id_d_key`（**不是** `unique_template_mapping` —— 後者只是 Prisma Client 的複合鍵名，DB 名需 `map:` 才能指定），本地與 Azure 兩邊一致。
+- **無程式碼依賴該複合鍵** —— 全庫搜尋確認無任何 `findUnique`/`upsert` 使用，故移除 `@@unique` 不會破壞 Prisma Client 呼叫；`type-check` 亦通過。
+- **PG 版本** —— Azure 18.4 / 本地 15.15，皆支援 `NULLS NOT DISTINCT`（PG 15 引入）。
+
+### schema.prisma 的處理與漂移驗證
+
+移除 `@@unique`（改為註解說明），因為保留它會讓 `prisma migrate` 持續想重建那個無效的全表唯一索引。實測漂移方向：
+
+| schema 狀態 | `prisma migrate diff` 結果 |
+|---|---|
+| 保留 `@@unique` | `CREATE UNIQUE INDEX ..._d_key`（想重建全表 unique）；**但不會 DROP 部分索引** —— Prisma 忽略帶 `WHERE` 的索引 |
+| 移除 `@@unique`（採用） | `-- This is an empty migration.` ✅ **漂移歸零** |
+
+### 三處同步（各服務不同情境，缺一不可）
+
+| 檔案 | 服務情境 | 為何必要 |
+|---|---|---|
+| `prisma/migrations/20260725060000_.../migration.sql` | 本地 `migrate dev` / `migrate deploy` | 本地開發環境走 migration 路徑建庫 |
+| `prisma/post-init-indexes.sql` + `Dockerfile` 追加 | **全新空庫** | `init.sql` 由 `migrate diff --from-empty --to-schema` 生成、**不在版控**；Prisma 不認識部分索引 → 少了追加，新環境會**完全沒有**唯一性保護 |
+| `prisma/apply-schema-drift.js` | Azure 既有非空庫 | `bootstrap-db.js` 只在空庫套 `init.sql`，既有庫需 gated 增量 DDL |
+
+### 本地驗證
+
+| 測試 | 結果 |
+|---|---|
+| `prisma validate` | ✅ |
+| `prisma migrate diff` | ✅ 空 migration（無漂移） |
+| `prisma generate` + `npm run type-check` | ✅ |
+| `npm run lint` | ✅ exit 0 |
+| 插入四元組相同的**啟用**記錄 | ✅ 被擋：`duplicate key value violates unique constraint "template_field_mappings_active_unique"`，DETAIL 顯示鍵為 `(..., GLOBAL, null, null)` —— **兩個 NULL 的 GLOBAL 範圍也受約束**，正是原本完全失效的情況 |
+| 插入四元組相同的**停用**記錄 | ✅ 允許（`INSERT 0 1`） |
+| 測試後資料筆數 | ✅ 未變（測試全在交易內 `ROLLBACK`） |
+
+> migration 已用 `prisma migrate resolve --applied` 標記（本地索引為手動套用）。順帶發現本地 DB 有一個 **pre-existing** 未套用 migration `20260722020000_add_transform_diagnostics_to_template_instance_rows`（FIX-128）—— 非本次造成，未處理，僅記錄。
+
+### Azure DEV 已套用（2026-07-25，經 Kudu 直接執行 DDL）
+
+使用者選定 Kudu 途徑（不需部署即生效）。腳本預設 dry-run、`RUN_FIX133_INDEX=true` 才執行，含安全閘與交易內就地驗證。
+
+```
+執行前  template_field_mappings_data_template_id_scope_company_id_d_key
+          UNIQUE btree (data_template_id, scope, company_id, document_format_id)     ← 從未生效
+
+執行後  template_field_mappings_active_unique
+          UNIQUE btree (data_template_id, scope, company_id, document_format_id)
+          NULLS NOT DISTINCT WHERE (is_active = true)
+```
+
+| 步驟 | 結果 |
+|---|---|
+| 安全閘：啟用列四元組重複 | ✅ 0 組 → 可安全建立 |
+| 參考：含停用列的重複組 | ⓘ **2 組** → 證實全表方案必然失敗，部分索引是唯一可行路徑 |
+| DROP + CREATE（單一交易） | ✅ COMMIT；交易內驗證索引定義含 `NULLS NOT DISTINCT` 與 `is_active` 條件 |
+| 約束行為：插入啟用重複 | ✅ 被擋（`duplicate key value violates unique constraint "template_field_mappings_active_unique"`） |
+| 約束行為：插入停用重複 | ✅ 允許 |
+| 資料筆數 | ✅ 36 → 36 未變（測試插入全部 `ROLLBACK`，無殘留） |
+
+> 線上映像的 Prisma Client 仍是含 `@@unique` 的舊版（schema 變更尚未部署），但因無任何程式碼使用該複合鍵，不影響運行。下次部署後 schema 與 DB 即完全一致。
+
+---
+
 ### 附帶建議：澄清 spec 矛盾
 
 `tech-spec-story-19-1.md:131` 的 `// 同範圍內的優先級` 註解與 `:144` 的唯一約束意圖矛盾（見 §BUG-3 判定依據 1）。建議在該 spec 加一則 amendment 註明「同範圍唯一，`priority` 僅作跨範圍排序的 tie-break」，避免後續開發者再次據此推論「同範圍可分層」。**未執行**，待使用者決定是否納入。
@@ -373,6 +476,11 @@ curl --resolve <SCMhost>:443:<公開IP> -X POST https://<SCMhost>/api/command
 | `claudedocs/4-changes/bug-fixes/FIX-133-*.md`（本檔） | 回寫盤點結論、BUG-3 判定（非刻意分層）、B/C 待決事項 |
 | `claudedocs/reference/known-discrepancies.md` | 新增一條「`unique_template_mapping` 因 NULL 語意不生效」的差異記錄 |
 | `claudedocs/STATUS.md` | `npm run docs:status` 重新生成（狀態由「待修復」轉「進行中」） |
+| `prisma/schema.prisma`（選項 C） | 移除 `TemplateFieldMapping` 的 `@@unique` —— 唯一性改由 DB 端部分唯一索引保證；附完整理由註解與「不要加回來」警告 |
+| `prisma/migrations/20260725060000_fix133_template_mapping_partial_unique_index/migration.sql`（新建） | raw SQL：DROP 無效全表唯一索引 + CREATE 部分唯一索引（`NULLS NOT DISTINCT WHERE is_active`），冪等 |
+| `prisma/post-init-indexes.sql`（新建） | Prisma 無法表示的 DB 物件，由 Dockerfile 追加至 `init.sql` —— 缺此則**全新空庫完全無唯一性保護** |
+| `Dockerfile` | `init.sql` 生成後追加 `cat prisma/post-init-indexes.sql >> prisma/init.sql` |
+| `prisma/apply-schema-drift.js` | 新增 2 條 FIX-133 條目（DROP + CREATE），供 Azure 既有非空庫以 `RUN_SCHEMA_DRIFT_FIX=true` 套用 |
 | ~~`docs/open-questions.md`~~ | **未新增 OQ** —— BUG-3 已可從 spec 條文 + `priority` 分佈 + 實例特徵判定，無需使用者拍板語意（但 B-1 的業務判斷仍需使用者決定） |
 | Azure 一次性盤點腳本 | 置於 session scratchpad、**未進 repo**（一次性診斷工具；Azure runner 映像本就不含 `scripts/` 與 `tsx`）。做法已完整記錄於 §盤點結果末段，可重現 |
 
@@ -393,8 +501,11 @@ curl --resolve <SCMhost>:443:<公開IP> -X POST https://<SCMhost>/api/command
 - [x] Outbound 補齊已執行：`cmrin1af90` 由 5 條增至 9 條（`awb_fee` + `delivery` / `x_ray_fee` / `cfs_charge` / `gate_charge`）
 - [x] 獨立驗證（重跑原盤點腳本）：「多筆同時啟用」1 → **0**、「同範圍多筆組」1 → **0**，解析非確定性已消除
 - [ ] **（建議）** UI 檢視配置顯示正常 + 實際跑一次 template 匹配核對金額 —— 本次繞過應用層驗證，需端到端確認
-- [ ] **（待決）** C：`NULLS NOT DISTINCT` migration —— 須在 B-1 之後（前提已滿足），需 `apply-schema-drift.js` 條目
-- [ ] **（待決）** B-2：Cargo Partner 停用筆 `cmrvug69v0` 清理（純清潔，無功能影響）
+- [x] C 已實作為**部分唯一索引**（`NULLS NOT DISTINCT WHERE is_active = true`）—— 全表方案因 2 組含停用列的四元組重複而不可行，改用部分索引後無需刪除任何資料
+- [x] C 三處同步完成：migration `20260725060000` / `post-init-indexes.sql` + `Dockerfile` / `apply-schema-drift.js`
+- [x] C 本地驗證：約束確實生效（含 GLOBAL 兩 NULL 的情況）、停用列不受約束、`prisma migrate diff` 漂移歸零、`type-check` + `lint` 通過
+- [x] C 已套用 Azure DEV（2026-07-25 經 Kudu），並就地驗證約束生效、停用列不受約束、資料筆數未變
+- [x] ~~B-2：Cargo Partner 停用筆清理~~ —— **不再必要**。原本的理由是「讓全表唯一索引可建立」，改用部分索引後停用列本就不受約束，留著反而保有可還原的歷史
 - [ ] **（移交 FIX-125）** 5 筆指向 MERGED 公司的死配置，含 Outbound 的 `cmrcxw6ul0`（其內容已由本次補齊承接，可安全停用）
 
 ---
