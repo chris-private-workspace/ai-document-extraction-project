@@ -7,7 +7,7 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 105 | CHANGE-107 | **CHANGE-108** |
+| CHANGE | 106 | CHANGE-108 | **CHANGE-109** |
 | FIX | 135 | FIX-133 | **FIX-134** |
 
 ## 📋 未開始（25）
@@ -86,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（190）
+## ✅ 已完成（191）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -165,6 +165,7 @@
 | [CHANGE-104](4-changes/feature-changes/CHANGE-104-docs-governance-status-index-ci-gate.md) | docs governance status index ci gate | ✅ 已完成（2026-07-14） |
 | [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | ✅ 已完成（2026-07-22，方案 A 唯讀標記；B 一鍵重跑視使用情況另立 CHANGE；Azure 實機驗證於下次部署批次執行） |
 | [CHANGE-107](4-changes/feature-changes/CHANGE-107-template-field-mapping-copy-record.md) | template field mapping copy record | ✅ 已完成（2026-07-25，本地實機驗證 10/10 驗收項通過；Azure 實機驗證於下次部署批次執行） |
+| [CHANGE-108](4-changes/feature-changes/CHANGE-108-azure-to-local-config-sync.md) | azure to local config sync | ✅ 已完成（2026-07-26，Phase 1-3 全部執行完畢；Blob 原始檔同步未做，見「後續項」） |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |
