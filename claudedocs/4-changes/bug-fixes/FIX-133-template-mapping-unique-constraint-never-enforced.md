@@ -457,6 +457,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS "template_field_mappings_active_unique"
 | 資料筆數 | ✅ 36 → 36 未變（測試插入全部 `ROLLBACK`，無殘留） |
 
 > 線上映像的 Prisma Client 仍是含 `@@unique` 的舊版（schema 變更尚未部署），但因無任何程式碼使用該複合鍵，不影響運行。下次部署後 schema 與 DB 即完全一致。
+>
+> ✅ **2026-07-27 已部署**（映像 `dev-change107-fix133-20260727115120`，對應 `origin/main` @ `fe69379`）—— schema 與 DB 現已完全一致，且 Dockerfile 追加 `post-init-indexes.sql` 後**全新空庫也有唯一性保護**（部署前空庫完全無保護）。部署**未帶** `RUN_SCHEMA_DRIFT_FIX`，因索引已於 7/25 直接套用；容器 log 確認走 `[bootstrap] public schema already has 122 tables -> skip init.sql`（無 DDL）。見 [部署記錄](../../../docs/07-deployment/02-azure-deployment/deployment-records/2026-07-27-dev-change107-fix133.md)。
+
+### 附帶取得：B-1 資料修正的 UI 層獨立佐證（2026-07-27）
+
+7/25 的資料修正繞過應用層，當時僅由腳本自報 + 重跑盤點腳本確認。2026-07-27 部署驗收時擷取的列表提供了 UI 層的獨立印證：
+
+| 記錄 | 列表顯示 | 與 §執行記錄 一致？ |
+|---|---|---|
+| `cmrwu7bqb0` CEVA Inbound（保留筆） | 規則數 **10**、**啟用** | ✅ 改 4 條規則後仍為 10 條 |
+| `cmrimxy970` CEVA Inbound（舊筆） | 規則數 7、**停用** | ✅ [B] 已將其停用 |
+| `cmrin1af90` CEVA Outbound | 規則數 **9**、啟用 | ✅ [C] 補齊 5 → 9 |
+
+仍未涵蓋：逐條**公式內容**的 UI 檢視、以及實際跑一次 template 匹配核對金額（下方「（建議）」項）。
 
 ---
 

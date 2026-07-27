@@ -1,7 +1,7 @@
 # CHANGE-107: Template Field Mapping 複製記錄功能
 
 > **建立日期**: 2026-07-25
-> **狀態**: ✅ 已完成（2026-07-25，本地實機驗證 10/10 驗收項通過；Azure 實機驗證於下次部署批次執行）
+> **狀態**: ✅ 已完成（2026-07-25 本地實機驗證 10/10 驗收項通過；**2026-07-27 已部署 Azure DEV 並完成實機驗收** —— 映像 `dev-change107-fix133-20260727115120`，見 [部署記錄](../../../docs/07-deployment/02-azure-deployment/deployment-records/2026-07-27-dev-change107-fix133.md)）
 > **優先級**: 中（不影響資料正確性，但嚴重影響設定效率）
 > **類型**: Feature
 > **影響範圍**: Template Field Mapping 列表、新建頁、表單、目標欄位選擇器、建立 API + 服務層
@@ -274,6 +274,22 @@ Template Field Mapping 目前只能從空白表單逐筆建立。實際使用上
 驗證期間建立的 2 筆測試配置已用 `scripts/local-cleanup-change107-test-records.ts` 硬刪除，本地資料庫回復為原始 4 筆。
 
 **提報但未處理**（非本次改動造成，依 Karpathy 1.3／H3 只提不刪）：`MappingRuleItem.tsx` 有 4 個既有 dead import —— `Collapsible`／`CollapsibleContent`／`CollapsibleTrigger`（第 35-37 行）與 `TargetFieldDisplay`（第 41 行）。
+
+### 驗收結果（2026-07-27 Azure DEV 實機驗證）
+
+映像 `dev-change107-fix133-20260727115120`（對應 `origin/main` @ `fe69379`）部署後以 Playwright 實測。完整部署過程見 [部署記錄](../../../docs/07-deployment/02-azure-deployment/deployment-records/2026-07-27-dev-change107-fix133.md)。
+
+| 驗收項 | 實測 |
+|---|---|
+| 1 列表出現「複製」動作 | ✅ 每列動作由部署前的「編輯」「刪除」變為「編輯」「**複製**」「刪除」（共 36 個配置） |
+| 2 導向與規則預填 | ✅ → `/new?copyFrom=cmrwu7bqb001101miqgc5e989`、標題「複製映射配置」；提示「已複製 **10 條規則**」與列表「規則數 10」一致 |
+| 3 四個身分欄位清空 | ✅ 數據模版「選擇數據模版」、範圍「選擇範圍」→ 強制重選 |
+| 4 橫幅提示（防護 2） | ✅ 橫幅帶出來源名稱與條數；規則區同時顯示「請先選擇數據模版」 |
+| 名稱後綴 | ✅ `…（複製）` |
+| 說明／優先級／啟用狀態沿用 | ✅ 優先級 `0`、啟用開關已勾 |
+| i18n | ✅ 全繁體中文、無缺 key、無 raw key 外露 |
+
+> **未涵蓋**：驗收項 5-8（改選模版後的無效欄位標示、儲存前擋下、實際建立、409 重複擋阻）—— 這些需要**寫入資料**或多次改選，為避免在使用者測試環境產生資料而未執行。本地已於 2026-07-25 全數驗證通過（見上一節），Azure 端留給實際使用時自然驗證。
 
 ---
 

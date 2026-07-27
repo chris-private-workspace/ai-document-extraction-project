@@ -7,10 +7,10 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 106 | CHANGE-108 | **CHANGE-109** |
+| CHANGE | 107 | CHANGE-109 | **CHANGE-110** |
 | FIX | 136 | FIX-134 | **FIX-135** |
 
-## 📋 未開始（26）
+## 📋 未開始（27）
 
 > 完全未動工的規劃。
 
@@ -38,6 +38,7 @@
 | [CHANGE-074](4-changes/feature-changes/CHANGE-074-source-field-dynamic-load-company-global-scope-ux.md) | source field dynamic load company global scope ux | ⏳ 待實作 |
 | [CHANGE-080](4-changes/feature-changes/CHANGE-080-python-services-auth-rate-limit.md) | python services auth rate limit | ⏳ 待實作（H1 架構，用戶暫未 approve，需先確認部署網路拓撲） |
 | [CHANGE-102](4-changes/feature-changes/CHANGE-102-cleanup-legacy-llm-models-stage-config-rename.md) | cleanup legacy llm models stage config rename | ⏳ 待實作 |
+| [CHANGE-109](4-changes/feature-changes/CHANGE-109-template-instance-newer-invoice-version-detection.md) | template instance newer invoice version detection | ⏳ 待實作 |
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
@@ -163,8 +164,8 @@
 | [CHANGE-101](4-changes/feature-changes/CHANGE-101-batch-template-field-mappings-from-excel.md) | batch template field mappings from excel | ✅ 已完成（2026-07-09 部署 Azure DEV，寫入 18 筆） |
 | [CHANGE-103](4-changes/feature-changes/CHANGE-103-stage1-company-matching-anti-duplication.md) | stage1 company matching anti duplication | ✅ 已完成（Phase 1 組件 3 學習迴路 ✅ / Phase 2a `orderBy` ✅ / Phase 2 組件 2+4 tok… |
 | [CHANGE-104](4-changes/feature-changes/CHANGE-104-docs-governance-status-index-ci-gate.md) | docs governance status index ci gate | ✅ 已完成（2026-07-14） |
-| [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | ✅ 已完成（2026-07-22，方案 A 唯讀標記；B 一鍵重跑視使用情況另立 CHANGE；Azure 實機驗證於下次部署批次執行） |
-| [CHANGE-107](4-changes/feature-changes/CHANGE-107-template-field-mapping-copy-record.md) | template field mapping copy record | ✅ 已完成（2026-07-25，本地實機驗證 10/10 驗收項通過；Azure 實機驗證於下次部署批次執行） |
+| [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | ✅ 已完成（2026-07-22 方案 A 唯讀標記；B 一鍵重跑視使用情況另立 CHANGE） |
+| [CHANGE-107](4-changes/feature-changes/CHANGE-107-template-field-mapping-copy-record.md) | template field mapping copy record | ✅ 已完成（2026-07-25 本地實機驗證 10/10 驗收項通過；2026-07-27 已部署 Azure DEV 並完成實機驗收 … |
 | [CHANGE-108](4-changes/feature-changes/CHANGE-108-azure-to-local-config-sync.md) | azure to local config sync | ✅ 已完成（2026-07-26，Phase 1-3 全部執行完畢；Blob 原始檔同步未做，見「後續項」） |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
