@@ -4,7 +4,7 @@
 > **發現方式**: FIX-094 驗證期間實測 —— 以 global admin 帳號呼叫 `/api/jobs/stuck-processing-sweeper` 竟回 403，追查後發現是系統性問題
 > **影響頁面/功能**: 多個 API 端點的授權判斷、前端 `useAuth().hasPermission()` 的所有呼叫點
 > **優先級**: 高（全域管理員在部分功能上完全無法操作，且錯誤訊息會誤導成「權限不足」）
-> **狀態**: 🚧 待修復
+> **狀態**: ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / 27 檔 282 項測試含新增 26 項；**BUG-3 實際規模為 7 檔 8 處**，遠大於規劃時記載的「至少 `/api/audit/reports`」，見下方「實作時的範圍修正」。待部署 Azure DEV 復測兩個 403 端點）
 
 ---
 
@@ -155,20 +155,66 @@ export function sessionHasPermission(
 
 ---
 
+## 實作時的範圍修正（2026-07-27）
+
+### BUG-3 實際規模是 7 檔 8 處，不是「至少 1 個」
+
+規劃時只確認了 `/api/audit/reports`。實作時以 `['AUDITOR', 'GLOBAL_ADMIN']` 全庫搜尋，命中 **7 個檔案 8 處**，全是同一份複製的寫法：
+
+| 檔案 | 形式 |
+|------|------|
+| `src/app/api/audit/reports/route.ts` | `hasAuditAccess()`（2 處呼叫）|
+| `src/app/api/audit/reports/[jobId]/route.ts` | `hasAuditAccess()` |
+| `src/app/api/audit/reports/[jobId]/download/route.ts` | `hasAuditAccess()` |
+| `src/app/api/audit/reports/[jobId]/verify/route.ts` | `hasAuditAccess()` |
+| `src/app/api/audit/query/route.ts` | 行內判斷 |
+| `src/app/api/audit/query/count/route.ts` | 行內判斷 |
+| `src/app/api/documents/[id]/trace/report/route.ts` | `ALLOWED_ROLES` 常量 |
+
+### 兩個角色名稱**都**是錯的（比規劃描述更嚴重）
+
+規劃寫「角色名叫 `System Admin` 而非 `GLOBAL_ADMIN`」，只指出了一半。查 `src/types/role-permissions.ts` 後確認：
+
+| route 比對的字串 | 實際角色名 | 結果 |
+|---|---|---|
+| `'GLOBAL_ADMIN'` | `'System Admin'` | ❌ 不符 |
+| `'AUDITOR'` | **`'Auditor'`**（`ROLE_NAMES.AUDITOR`）| ❌ 不符（大小寫）|
+
+意即這 8 處的判斷**對任何帳號都是 false** —— 連專門為此設計的 `Auditor` 角色也一樣被 403 擋下，不只全域管理員。
+
+改以權限判斷後兩者都能通行：`Auditor` 憑 `AUDIT_VIEW`／`AUDIT_EXPORT`（`ROLE_PERMISSIONS` 已定義），全域管理員憑 `isGlobalAdmin` 或 wildcard。
+
+### 兩個「待確認」檔案的判定
+
+| 檔案 | 判定 | 理由 |
+|------|------|------|
+| `src/services/role.service.ts` | ✅ **納入** | `hasPermission` / `hasAnyPermission` / `hasAllPermissions` 確實是授權判斷，且 `getUserPermissions()` 原樣回傳含 `'*'` 的陣列 → 同樣的 wildcard 漏洞。改用 `permissionListHas`（無 session 故無法檢查 `isGlobalAdmin`，已於 JSDoc 標明）|
+| `src/types/permission-categories.ts` | ❌ **不納入** | `hasAllCategoryPermissions` / `hasSomeCategoryPermissions` 是角色**編輯 UI** 用來顯示「此角色勾選了哪些分類」，非授權判斷。若讓它認 `*`，UI 會誤顯示所有 checkbox 已勾選 |
+
+---
+
 ## 修改的檔案
 
 | 檔案 | 修改內容 |
 |------|----------|
-| `src/lib/auth/has-permission.ts` | 🆕 統一權限判斷入口 |
-| `src/hooks/use-auth.ts` | 🔧 三個方法委派統一函式 |
-| `src/app/api/jobs/stuck-processing-sweeper/route.ts` | 🔧 移除 local `hasPermission`，改用統一函式 |
+| `src/lib/auth/has-permission.ts` | 🆕 統一入口：`sessionHasPermission` / `sessionHasAnyPermission` / `sessionHasAllPermissions` / `sessionHasAuditAccess` / `permissionListHas` |
+| `tests/unit/lib/has-permission.test.ts` | 🆕 26 項測試 |
+| `src/hooks/use-auth.ts` | 🔧 BUG-2：三個方法委派統一函式（`permissions` 公開回傳值保留）|
+| `src/app/api/jobs/stuck-processing-sweeper/route.ts` | 🔧 BUG-1：移除 local `hasPermission` |
 | `src/app/api/jobs/pattern-analysis/route.ts` | 🔧 同上 |
 | `src/app/api/corrections/patterns/route.ts` | 🔧 同上 |
 | `src/app/api/corrections/patterns/[id]/route.ts` | 🔧 同上 |
-| `src/app/[locale]/(dashboard)/rules/review/[id]/page.tsx` | 🔧 同上 |
-| `src/app/api/audit/reports/route.ts` | 🔧 BUG-3：role 名稱判斷改為權限判斷 |
+| `src/app/[locale]/(dashboard)/rules/review/[id]/page.tsx` | 🔧 同上（頁面級守衛）|
+| `src/services/role.service.ts` | 🔧 三個函式改用 `permissionListHas` |
+| `src/app/api/audit/reports/route.ts` | 🔧 BUG-3 |
+| `src/app/api/audit/reports/[jobId]/route.ts` | 🔧 BUG-3 |
+| `src/app/api/audit/reports/[jobId]/download/route.ts` | 🔧 BUG-3 |
+| `src/app/api/audit/reports/[jobId]/verify/route.ts` | 🔧 BUG-3 |
+| `src/app/api/audit/query/route.ts` | 🔧 BUG-3 |
+| `src/app/api/audit/query/count/route.ts` | 🔧 BUG-3 |
+| `src/app/api/documents/[id]/trace/report/route.ts` | 🔧 BUG-3（`ALLOWED_ROLES` 常量移除）|
 
-（`permission-categories.ts` / `role.service.ts` 需先確認用途再決定是否納入。）
+既有 25 個已自行處理 wildcard 的檔案**未動**（規劃 §套用範圍 第 4 點：逐步收斂，非本 FIX 範圍）。
 
 ---
 
@@ -176,13 +222,14 @@ export function sessionHasPermission(
 
 修復完成後需驗證：
 
-- [ ] 單元測試 `sessionHasPermission`：(a) `isGlobalAdmin=true` 任何權限皆 true；(b) `permissions=["*"]` 任何權限皆 true；(c) 精確權限命中；(d) 無權限回 false；(e) `user` / `roles` 為 undefined 不拋錯
-- [ ] 全域管理員（`isGlobalAdmin=true`、`permissions=["*"]`）可成功呼叫 `POST /api/jobs/stuck-processing-sweeper`（本次實測為 403）
-- [ ] 全域管理員可成功呼叫 `GET /api/audit/reports`（本次實測為 403）
-- [ ] **無權限帳號仍被正確擋下**（回歸：不可因加入 wildcard 而放寬成任何人都通過）
-- [ ] 前端：全域管理員登入後，依賴 `hasPermission()` 的 UI 元素正常顯示
-- [ ] `npm run type-check` / `npm run lint` 通過
-- [ ] 部署 Azure DEV 後以 `admin@rci-t.com` 復測上述兩個 403 端點
+- [x] 單元測試 `sessionHasPermission`：(a) `isGlobalAdmin=true` 任何權限皆 true；(b) `permissions=["*"]` 任何權限皆 true；(c) 精確權限命中；(d) 無權限回 false；(e) `user` / `roles` 為 undefined 不拋錯 —— **26 項全過**，另涵蓋多角色聚合、`sessionHasAuditAccess`、空要求陣列邊界
+- [x] **無權限帳號仍被正確擋下**（回歸：不可因加入 wildcard 而放寬成任何人都通過）—— 測試明確涵蓋 `VIEWER` / `REVIEWER` 被拒的案例
+- [x] `npm run type-check` / `npm run lint` 通過（另加跑 `npm run build` 與完整測試套件：27 檔 282 項）
+- [ ] 全域管理員（`isGlobalAdmin=true`、`permissions=["*"]`）可成功呼叫 `POST /api/jobs/stuck-processing-sweeper`（規劃時實測為 403）—— **待部署 Azure DEV 復測**
+- [ ] 全域管理員可成功呼叫 `GET /api/audit/reports`（規劃時實測為 403）—— 待部署復測
+- [ ] `Auditor` 角色帳號可存取審計端點（BUG-3 修正後應由 403 變為通行）—— 待部署復測，需有該角色帳號
+- [ ] 前端：全域管理員登入後，依賴 `hasPermission()` 的 UI 元素正常顯示 —— 待部署復測
+- [ ] 部署 Azure DEV 後以 `admin@rci-t.com` 復測上述端點
 
 ---
 

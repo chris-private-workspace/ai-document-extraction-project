@@ -23,6 +23,7 @@
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { sessionHasAuditAccess } from '@/lib/auth/has-permission'
 import { withCityFilter } from '@/middlewares/city-filter'
 import { auditQueryService } from '@/services/audit-query.service'
 import { AuditQueryParams } from '@/types/audit-query'
@@ -71,12 +72,9 @@ export const POST = withCityFilter(async (request, cityFilter) => {
     )
   }
 
-  // 權限檢查：僅 AUDITOR 和 GLOBAL_ADMIN 可訪問
-  const hasAuditAccess = session.user.roles?.some(r =>
-    ['AUDITOR', 'GLOBAL_ADMIN'].includes(r.name)
-  )
-
-  if (!hasAuditAccess) {
+  // 權限檢查（FIX-134）：改以 AUDIT_VIEW / AUDIT_EXPORT 權限判斷。
+  // 原本比對角色名 ['AUDITOR','GLOBAL_ADMIN']，但實際角色名為 'Auditor' / 'System Admin'，永遠不符。
+  if (!sessionHasAuditAccess(session.user)) {
     return NextResponse.json(
       {
         type: 'https://api.example.com/errors/forbidden',

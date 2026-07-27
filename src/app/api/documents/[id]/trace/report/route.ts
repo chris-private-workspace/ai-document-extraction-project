@@ -22,6 +22,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { sessionHasAuditAccess } from '@/lib/auth/has-permission';
 import { traceabilityService } from '@/services/traceability.service';
 import { withAuditLogParams } from '@/middlewares/audit-log.middleware';
 
@@ -32,11 +33,6 @@ import { withAuditLogParams } from '@/middlewares/audit-log.middleware';
 interface RouteParams {
   id: string;
 }
-
-/**
- * 允許生成追溯報告的角色
- */
-const ALLOWED_ROLES = ['AUDITOR', 'GLOBAL_ADMIN'];
 
 // ============================================================
 // POST Handler
@@ -69,15 +65,13 @@ async function handlePost(
     );
   }
 
-  // 驗證角色權限
-  const userRoles = (session.user as { roles?: Array<{ name: string }> }).roles;
-  const hasAccess = userRoles?.some((r) => ALLOWED_ROLES.includes(r.name));
-
-  if (!hasAccess) {
+  // 驗證權限（FIX-134）：改以 AUDIT_VIEW / AUDIT_EXPORT 權限判斷。
+  // 原本比對角色名 ['AUDITOR','GLOBAL_ADMIN']，但實際角色名為 'Auditor' / 'System Admin'，永遠不符。
+  if (!sessionHasAuditAccess(session.user)) {
     return NextResponse.json(
       {
         success: false,
-        error: 'Access denied. Required roles: AUDITOR or GLOBAL_ADMIN',
+        error: 'Access denied. Audit permission required.',
       },
       { status: 403 }
     );

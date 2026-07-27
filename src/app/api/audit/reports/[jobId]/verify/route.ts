@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
+import { sessionHasAuditAccess } from '@/lib/auth/has-permission'
 import { auditReportService } from '@/services/audit-report.service'
 
 // ============================================================
@@ -47,12 +48,6 @@ const verifySchema = z.object({
 /**
  * 檢查用戶是否具有審計權限
  */
-function hasAuditAccess(session: { user?: { roles?: Array<{ name: string }> } }): boolean {
-  return session.user?.roles?.some(r =>
-    ['AUDITOR', 'GLOBAL_ADMIN'].includes(r.name)
-  ) ?? false
-}
-
 // ============================================================
 // Handler
 // ============================================================
@@ -98,7 +93,7 @@ export async function POST(
     }
 
     // 權限檢查
-    if (!hasAuditAccess(session)) {
+    if (!sessionHasAuditAccess(session.user)) {
       return NextResponse.json(
         {
           type: 'https://api.example.com/errors/forbidden',

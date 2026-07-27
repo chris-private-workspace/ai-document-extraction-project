@@ -26,6 +26,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { sessionHasPermission } from '@/lib/auth/has-permission';
 import { PERMISSIONS } from '@/types/permissions';
 import {
   triggerPatternAnalysis,
@@ -44,21 +45,6 @@ const CRON_SECRET = process.env.CRON_SECRET;
 // ============================================================
 // Helper Functions
 // ============================================================
-
-/**
- * 檢查用戶是否擁有指定權限
- *
- * @param roles - 用戶角色列表
- * @param permission - 需要的權限
- * @returns 是否擁有權限
- */
-function hasPermission(
-  roles: Array<{ permissions: string[] }> | undefined,
-  permission: string
-): boolean {
-  if (!roles) return false;
-  return roles.some((role) => role.permissions.includes(permission));
-}
 
 /**
  * 驗證 Cron 密鑰
@@ -134,7 +120,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 檢查權限
-  if (!hasPermission(session.user.roles, PERMISSIONS.RULE_MANAGE)) {
+  if (!sessionHasPermission(session.user, PERMISSIONS.RULE_MANAGE)) {
     return NextResponse.json(
       {
         success: false,
@@ -207,7 +193,7 @@ export async function GET() {
   }
 
   // 檢查權限
-  if (!hasPermission(session.user.roles, PERMISSIONS.RULE_VIEW)) {
+  if (!sessionHasPermission(session.user, PERMISSIONS.RULE_VIEW)) {
     return NextResponse.json(
       {
         success: false,

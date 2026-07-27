@@ -24,6 +24,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { sessionHasPermission } from '@/lib/auth/has-permission';
 import { prisma } from '@/lib/prisma';
 import { PERMISSIONS } from '@/types/permissions';
 import type { PatternStatus, Prisma } from '@prisma/client';
@@ -38,17 +39,6 @@ type SortOrder = 'asc' | 'desc';
 // ============================================================
 // Helper Functions
 // ============================================================
-
-/**
- * 檢查用戶是否擁有指定權限
- */
-function hasPermission(
-  roles: Array<{ permissions: string[] }> | undefined,
-  permission: string
-): boolean {
-  if (!roles) return false;
-  return roles.some((role) => role.permissions.includes(permission));
-}
 
 // ============================================================
 // GET /api/corrections/patterns - 獲取模式列表
@@ -92,7 +82,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 檢查權限
-  if (!hasPermission(session.user.roles, PERMISSIONS.RULE_VIEW)) {
+  if (!sessionHasPermission(session.user, PERMISSIONS.RULE_VIEW)) {
     return NextResponse.json(
       {
         success: false,
