@@ -5,7 +5,7 @@
 > **影響頁面/功能**: 文件處理管線 / 文件列表頁 + 詳情頁「重試」/ `retryProcessing`
 > **優先級**: 中
 > **狀態**: ✅ 已驗證（2026-07-27 於 Azure DEV 實測，`sweptCount=13`、三項驗收通過）。方案 A（閾值式手動重試）列為可選、尚未實作
-> **✅ 排程已補上（2026-07-27）**：本 FIX 原本需要**外部觸發器**才會生效，而專案沒有任何排程機制。已由 [CHANGE-110](../feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) 以**應用程式內排程器**補上（`src/instrumentation.ts`，每 5 分鐘，開關 `ENABLE_INTERNAL_SCHEDULER`），不再依賴外部呼叫。`CRON_SECRET` 途徑保留為後備。
+> **✅ 排程已補上並在 Azure DEV 生效（2026-07-27）**：本 FIX 原本需要**外部觸發器**才會生效，而專案沒有任何排程機制。已由 [CHANGE-110](../feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) 以**應用程式內排程器**補上（`src/instrumentation.ts` + `src/jobs/internal-scheduler.ts`，每 5 分鐘，開關 `ENABLE_INTERNAL_SCHEDULER`），不再依賴外部呼叫。同日部署 Azure DEV（映像 `dev-change110-20260727164500`）並以容器 log 驗證週期執行間隔精準 5 分鐘。`CRON_SECRET` 途徑保留為後備。
 
 ---
 
@@ -146,7 +146,7 @@
 
 | 項目 | 說明 |
 |---|---|
-| ~~**排程未設**~~ | ✅ **已解決** —— [CHANGE-110](../feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) 以應用程式內排程器補上（`src/instrumentation.ts`，啟動 60 秒後首跑、之後每 5 分鐘）。2026-07-27 實作完成並通過三閘 + 8 項單元測試；**Azure 部署並設定 `ENABLE_INTERNAL_SCHEDULER=true` 後生效** |
+| ~~**排程未設**~~ | ✅ **已解決並上線** —— [CHANGE-110](../feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) 以應用程式內排程器補上（啟動 60 秒後首跑、之後每 5 分鐘）。2026-07-27 部署 Azure DEV 並設 `ENABLE_INTERNAL_SCHEDULER=true`，容器 log 證實已週期執行（`08:52:39` → `08:57:39`，間隔 299.998 秒） |
 | 重試按鈕點擊後的實際重跑 | 只確認按鈕出現，未點擊驗證 OCR→映射流程 |
 
 ---
