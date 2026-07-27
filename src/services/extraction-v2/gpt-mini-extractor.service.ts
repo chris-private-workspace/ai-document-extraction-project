@@ -31,6 +31,7 @@
 
 import { AzureOpenAI } from 'openai';
 import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages';
 import { callGatewayByModelKey } from '@/services/llm';
 import type { SelectedData } from './data-selector.service';
 
@@ -360,6 +361,7 @@ export async function extractFieldsWithGptMini(
       mergedConfig.deploymentName === resolveDeploymentNameByKey(DEFAULT_MODEL_KEY)
         ? await callGatewayByModelKey({
             modelKey: DEFAULT_MODEL_KEY,
+            stageKey: LLM_STAGE_KEYS.EXTRACTION_V2_MINI,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },

@@ -1,25 +1,39 @@
 /**
- * @fileoverview LLM 模型選擇配置驗證 Schema（CHANGE-099 → Epic 23 Story 23.2 step 3b）
+ * @fileoverview LLM 模型指派驗證 Schema（CHANGE-099 → Epic 23 Story 23.2 step 3b → Story 23.4）
  * @description
- *   驗證後台更新 Stage 1-3 模型選擇的請求。
- *   **step 3b（id-based）**：value 改為 `LlmModel.id`（非白名單 key）；模型是否存在 / 已啟用
- *   由服務層 `setStageModelSelection` 查庫驗證，本 schema 只驗非空字串。
+ *   驗證後台更新**各處理環節**模型指派的請求。
+ *
+ *   - **step 3b（id-based）**：value 為 `LlmModel.id`（非白名單 key）；模型是否存在 / 已啟用
+ *     由服務層 `setStageAssignments` 查庫驗證，本 schema 只驗非空字串。
+ *   - **Story 23.4（per-環節）**：由固定的 `{ stage1, stage2, stage3 }` 改為
+ *     `{ assignments: { <stageKey>: <LlmModel.id> } }`，涵蓋 {@link LLM_STAGES} 全部環節，
+ *     並支援只送出有異動的環節（部分更新）。
+ *
+ *   未定義的 `stageKey` 在此**直接拒絕**（回 400），而非交由服務層靜默忽略——
+ *   前端送錯環節名應該要看得見。
  *
  * @module src/lib/validations/llm-model-config.schema
  * @since CHANGE-099 - LLM 模型選擇管理
- * @lastModified 2026-07-10
+ * @lastModified 2026-07-27
  */
 
 import { z } from 'zod';
 
-/** 單一 Stage 的模型 id（非空；存在性 / 啟用狀態由服務層查庫驗證） */
+import { LLM_STAGES, isLlmStageKey } from '@/lib/constants/llm-stages';
+
+/** 單一環節的模型 id（非空；存在性 / 啟用狀態由服務層查庫驗證） */
 const modelIdSchema = z.string().min(1, { message: '請選擇模型' });
 
-/** 更新三個 Stage 模型選擇的請求 body（value = LlmModel.id） */
-export const updateStageModelsSchema = z.object({
-  stage1: modelIdSchema,
-  stage2: modelIdSchema,
-  stage3: modelIdSchema,
+/** 更新環節模型指派的請求 body（key = stageKey，value = LlmModel.id） */
+export const updateStageAssignmentsSchema = z.object({
+  assignments: z
+    .record(z.string(), modelIdSchema)
+    .refine((value) => Object.keys(value).length > 0, {
+      message: '至少需指派一個處理環節',
+    })
+    .refine((value) => Object.keys(value).every(isLlmStageKey), {
+      message: `包含未定義的處理環節（可用：${LLM_STAGES.map((s) => s.key).join(', ')}）`,
+    }),
 });
 
-export type UpdateStageModelsInput = z.infer<typeof updateStageModelsSchema>;
+export type UpdateStageAssignmentsInput = z.infer<typeof updateStageAssignmentsSchema>;

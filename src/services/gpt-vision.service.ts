@@ -46,6 +46,7 @@
 
 import { AzureOpenAI } from 'openai'
 import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models'
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
@@ -762,6 +763,7 @@ async function processSingleImage(
     deploymentName === defaultDeployment
       ? await callGatewayByModelKey({
           modelKey: DEFAULT_MODEL_KEY,
+          stageKey: LLM_STAGE_KEYS.VISION_EXTRACTION,
           // 刻意維持「單一 user、無 system」的既有擺法（tech-spec §3.5 G7）
           messages: [{ role: 'user', content: extractionPrompt }],
           images: [
@@ -1142,6 +1144,7 @@ export async function classifyDocument(
       deploymentName === defaultDeployment
         ? await callGatewayByModelKey({
             modelKey: DEFAULT_MODEL_KEY,
+            stageKey: LLM_STAGE_KEYS.VISION_CLASSIFICATION,
             // 刻意維持「單一 user、無 system」的既有擺法（tech-spec §3.5 G7）
             messages: [{ role: 'user', content: classificationPrompt }],
             images: [

@@ -28,6 +28,7 @@
  */
 
 import { shouldUseLlmGateway } from '@/config/feature-flags';
+import { LlmModelConfigService } from '@/services/llm-model-config.service';
 
 import { llmGatewayService } from './llm-gateway.service';
 import type {
@@ -43,8 +44,20 @@ import type {
  * 欄位語意與 `LlmCallInput` 同名欄位一致，逐一對應各呼叫點既有的請求參數。
  */
 export interface GatewayBridgeInput {
-  /** 白名單模型 key（如 `gpt-5.4-mini`）；解析為預設啟用 Azure provider 下的 `LlmModel.id` */
+  /**
+   * 白名單模型 key（如 `gpt-5.4-mini`）；解析為預設啟用 Azure provider 下的 `LlmModel.id`。
+   * 亦為 `stageKey` 解析不到時的回退（＝呼叫點遷移前的現行模型）。
+   */
   modelKey: string;
+  /**
+   * 環節鍵值（Story 23.4 per-環節指派）。提供時**優先**以 `StageModelAssignment` 解析模型，
+   * 因此低風險環節可跑在非 Azure provider 上。
+   *
+   * 解析不到即落回 `modelKey`（未指派 / 模型或 provider 已停用 /
+   * **核心提取環節指派了非 Azure 模型被閘門擋下**）——見
+   * {@link LlmModelConfigService.resolveModelIdForStage}。
+   */
+  stageKey?: string;
   /** 保真訊息（忠實反映各呼叫點既有的 system/user 擺法，tech-spec §3.5） */
   messages: LlmMessage[];
   /** 可選圖片（純文字呼叫點不傳） */
@@ -87,10 +100,13 @@ export async function callGatewayByModelKey(
     return null;
   }
 
-  const { modelKey, ...callInput } = input;
+  const { modelKey, stageKey, ...callInput } = input;
 
-  // 未播種（gateway 資料表沒有這個 modelKey）→ 回退舊路徑，播種缺失時零風險
-  const modelId = await llmGatewayService.resolveModelIdByKey(modelKey);
+  // 1) per-環節指派優先（Story 23.4）；核心環節指派非 Azure 會在此被閘門擋下而回 null
+  // 2) 落回 modelKey 的 Azure 白名單解析；仍查無（未播種）→ 回退舊路徑，播種缺失時零風險
+  const modelId =
+    (stageKey ? await LlmModelConfigService.resolveModelIdForStage(stageKey) : null) ??
+    (await llmGatewayService.resolveModelIdByKey(modelKey));
   if (!modelId) {
     return null;
   }

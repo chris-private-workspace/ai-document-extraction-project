@@ -18,10 +18,14 @@ vi.mock('@/config/feature-flags', () => ({ shouldUseLlmGateway: vi.fn() }));
 vi.mock('@/services/llm/llm-gateway.service', () => ({
   llmGatewayService: { resolveModelIdByKey: vi.fn(), call: vi.fn() },
 }));
+vi.mock('@/services/llm-model-config.service', () => ({
+  LlmModelConfigService: { resolveModelIdForStage: vi.fn() },
+}));
 
 import { callGatewayByModelKey } from '@/services/llm/gateway-bridge';
 import { shouldUseLlmGateway } from '@/config/feature-flags';
 import { llmGatewayService } from '@/services/llm/llm-gateway.service';
+import { LlmModelConfigService } from '@/services/llm-model-config.service';
 
 const BASE_INPUT = {
   modelKey: 'gpt-5.4-mini',
@@ -123,6 +127,48 @@ describe('callGatewayByModelKey（Story 23.4 Phase 1）', () => {
     await expect(callGatewayByModelKey(BASE_INPUT)).rejects.toThrow(
       'Provider 熔斷開路: provider-1'
     );
+  });
+
+  it('should prefer the per-stage assignment over the model key when one resolves', async () => {
+    vi.mocked(shouldUseLlmGateway).mockReturnValue(true);
+    vi.mocked(LlmModelConfigService.resolveModelIdForStage).mockResolvedValue('assigned-1');
+    mockGatewaySuccess();
+
+    await callGatewayByModelKey({ ...BASE_INPUT, stageKey: 'term.classification' });
+
+    expect(LlmModelConfigService.resolveModelIdForStage).toHaveBeenCalledWith(
+      'term.classification'
+    );
+    // 指派命中即不必再查白名單
+    expect(llmGatewayService.resolveModelIdByKey).not.toHaveBeenCalled();
+    const callArg = vi.mocked(llmGatewayService.call).mock.calls[0][0];
+    expect(callArg.modelId).toBe('assigned-1');
+    // stageKey 是路由用的中繼欄位，不該外洩到 gateway 呼叫
+    expect(callArg).not.toHaveProperty('stageKey');
+  });
+
+  it('should fall back to the model key when the stage has no usable assignment', async () => {
+    // 涵蓋未指派 / 模型已停用 / 核心環節指派非 Azure 被閘門擋下（三者皆回 null）
+    vi.mocked(shouldUseLlmGateway).mockReturnValue(true);
+    vi.mocked(LlmModelConfigService.resolveModelIdForStage).mockResolvedValue(null);
+    vi.mocked(llmGatewayService.resolveModelIdByKey).mockResolvedValue('whitelist-1');
+    mockGatewaySuccess();
+
+    await callGatewayByModelKey({ ...BASE_INPUT, stageKey: 'extraction.v3.unified' });
+
+    expect(llmGatewayService.resolveModelIdByKey).toHaveBeenCalledWith('gpt-5.4-mini');
+    const callArg = vi.mocked(llmGatewayService.call).mock.calls[0][0];
+    expect(callArg.modelId).toBe('whitelist-1');
+  });
+
+  it('should not consult stage assignments when no stageKey is given', async () => {
+    vi.mocked(shouldUseLlmGateway).mockReturnValue(true);
+    vi.mocked(llmGatewayService.resolveModelIdByKey).mockResolvedValue('whitelist-1');
+    mockGatewaySuccess();
+
+    await callGatewayByModelKey(BASE_INPUT);
+
+    expect(LlmModelConfigService.resolveModelIdForStage).not.toHaveBeenCalled();
   });
 
   it('should still throw with an identifying message when the gateway reports no error text', async () => {

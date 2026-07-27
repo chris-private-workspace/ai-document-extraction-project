@@ -14,7 +14,10 @@
   2. **營運骨架缺失/斷裂** — 成本歸帳斷裂（`logUsage` 零呼叫端）、無 provider 韌性/failover、無出站限流。多 provider 核心賣點零地基。
 - **下一步（2026-07-27 改寫，上一版已過時）**：Story 23.1 / 23.2 已完成；23.3 的接線、韌性骨架、P1 閾值地基皆完成，**P2 已決議不執行**（OQ-E 降級，見 §6）。進行中的是 **Story 23.4**：
   - ✅ **Phase 1（其餘呼叫點遷移）已完成**（2026-07-27）——6 個生產呼叫點全部接上 gateway，各自 behind flag、行為零變。共用橋接見 `src/services/llm/gateway-bridge.ts`（回 `null` = 回退舊路徑；throw = 交呼叫端既有 retry / 業務降級）。**2 個健康檢查探測刻意不遷移**（它們探的就是直接 Azure 路徑的可用性，與 `gpt-caller` 的 `checkHealth` 處置一致）。
-  - ⏳ 剩餘子項：per-環節指派 UI｜出站限流｜成本計價（低優先，含 `DEFAULT_PRICING` 缺 5.4 條目 + 2 個測試 API 的 `|| 'gpt-5.2'`）｜測試/觀測。
+  - ✅ **per-環節指派（G4）已完成**（2026-07-27）——指派範圍由 extraction stage1-3 擴大到**全部 9 個 LLM 呼叫環節**。環節目錄集中在 `src/lib/constants/llm-stages.ts`（服務層／API／UI／i18n 共用單一真實來源）；橋接新增 `stageKey` 入口，經 `LlmModelConfigService.resolveModelIdForStage` 以 **`LlmModel.id`** 呼叫 gateway，因此低風險環節可真正跑在非 Azure provider 上。
+    - **環節分級（用戶 2026-07-27 拍板，依 D6 + OQ-E）**：🔒 核心提取 = stage1/2/3 + `vision.extraction` + `extraction.v3.unified` + `extraction.v2.mini`（指派非 Azure 會**強制回退** Azure，UI 顯示準確率回歸警示）；🔓 低風險 = `vision.classification` + `term.classification` + `term.validation`（可直接切非 Azure，出境仍受 `allowSensitiveData` 護欄擋著）。
+    - `/api/v1/model-configs` 契約已改：GET 回 `{ models, assignments }`、PUT 收 `{ assignments }`（支援部分更新）。舊的 `{ stage1, stage2, stage3 }` 形狀已移除。
+  - ⏳ 剩餘子項：出站限流｜成本計價（低優先，含 `DEFAULT_PRICING` 缺 5.4 條目 + 2 個測試 API 的 `|| 'gpt-5.2'` + **Phase 1 六處無 `documentId` 故用量不落盤**）｜測試/觀測（gateway 與手寫 fetch 的實跑等價驗證）。
   - 🔴 **兩道閘門仍關著，所以目前生產行為一行都沒變**：(a) `FEATURE_LLM_GATEWAY_ENABLED` 預設 OFF（`feature-flags.ts:422`）→ 管線仍走既有手寫 fetch；(b) `getStageModel` 硬性要求 `providerType === 'AZURE_OPENAI'`（`llm-model-config.service.ts:205`，`resolveStageModelId:308` 同）→ 核心提取只會拿到 Azure 模型。**(b) 依 OQ-E 決議刻意保留**；(a) 要開需先做 gateway 與現行手寫 fetch 的實跑等價驗證（影子 harness 已備：`scripts/epic-23-spike/stage3-shadow-comparison.ts`）。
   - 部署本分支前必看 §6「安全/合規/部署」的三條 🔴/⚠️（drift script 旗標、表建好但無資料、`isDefault` 缺 unique index）。
 - **權威文件**（同目錄，閱讀順序）：
@@ -73,7 +76,7 @@
 | **23.1** | Gateway + model(+`keyVersion`) + **抽共用加密模組** + `@ai-sdk/azure` 接 extraction + 播種 + **主管線用量持久化 + 結構化 logging + feature flag/shadow mode** | H1+H2 |
 | 23.2 | 憑證（gateway 解密硬錯誤）+ Provider 管理 API（回遮罩）+ **AuditLog + 遮罩歷史** + 後台 UI + i18n | H1+H4 |
 | 23.3 | 多 provider 接上〔✅ Anthropic 已接上 gateway + spike 實跑驗證 2026-07-27〕 + **per-model confidence 校準**〔✅ P1 地基完成；❌ **P2 已決議不執行**（2026-07-27 OQ-E 降級，見下）〕 + ~~準確率回歸框架~~〔隨 P2 一併不執行〕 + **circuit breaker/failover**〔✅ 骨架完成〕 | H1+H2 |
-| 23.4 | 其餘呼叫點遷移〔✅ **Phase 1 完成 2026-07-27**：6 個生產呼叫點經 `gateway-bridge.ts` 接上，behind flag 行為零變；健康檢查探測刻意留在直接路徑〕 + per-環節指派 UI + 出站限流 + 成本計價（低優先）+ 測試/觀測 | H1 |
+| 23.4 | 其餘呼叫點遷移〔✅ **Phase 1 完成 2026-07-27**：6 個生產呼叫點經 `gateway-bridge.ts` 接上，behind flag 行為零變；健康檢查探測刻意留在直接路徑〕 + per-環節指派 UI〔✅ **完成 2026-07-27**：9 環節目錄 `llm-stages.ts` + id-based 指派 + 核心/低風險分級閘門〕 + 出站限流 + 成本計價（低優先）+ 測試/觀測 | H1 |
 
 **現在該做**：Phase 0 spike（D8 已定），再照完整 scope（D10）做 Story 23.1；營運骨架納入本 Epic（D11）。
 

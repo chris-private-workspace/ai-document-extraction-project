@@ -34,6 +34,7 @@
 
 import { AzureOpenAI } from 'openai'
 import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models'
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages'
 import { prisma } from '@/lib/prisma'
 import { callGatewayByModelKey } from '@/services/llm'
 import { isAddressLikeTerm } from '@/services/term-aggregation.service'
@@ -361,6 +362,7 @@ export class AiTermValidatorService {
       // 由 validateTerms 的 catch 退回 rule-based 判斷（tech-spec §3.7 明列須保留的業務降級）。
       const viaGateway = await callGatewayByModelKey({
         modelKey: DEFAULT_MODEL_KEY,
+        stageKey: LLM_STAGE_KEYS.TERM_VALIDATION,
         messages: [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: prompt },

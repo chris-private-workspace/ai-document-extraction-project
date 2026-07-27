@@ -1,22 +1,26 @@
 /**
- * @fileoverview LLM 模型選擇配置 API（CHANGE-099）
+ * @fileoverview LLM 模型指派 API（CHANGE-099 → Epic 23 Story 23.4）
  * @description
- *   GET  /api/v1/model-configs - 讀取可選模型白名單 + 目前 Stage 1-3 選擇
- *   PUT  /api/v1/model-configs - 更新 Stage 1-3 模型選擇（限 globalAdmin）
+ *   GET  /api/v1/model-configs - 讀取可選模型 + **各處理環節**目前的模型指派
+ *   PUT  /api/v1/model-configs - 更新環節模型指派（限 globalAdmin，支援部分更新）
+ *
+ *   Story 23.4 起指派範圍由 extraction Stage 1-3 擴大到全部 9 個 LLM 呼叫環節。
+ *   環節目錄（顯示順序 / i18n key / 是否核心提取）由前端直接讀
+ *   `@/lib/constants/llm-stages`，不經此 API 傳輸。
  *
  * @module src/app/api/v1/model-configs/route
  * @since CHANGE-099 - LLM 模型選擇管理
- * @lastModified 2026-07-09
+ * @lastModified 2026-07-27
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { LlmModelConfigService } from '@/services/llm-model-config.service';
-import { updateStageModelsSchema } from '@/lib/validations/llm-model-config.schema';
+import { updateStageAssignmentsSchema } from '@/lib/validations/llm-model-config.schema';
 
 /**
  * GET /api/v1/model-configs
- * 回傳可選模型（已啟用 provider 的已啟用模型）與目前各 Stage 的模型選擇（value = LlmModel.id）。
+ * 回傳可選模型（已啟用 provider 的已啟用模型）與各處理環節目前的模型指派（value = LlmModel.id）。
  */
 export async function GET() {
   try {
@@ -33,16 +37,16 @@ export async function GET() {
       );
     }
 
-    const [models, selection] = await Promise.all([
+    const [models, assignments] = await Promise.all([
       LlmModelConfigService.listSelectableModels(),
-      LlmModelConfigService.getStageModelSelection(),
+      LlmModelConfigService.getStageAssignments(),
     ]);
 
     return NextResponse.json({
       success: true,
       data: {
         models,
-        selection,
+        assignments,
       },
     });
   } catch (error) {
@@ -61,7 +65,7 @@ export async function GET() {
 
 /**
  * PUT /api/v1/model-configs
- * 更新 Stage 1-3 模型選擇（限 globalAdmin）。
+ * 更新環節模型指派（限 globalAdmin）。body 只需帶有異動的環節。
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -91,7 +95,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const parsed = updateStageModelsSchema.safeParse(body);
+    const parsed = updateStageAssignmentsSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         {
@@ -105,7 +109,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    await LlmModelConfigService.setStageModelSelection(parsed.data, session.user.id);
+    await LlmModelConfigService.setStageAssignments(
+      parsed.data.assignments,
+      session.user.id,
+    );
 
     return NextResponse.json({
       success: true,

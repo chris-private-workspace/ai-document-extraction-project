@@ -27,6 +27,7 @@
  */
 
 import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages';
 import { callGatewayByModelKey } from '@/services/llm';
 import type {
   AssembledPrompt,
@@ -371,6 +372,7 @@ export class UnifiedGptExtractionService {
 
     const viaGateway = await callGatewayByModelKey({
       modelKey: DEFAULT_MODEL_KEY,
+      stageKey: LLM_STAGE_KEYS.EXTRACTION_V3_UNIFIED,
       messages: [
         { role: 'system', content: prompt.systemPrompt },
         { role: 'user', content: prompt.userPrompt },

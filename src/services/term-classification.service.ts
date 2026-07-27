@@ -26,6 +26,7 @@ import { AzureOpenAI } from 'openai';
 import type { StandardChargeCategory } from '@prisma/client';
 
 import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages';
 import { callGatewayByModelKey } from '@/services/llm';
 
 /**
@@ -313,6 +314,7 @@ export async function classifyTerms(
         const viaGateway = gatewayEligible
           ? await callGatewayByModelKey({
               modelKey: DEFAULT_MODEL_KEY,
+              stageKey: LLM_STAGE_KEYS.TERM_CLASSIFICATION,
               messages: [{ role: 'user', content: prompt }],
               output: { mode: 'json' }, // 對應既有 response_format: json_object
               temperature: 0.3,
