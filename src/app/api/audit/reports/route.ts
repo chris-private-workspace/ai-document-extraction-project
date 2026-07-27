@@ -4,7 +4,8 @@
  *   提供審計報告生成和管理功能：
  *   - POST: 建立報告任務
  *   - GET: 取得報告任務列表
- *   - 權限控制：僅 AUDITOR 和 GLOBAL_ADMIN 可訪問
+ *   - 權限控制：需 AUDIT_VIEW 或 AUDIT_EXPORT 權限（FIX-134：原以角色名稱
+ *     `['AUDITOR','GLOBAL_ADMIN']` 比對，但實際角色名為 `Auditor` / `System Admin`，永遠不符）
  *
  * @module src/app/api/audit/reports/route
  * @since Epic 8 - Story 8.5 (審計報告匯出)
@@ -24,6 +25,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
+import { sessionHasAuditAccess } from '@/lib/auth/has-permission'
 import { auditReportService } from '@/services/audit-report.service'
 import type { AuditReportConfig } from '@/types/audit-report'
 import type { AuditReportType, ReportOutputFormat, ReportJobStatus2 } from '@prisma/client'
@@ -61,15 +63,6 @@ const listQuerySchema = z.object({
 // ============================================================
 // Helper Functions
 // ============================================================
-
-/**
- * 檢查用戶是否具有審計權限
- */
-function hasAuditAccess(session: { user?: { roles?: Array<{ name: string }> } }): boolean {
-  return session.user?.roles?.some(r =>
-    ['AUDITOR', 'GLOBAL_ADMIN'].includes(r.name)
-  ) ?? false
-}
 
 /**
  * 創建 Zod 驗證錯誤響應
@@ -144,7 +137,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 權限檢查
-    if (!hasAuditAccess(session)) {
+    if (!sessionHasAuditAccess(session.user)) {
       return NextResponse.json(
         {
           type: 'https://api.example.com/errors/forbidden',
@@ -247,7 +240,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 權限檢查
-    if (!hasAuditAccess(session)) {
+    if (!sessionHasAuditAccess(session.user)) {
       return NextResponse.json(
         {
           type: 'https://api.example.com/errors/forbidden',

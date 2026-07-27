@@ -22,6 +22,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { sessionHasPermission } from '@/lib/auth/has-permission';
 import { prisma } from '@/lib/prisma';
 import { PERMISSIONS } from '@/types/permissions';
 import { z } from 'zod';
@@ -49,17 +50,6 @@ const updateStatusSchema = z.object({
 // ============================================================
 // Helper Functions
 // ============================================================
-
-/**
- * 檢查用戶是否擁有指定權限
- */
-function hasPermission(
-  roles: Array<{ permissions: string[] }> | undefined,
-  permission: string
-): boolean {
-  if (!roles) return false;
-  return roles.some((role) => role.permissions.includes(permission));
-}
 
 // ============================================================
 // GET /api/corrections/patterns/[id] - 獲取模式詳情
@@ -96,7 +86,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   // 檢查權限
-  if (!hasPermission(session.user.roles, PERMISSIONS.RULE_VIEW)) {
+  if (!sessionHasPermission(session.user, PERMISSIONS.RULE_VIEW)) {
     return NextResponse.json(
       {
         success: false,
@@ -255,7 +245,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   // 檢查權限
-  if (!hasPermission(session.user.roles, PERMISSIONS.RULE_MANAGE)) {
+  if (!sessionHasPermission(session.user, PERMISSIONS.RULE_MANAGE)) {
     return NextResponse.json(
       {
         success: false,

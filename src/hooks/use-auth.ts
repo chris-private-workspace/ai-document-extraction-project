@@ -15,10 +15,17 @@
  * @module src/hooks/use-auth
  * @author Development Team
  * @since Epic 1 - Story 1.2 (User Database & Role Foundation)
- * @lastModified 2025-12-18
+ * @lastModified 2026-07-27
  *
  * @dependencies
  *   - next-auth/react - NextAuth React 客戶端
+ *   - @/lib/auth/has-permission - 統一權限判斷入口（FIX-134）
+ *
+ * @remarks
+ *   FIX-134：三個權限方法原先只把各 role 的 permissions 展平後做精確比對，
+ *   既不認 wildcard `*` 也不看 `isGlobalAdmin` —— 全域管理員（`permissions: ['*']`）
+ *   在所有依賴這些方法的 UI 元素上都被判定為無權限。現統一委派
+ *   `sessionHasPermission`，與 API 端共用同一份語意。
  *
  * @example
  *   const { user, isAuthenticated, hasPermission } = useAuth()
@@ -31,6 +38,11 @@
 import { useSession } from 'next-auth/react'
 import { useMemo, useCallback } from 'react'
 import type { Session } from 'next-auth'
+import {
+  sessionHasPermission,
+  sessionHasAnyPermission,
+  sessionHasAllPermissions,
+} from '@/lib/auth/has-permission'
 import type { Permission } from '@/types/permissions'
 
 /**
@@ -100,12 +112,14 @@ export function useAuth(): UseAuthReturn {
 
   /**
    * 檢查是否擁有特定權限
+   *
+   * @remarks FIX-134：委派統一入口，認得 wildcard `*` 與 `isGlobalAdmin`
    */
   const hasPermission = useCallback(
     (permission: Permission): boolean => {
-      return permissions.includes(permission)
+      return sessionHasPermission(user, permission)
     },
-    [permissions]
+    [user]
   )
 
   /**
@@ -113,9 +127,9 @@ export function useAuth(): UseAuthReturn {
    */
   const hasAnyPermission = useCallback(
     (requiredPermissions: Permission[]): boolean => {
-      return requiredPermissions.some((p) => permissions.includes(p))
+      return sessionHasAnyPermission(user, requiredPermissions)
     },
-    [permissions]
+    [user]
   )
 
   /**
@@ -123,9 +137,9 @@ export function useAuth(): UseAuthReturn {
    */
   const hasAllPermissions = useCallback(
     (requiredPermissions: Permission[]): boolean => {
-      return requiredPermissions.every((p) => permissions.includes(p))
+      return sessionHasAllPermissions(user, requiredPermissions)
     },
-    [permissions]
+    [user]
   )
 
   /**

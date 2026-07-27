@@ -26,6 +26,7 @@
  *   - src/services/user.service.ts - 用戶服務
  */
 
+import { permissionListHas } from '@/lib/auth/has-permission'
 import { prisma } from '@/lib/prisma'
 import type { Role, UserRole } from '@prisma/client'
 import { DEFAULT_ROLE } from '@/types/role-permissions'
@@ -253,13 +254,20 @@ export async function removeRoleFromUser(
  * @param userId - 用戶 ID
  * @param permission - 權限字串
  * @returns 是否擁有該權限
+ *
+ * @remarks
+ *   FIX-134：改用 `permissionListHas` 以認得 wildcard `*`。
+ *   `getUserPermissions()` 原樣回傳 DB 中的權限字串，System Admin 為 `['*']`，
+ *   而 `['*'].includes('audit:view')` 為 `false` —— 舊寫法會把最高權限帳號判為無權限。
+ *   ⚠️ 此處無 session，故**無法**檢查 `isGlobalAdmin`；需要該面向者請用
+ *   `sessionHasPermission`。
  */
 export async function hasPermission(
   userId: string,
   permission: string
 ): Promise<boolean> {
   const permissions = await getUserPermissions(userId)
-  return permissions.includes(permission)
+  return permissionListHas(permissions, permission)
 }
 
 /**
@@ -267,13 +275,15 @@ export async function hasPermission(
  * @param userId - 用戶 ID
  * @param permissions - 權限字串陣列
  * @returns 是否擁有任一權限
+ *
+ * @remarks FIX-134：同 `hasPermission`，認得 wildcard `*`
  */
 export async function hasAnyPermission(
   userId: string,
   permissions: string[]
 ): Promise<boolean> {
   const userPermissions = await getUserPermissions(userId)
-  return permissions.some((p) => userPermissions.includes(p))
+  return permissions.some((p) => permissionListHas(userPermissions, p))
 }
 
 /**
@@ -281,13 +291,15 @@ export async function hasAnyPermission(
  * @param userId - 用戶 ID
  * @param permissions - 權限字串陣列
  * @returns 是否擁有所有權限
+ *
+ * @remarks FIX-134：同 `hasPermission`，認得 wildcard `*`
  */
 export async function hasAllPermissions(
   userId: string,
   permissions: string[]
 ): Promise<boolean> {
   const userPermissions = await getUserPermissions(userId)
-  return permissions.every((p) => userPermissions.includes(p))
+  return permissions.every((p) => permissionListHas(userPermissions, p))
 }
 
 /**

@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { auth } from '@/lib/auth'
+import { sessionHasPermission } from '@/lib/auth/has-permission'
 import { redirect } from 'next/navigation'
 import { PERMISSIONS } from '@/types/permissions'
 import { ReviewDetailPage } from '@/components/features/rule-review'
@@ -63,12 +64,8 @@ export default async function ReviewPage({ params }: PageProps) {
   const { id } = await params
   const session = await auth()
 
-  // 權限檢查
-  const hasPermission = session?.user?.roles?.some((r) =>
-    r.permissions.includes(PERMISSIONS.RULE_APPROVE)
-  )
-
-  if (!hasPermission) {
+  // 權限檢查（FIX-134：統一入口，認得 wildcard `*` 與 isGlobalAdmin）
+  if (!sessionHasPermission(session?.user, PERMISSIONS.RULE_APPROVE)) {
     redirect('/unauthorized')
   }
 
