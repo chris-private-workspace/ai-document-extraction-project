@@ -27,6 +27,13 @@
  *     SPIKE_RUNS       每份每模型重跑次數（預設 3，測非確定性）
  *     SPIKE_OUT_DIR    輸出目錄（預設用 scratchpad）
  *     AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY / AZURE_OPENAI_DEPLOYMENT_NAME（Stage 3 gpt-5.2）
+ *
+ *   Story 23.3 起可切非 Azure 做對比（炸彈① 的非 Azure 對照組）：
+ *     SPIKE_PROVIDER              azure（預設）| anthropic
+ *     ANTHROPIC_API_KEY           SPIKE_PROVIDER=anthropic 時必填（放 .env，勿寫入指令列）
+ *     SPIKE_ANTHROPIC_MODEL       預設 claude-opus-5
+ *     SPIKE_ANTHROPIC_MAX_TOKENS  預設 32000（thinking 與回應共用上限）
+ *   ⚠️ 切 anthropic 代表真實發票內容送出至 Anthropic — 屬資料出境，需組織 sign-off（D4/§7）。
  */
 
 import 'dotenv/config';
@@ -38,6 +45,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 // 相對 import：pdf-converter.ts 自身零 @/ 依賴（僅動態 import pdf-to-img / sharp），可安全直接引用
 import { PdfConverter } from '../../src/services/extraction-v3/utils/pdf-converter';
+// AI SDK（D5）：非 Azure provider 一律經 SDK，不手寫各家 wire 格式
+import { generateObject, jsonSchema as aiJsonSchema } from 'ai';
+import type { ModelMessage } from 'ai';
+import { createAnthropic } from '@ai-sdk/anthropic';
 
 // ============================================================
 // 配置
@@ -57,6 +68,13 @@ const AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT_NAME ?? 'gpt-5-2-vi
 const AZURE_API_VERSION = '2024-12-01-preview'; // 對齊 gpt-caller.service.ts:155
 const AZURE_MAX_TOKENS = 8192; // 對齊 llm-models.ts gpt-5.2
 const AZURE_TEMPERATURE = 0.1; // gpt-5.2 supportsTemperature
+
+/** 選用的 provider：`azure`（預設、合規基準）或 `anthropic`（Story 23.3，資料出境） */
+const SPIKE_PROVIDER = (process.env.SPIKE_PROVIDER ?? 'azure').toLowerCase();
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? '';
+const ANTHROPIC_MODEL = process.env.SPIKE_ANTHROPIC_MODEL ?? 'claude-opus-5';
+/** 需大於 Azure 的 8192：Claude 的 thinking 與回應共用此上限，太小會思考完就截斷 */
+const ANTHROPIC_MAX_TOKENS = Number(process.env.SPIKE_ANTHROPIC_MAX_TOKENS ?? 32000);
 
 const STORAGE_CONN = process.env.AZURE_STORAGE_CONNECTION_STRING ?? '';
 const STORAGE_CONTAINER = process.env.AZURE_STORAGE_CONTAINER ?? 'documents';
@@ -83,6 +101,8 @@ interface ModelCallResult {
   usage: { input: number; output: number; total: number };
   durationMs: number;
   error?: string;
+  /** true = structured output 被 provider 拒絕，改走無 schema（比對時該回合無結構約束） */
+  degraded?: boolean;
 }
 
 /** callModel 抽象：現在只接 Azure；非 Azure 之後在 buildCaller() 加分支 */
@@ -145,13 +165,18 @@ function deriveSchema(node: unknown): Record<string, unknown> {
     if ('value' in rec && 'confidence' in rec) {
       return {
         type: 'object',
-        properties: { value: { type: ['string', 'number', 'null'] }, confidence: { type: 'number' } },
+        // value 用單一 string：Anthropic 的 grammar 對 union 型別有上限（16），
+        // `['string','number','null']` 會讓整份 schema 爆掉。比對不受影響——
+        // normValue() 會把數字字串正規化成數值、空字串與 null 同視為空。
+        properties: { value: { type: 'string' }, confidence: { type: 'number' } },
         required: ['value', 'confidence'],
       };
     }
     const properties: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rec)) properties[k] = deriveSchema(v);
-    return { type: 'object', properties };
+    // 全標 required：基準回應本來就含這些 key，且 Anthropic 的 grammar 編譯對
+    // optional 參數有上限（24）——留白會直接被拒。兩個 provider 用同一組約束才可比。
+    return { type: 'object', properties, required: Object.keys(properties) };
   }
   if (typeof node === 'number') return { type: 'number' };
   if (typeof node === 'boolean') return { type: 'boolean' };
@@ -200,6 +225,133 @@ function buildAzureCaller(): ModelCaller {
       return { content: '', usage: { input: 0, output: 0, total: 0 }, durationMs: Date.now() - start, error: e instanceof Error ? e.message : String(e) };
     }
   };
+}
+
+/**
+ * OpenAI 形狀訊息 → AI SDK 的 `instructions` + `ModelMessage[]`（Anthropic caller 用）。
+ *
+ * @description 兩個轉換重點：
+ *   - 圖片以 data URL 傳入（`data:image/png;base64,...`），需拆成 AI SDK 的 `FilePart`
+ *     （`ImagePart` 已 deprecated）。`image_url.detail` 不轉發：Anthropic 無對應旋鈕
+ *     （該欄是 OpenAI 專屬），忠實作法是不捏造。
+ *   - **system 必須抽離 `messages`**：AI SDK v7 的 `standardizePrompt` 見到 `role: 'system'`
+ *     即丟 `InvalidPromptError`，要求改用 `instructions`。
+ */
+function toAiSdkPrompt(messages: ChatMessage[]): {
+  instructions?: string;
+  messages: ModelMessage[];
+} {
+  const instructionTexts: string[] = [];
+  const conversation: ModelMessage[] = [];
+
+  for (const m of messages) {
+    if (m.role === 'system') {
+      instructionTexts.push(
+        typeof m.content === 'string'
+          ? m.content
+          : m.content.map((p) => String(p.text ?? '')).join('\n')
+      );
+      continue;
+    }
+    if (typeof m.content === 'string') {
+      conversation.push({ role: m.role, content: m.content } as ModelMessage);
+      continue;
+    }
+    const parts = m.content.map((part) => {
+      if (part.type === 'image_url') {
+        const url = String((part.image_url as { url?: string } | undefined)?.url ?? '');
+        const match = url.match(/^data:([^;]+);base64,(.*)$/);
+        if (match) {
+          return { type: 'file' as const, mediaType: match[1], data: match[2] };
+        }
+        return { type: 'file' as const, mediaType: 'image/png', data: url };
+      }
+      return { type: 'text' as const, text: String(part.text ?? '') };
+    });
+    conversation.push({ role: m.role, content: parts } as ModelMessage);
+  }
+
+  return {
+    ...(instructionTexts.length ? { instructions: instructionTexts.join('\n\n') } : {}),
+    messages: conversation,
+  };
+}
+
+/**
+ * 建 Anthropic (Claude) caller（Story 23.3，經 Vercel AI SDK — 對齊 D5 與生產 gateway）。
+ *
+ * @description 與 Azure caller 的三個關鍵差異（誤用會直接 400 或量錯）：
+ *   - **不送 `temperature`**：Claude Opus 4.7 以後移除 sampling 參數，送了回 400。
+ *   - **thinking 預設開啟**且與回應共用 `max_tokens` → 需較大的 `maxOutputTokens`，
+ *     否則會在思考後截斷（`stop_reason: max_tokens`），把截斷誤讀成「模型較差」。
+ *   - **structured output 走 native tool-mode**（`@ai-sdk/anthropic` 自動處理），
+ *     不可用 OpenAI-compat 端點（在 Anthropic 上 structured output 會失效）。
+ */
+function buildAnthropicCaller(): ModelCaller {
+  const provider = createAnthropic({ apiKey: ANTHROPIC_API_KEY });
+  const model = provider.languageModel(ANTHROPIC_MODEL);
+  return async (messages, schema) => {
+    const start = Date.now();
+    const { instructions, messages: aiMessages } = toAiSdkPrompt(messages);
+    const promptParts = {
+      model,
+      ...(instructions ? { instructions } : {}),
+      messages: aiMessages,
+      maxOutputTokens: ANTHROPIC_MAX_TOKENS,
+    };
+    const toResult = (
+      r: { object: unknown; usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } },
+      degraded: boolean
+    ): ModelCallResult => ({
+      content: JSON.stringify(r.object),
+      usage: {
+        input: r.usage.inputTokens ?? 0,
+        output: r.usage.outputTokens ?? 0,
+        total: r.usage.totalTokens ?? 0,
+      },
+      durationMs: Date.now() - start,
+      ...(degraded ? { degraded: true } : {}),
+    });
+    const toError = (e: unknown): ModelCallResult => ({
+      content: '',
+      usage: { input: 0, output: 0, total: 0 },
+      durationMs: Date.now() - start,
+      error: e instanceof Error ? e.message : String(e),
+    });
+
+    try {
+      const r = schema
+        ? await generateObject({ ...promptParts, schema: aiJsonSchema(schema) })
+        : await generateObject({ ...promptParts, output: 'no-schema' });
+      return toResult(r, false);
+    } catch (e) {
+      // 鏡射生產 gateway 的 G10 降級：structured output 被拒 → 改走無 schema。
+      // Anthropic 的 grammar 編譯對 schema 規模有硬上限，Stage 3 的 25-30 欄位形狀
+      // （generateOutputSchema）會直接超標，故此降級是常態而非例外。
+      if (!schema) return toError(e);
+      try {
+        return toResult(await generateObject({ ...promptParts, output: 'no-schema' }), true);
+      } catch (fallbackError) {
+        return toError(fallbackError);
+      }
+    }
+  };
+}
+
+/**
+ * 依 `SPIKE_PROVIDER` 選 caller。
+ *
+ * @remarks ⚠️ 選 `anthropic` 代表**真實發票會送出至 Anthropic**（資料出境）。
+ *   預設維持 `azure`（合規基準），需明確指定才會切換。
+ */
+function buildCaller(): ModelCaller {
+  if (SPIKE_PROVIDER === 'anthropic') {
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error('SPIKE_PROVIDER=anthropic 需設定 ANTHROPIC_API_KEY');
+    }
+    return buildAnthropicCaller();
+  }
+  return buildAzureCaller();
 }
 
 /**
@@ -341,6 +493,8 @@ interface DocRunResult {
   runs: Array<{
     ok: boolean;
     error?: string;
+    /** structured output 被拒、改走無 schema（見 ModelCallResult.degraded） */
+    degraded?: boolean;
     overallConfidence: number | null;
     fieldConfidences: number[]; // 各欄位自評 confidence
     agreementRate: number | null; // 與基準原始回應的欄位值一致率
@@ -410,6 +564,7 @@ async function runDoc(doc: SampleDoc, caller: ModelCaller, runs: number): Promis
 
     result.runs.push({
       ok: true,
+      ...(call.degraded ? { degraded: true } : {}),
       overallConfidence: getOverallConfidence(parsed),
       fieldConfidences,
       agreementRate: compared > 0 ? matched / compared : null,
@@ -446,6 +601,7 @@ function summarize(results: DocRunResult[]) {
   const allAgreement: number[] = [];
   let okRuns = 0;
   let failRuns = 0;
+  let degradedRuns = 0;
 
   for (const r of results) {
     for (const run of r.runs) {
@@ -454,6 +610,7 @@ function summarize(results: DocRunResult[]) {
         continue;
       }
       okRuns++;
+      if (run.degraded) degradedRuns++;
       if (run.overallConfidence !== null) allOverall.push(run.overallConfidence);
       allFieldConf.push(...run.fieldConfidences);
       if (run.agreementRate !== null) allAgreement.push(run.agreementRate * 100);
@@ -472,6 +629,8 @@ function summarize(results: DocRunResult[]) {
     docs: results.length,
     okRuns,
     failRuns,
+    /** 成功回合中「structured output 被拒、改走無 schema」的數量 */
+    degradedRuns,
     overallConfidence: { n: allOverall.length, min: round1(Math.min(...allOverall)), avg: round1(avg(allOverall)), p50: round1(pct(allOverall, 50)), max: round1(Math.max(...allOverall)) },
     fieldConfidence: { n: allFieldConf.length, min: round1(Math.min(...allFieldConf)), avg: round1(avg(allFieldConf)), p50: round1(pct(allFieldConf, 50)), max: round1(Math.max(...allFieldConf)) },
     agreementWithBaselinePct: { n: allAgreement.length, min: round1(Math.min(...allAgreement)), avg: round1(avg(allAgreement)), p50: round1(pct(allAgreement, 50)), max: round1(Math.max(...allAgreement)) },
@@ -484,7 +643,9 @@ function summarize(results: DocRunResult[]) {
 // ============================================================
 
 async function main() {
-  const modelLabel = `azure:${AZURE_DEPLOYMENT}`;
+  // 標籤須反映實際 provider：否則 anthropic 的輸出會被標成 azure，日後無從分辨
+  const modelLabel =
+    SPIKE_PROVIDER === 'anthropic' ? `anthropic:${ANTHROPIC_MODEL}` : `azure:${AZURE_DEPLOYMENT}`;
   console.log(`[spike] 開始 — 模型=${modelLabel}, N=${SAMPLE_N}, runs/doc=${RUNS_PER_DOC}`);
 
   // 前置檢查
@@ -507,7 +668,11 @@ async function main() {
     process.exit(1);
   }
 
-  const caller = buildAzureCaller();
+  const caller = buildCaller();
+  console.log(
+    `[spike] provider=${SPIKE_PROVIDER}` +
+      (SPIKE_PROVIDER === 'anthropic' ? ` model=${ANTHROPIC_MODEL}（⚠️ 發票內容將送出至 Anthropic）` : '')
+  );
   const results: DocRunResult[] = [];
   for (let i = 0; i < docs.length; i++) {
     const d = docs[i];

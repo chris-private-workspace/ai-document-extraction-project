@@ -339,6 +339,52 @@ describe('LlmProviderService', () => {
       vi.unstubAllGlobals();
     });
 
+    it('should probe the Anthropic models endpoint with x-api-key and anthropic-version (Story 23.3)', async () => {
+      vi.mocked(prisma.llmProvider.findUnique).mockResolvedValue(
+        dbProvider({
+          providerType: 'ANTHROPIC',
+          baseUrl: null,
+          apiKeyEnc: 'enc(sk-ant-key)',
+          isEncrypted: true,
+        }) as never,
+      );
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const r = await llmProviderService.testConnection('p-1', actor);
+
+      expect(r).toMatchObject({ success: true, supported: true, statusCode: 200 });
+      const [url, init] = fetchMock.mock.calls[0] as [
+        string,
+        { headers: Record<string, string> },
+      ];
+      // 未填 baseUrl → 官方預設前綴；認證用 x-api-key（非 Bearer）
+      expect(String(url)).toBe('https://api.anthropic.com/v1/models');
+      expect(init.headers['x-api-key']).toBe('sk-ant-key');
+      expect(init.headers['anthropic-version']).toBe('2023-06-01');
+      expect(lastAudit().action).toBe('READ');
+      vi.unstubAllGlobals();
+    });
+
+    it('should honour a self-hosted Anthropic baseUrl and report a failed status', async () => {
+      vi.mocked(prisma.llmProvider.findUnique).mockResolvedValue(
+        dbProvider({
+          providerType: 'ANTHROPIC',
+          baseUrl: 'https://proxy.internal/v1/',
+          apiKeyEnc: 'enc(sk-ant-key)',
+          isEncrypted: true,
+        }) as never,
+      );
+      const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const r = await llmProviderService.testConnection('p-1', actor);
+
+      expect(r).toMatchObject({ success: false, supported: true, statusCode: 401 });
+      expect(String(fetchMock.mock.calls[0][0])).toBe('https://proxy.internal/v1/models');
+      vi.unstubAllGlobals();
+    });
+
     it('should throw PROVIDER_NOT_FOUND for unknown id', async () => {
       vi.mocked(prisma.llmProvider.findUnique).mockResolvedValue(null as never);
       await expect(llmProviderService.testConnection('nope', actor)).rejects.toMatchObject({

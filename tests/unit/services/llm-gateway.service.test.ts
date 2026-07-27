@@ -264,6 +264,102 @@ describe('LlmGatewayService', () => {
     });
   });
 
+  /**
+   * 回歸：AI SDK v7 的 `standardizePrompt` 見到 `role: 'system'` 混在 `messages` 即丟
+   * `InvalidPromptError`（"Use the instructions option instead"），且**與 provider 無關**。
+   * Stage 3 的 prompt 一定帶 system 段 → 若未抽離，gateway 每次呼叫都會失敗。
+   */
+  describe('system 指示抽離（AI SDK v7 契約）', () => {
+    const SYS_AND_USER: LlmMessage[] = [
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'usr' },
+    ];
+
+    it('should send system content via instructions and keep messages free of the system role', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: SYS_AND_USER,
+        output: { mode: 'text' },
+      });
+
+      const settings = vi.mocked(generateText).mock.calls[0][0] as {
+        instructions?: string;
+        messages: Array<{ role: string }>;
+      };
+      expect(settings.instructions).toBe('sys');
+      expect(settings.messages.map((m) => m.role)).toEqual(['user']);
+    });
+
+    it('should merge multiple system messages in order', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: [
+          { role: 'system', content: 'first' },
+          { role: 'user', content: 'usr' },
+          { role: 'system', content: 'second' },
+        ],
+        output: { mode: 'text' },
+      });
+
+      const settings = vi.mocked(generateText).mock.calls[0][0] as { instructions?: string };
+      expect(settings.instructions).toBe('first\n\nsecond');
+    });
+
+    it('should omit instructions entirely when no system message is present', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: USER_MSG,
+        output: { mode: 'text' },
+      });
+
+      expect(vi.mocked(generateText).mock.calls[0][0]).not.toHaveProperty('instructions');
+    });
+
+    it('should preserve instructions through the G10 text fallback', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateObject).mockRejectedValue(new Error('schema unsupported'));
+      vi.mocked(generateText).mockResolvedValue({
+        text: '{"a":1}',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: SYS_AND_USER,
+        output: { mode: 'object', jsonSchema: { type: 'object' } },
+      });
+
+      const settings = vi.mocked(generateText).mock.calls[0][0] as {
+        instructions?: string;
+        messages: Array<{ role: string }>;
+      };
+      expect(settings.instructions).toBe('sys');
+      expect(settings.messages.some((m) => m.role === 'system')).toBe(false);
+    });
+  });
+
   describe('G10 降級（§3.6）', () => {
     it('should fall back to generateText when generateObject fails', async () => {
       vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);

@@ -25,9 +25,10 @@
  */
 
 import { generateText, generateObject, jsonSchema } from 'ai';
-import type { FilePart, ModelMessage } from 'ai';
+import type { FilePart, LanguageModel, ModelMessage } from 'ai';
 import type { ProviderOptions } from '@ai-sdk/provider-utils';
 import { createAzure } from '@ai-sdk/azure';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import type { LlmProviderType } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
@@ -99,7 +100,13 @@ interface ResolvedModel {
 /** 組裝完成、待送出的呼叫（供 call() 與 describeCall() 共用） */
 interface PreparedCall {
   resolved: ResolvedModel;
-  model: ReturnType<ReturnType<typeof createAzure>['chat']>;
+  /**
+   * provider 無關的 AI SDK 模型控制代碼（Story 23.3 起不再綁 Azure）。
+   * 由 {@link LlmGatewayService.buildModel} 依 `providerType` 建出。
+   */
+  model: LanguageModel;
+  /** system 指示（AI SDK v7 起不得混在 `messages`，須以獨立參數送出） */
+  instructions?: string;
   aiMessages: ModelMessage[];
   output: LlmOutputSpec;
   maxOutputTokens: number;
@@ -183,9 +190,17 @@ function toFilePart(img: LlmImagePart): FilePart {
   return part;
 }
 
-/** 組裝訊息 → 去敏快照（§3.8）：角色 + 內容部位種類，圖片附帶實際轉發的 `imageDetail` */
-function summarizeAssembledMessages(messages: ModelMessage[]): LlmAssembledMessage[] {
-  return messages.map((m): LlmAssembledMessage => {
+/**
+ * 組裝訊息 → 去敏快照（§3.8）：角色 + 內容部位種類，圖片附帶實際轉發的 `imageDetail`。
+ *
+ * @param instructions 已抽離 `messages` 的 system 指示；快照仍需呈現它確實被送出，
+ *   否則診斷畫面會看似「prompt 少了 system 段」。
+ */
+function summarizeAssembledMessages(
+  messages: ModelMessage[],
+  instructions?: string,
+): LlmAssembledMessage[] {
+  const summarized = messages.map((m): LlmAssembledMessage => {
     const role = m.role as LlmMessageRole;
     if (typeof m.content === 'string') {
       return { role, parts: [{ kind: 'text' }] };
@@ -201,20 +216,32 @@ function summarizeAssembledMessages(messages: ModelMessage[]): LlmAssembledMessa
     );
     return { role, parts };
   });
+  return instructions ? [{ role: 'system', parts: [{ kind: 'text' }] }, ...summarized] : summarized;
 }
 
 /**
- * 映射 provider-agnostic 訊息 → AI SDK `ModelMessage[]`。
- * 圖片附加到**最後一則 user 訊息**，且**圖片在前、文字在後**（對齊現行 gpt-caller 擺法）。
+ * 映射 provider-agnostic 訊息 → AI SDK 的 `instructions` + `ModelMessage[]`。
+ *
+ * @description 圖片附加到**最後一則 user 訊息**，且**圖片在前、文字在後**（對齊現行 gpt-caller 擺法）。
+ *
+ *   ⚠️ **system 必須抽離 `messages`**：AI SDK v7 的 `standardizePrompt` 見到 `role: 'system'`
+ *   即丟 `InvalidPromptError`（"Use the instructions option instead"），且**與 provider 無關**
+ *   ——Azure 與 Anthropic 一樣會炸。多則 system 依原順序以空行合併。
  */
-function toAiMessages(messages: LlmMessage[], images?: LlmImagePart[]): ModelMessage[] {
+function toAiMessages(
+  messages: LlmMessage[],
+  images?: LlmImagePart[],
+): { instructions?: string; messages: ModelMessage[] } {
+  const instructionTexts = messages.filter((m) => m.role === 'system').map((m) => m.content);
+  const conversation = messages.filter((m) => m.role !== 'system');
+
   const hasImages = !!images && images.length > 0;
   let lastUserIdx = -1;
-  for (let i = 0; i < messages.length; i++) {
-    if (messages[i].role === 'user') lastUserIdx = i;
+  for (let i = 0; i < conversation.length; i++) {
+    if (conversation[i].role === 'user') lastUserIdx = i;
   }
 
-  const result: ModelMessage[] = messages.map((m, i) => {
+  const result: ModelMessage[] = conversation.map((m, i) => {
     if (hasImages && m.role === 'user' && i === lastUserIdx) {
       return {
         role: 'user',
@@ -228,7 +255,10 @@ function toAiMessages(messages: LlmMessage[], images?: LlmImagePart[]): ModelMes
   if (hasImages && lastUserIdx === -1) {
     result.push({ role: 'user', content: images!.map(toFilePart) });
   }
-  return result;
+  return {
+    ...(instructionTexts.length ? { instructions: instructionTexts.join('\n\n') } : {}),
+    messages: result,
+  };
 }
 
 /** AI SDK usage（inputTokens/outputTokens/totalTokens，皆可能 undefined）→ LlmCallUsage */
@@ -599,7 +629,7 @@ export class LlmGatewayService {
       maxOutputTokens: prepared.maxOutputTokens,
       temperature: prepared.temperature,
       maxRetries: prepared.maxRetries,
-      assembledMessages: summarizeAssembledMessages(prepared.aiMessages),
+      assembledMessages: summarizeAssembledMessages(prepared.aiMessages, prepared.instructions),
     };
   }
 
@@ -628,7 +658,7 @@ export class LlmGatewayService {
   private async prepare(input: LlmCallInput): Promise<PreparedCall> {
     const resolved = await this.resolveModel(input.modelId);
     const model = this.buildModel(resolved);
-    const aiMessages = toAiMessages(input.messages, input.images);
+    const { instructions, messages: aiMessages } = toAiMessages(input.messages, input.images);
     const output: LlmOutputSpec = input.output ?? { mode: 'text' };
     const temperature = resolveTemperature(input.temperature, resolved.capability);
     const maxOutputTokens = input.maxOutputTokens ?? resolved.capability.maxTokens;
@@ -639,6 +669,7 @@ export class LlmGatewayService {
     return {
       resolved,
       model,
+      instructions,
       aiMessages,
       output,
       maxOutputTokens,
@@ -677,7 +708,12 @@ export class LlmGatewayService {
       deploymentName,
       capability,
       apiKey,
-      baseUrl: provider.baseUrl ?? process.env.AZURE_OPENAI_ENDPOINT ?? '',
+      // env fallback 僅限 Azure：否則未填 baseUrl 的非 Azure provider 會被導向 Azure 端點
+      baseUrl:
+        provider.baseUrl ??
+        (provider.providerType === 'AZURE_OPENAI'
+          ? (process.env.AZURE_OPENAI_ENDPOINT ?? '')
+          : ''),
       apiVersion: provider.apiVersion ?? DEFAULT_AZURE_API_VERSION,
     };
   }
@@ -702,11 +738,13 @@ export class LlmGatewayService {
     throw new LlmGatewayError(`Provider 缺少憑證: ${provider.name}`, 'MISSING_CREDENTIAL');
   }
 
-  /** 依 provider 型別建 AI SDK model（本 step 僅 Azure） */
+  /** 依 provider 型別建 AI SDK model（Azure + Anthropic；其餘待 Story 23.4） */
   private buildModel(resolved: ResolvedModel): PreparedCall['model'] {
     switch (resolved.providerType) {
       case 'AZURE_OPENAI':
         return this.buildAzureModel(resolved);
+      case 'ANTHROPIC':
+        return this.buildAnthropicModel(resolved);
       default:
         throw new LlmGatewayError(
           `Provider 型別尚未支援（Story 23.3 擴充）: ${resolved.providerType}`,
@@ -732,10 +770,31 @@ export class LlmGatewayService {
     return provider.chat(resolved.deploymentName);
   }
 
+  /**
+   * 建 Anthropic (Claude) model（Story 23.3）。
+   *
+   * @description
+   *   與 Azure 的差異：
+   *   - **模型識別用 `modelKey`**（如 `claude-opus-5`），非 Azure 的 deployment 名。
+   *   - **無 api-version**：Anthropic 版本走 `anthropic-version` header，由 SDK 內部帶。
+   *   - `baseUrl` 留空即用官方預設 `https://api.anthropic.com/v1`（僅自架 proxy 才需填）。
+   *   - structured output 由 native provider 自動走 tool-mode（OpenAI-compat 端點在此會失效，
+   *     故用 `@ai-sdk/anthropic` 而非 compat 層）。
+   */
+  private buildAnthropicModel(resolved: ResolvedModel): PreparedCall['model'] {
+    const trimmed = resolved.baseUrl.replace(/\/+$/, '');
+    const provider = createAnthropic({
+      apiKey: resolved.apiKey,
+      ...(trimmed ? { baseURL: trimmed } : {}),
+    });
+    return provider.languageModel(resolved.modelKey);
+  }
+
   /** 組裝 generateText/generateObject 共用參數（conditional 併入 temperature/providerOptions） */
   private buildSettings(prepared: PreparedCall) {
     return {
       model: prepared.model,
+      ...(prepared.instructions ? { instructions: prepared.instructions } : {}),
       messages: prepared.aiMessages,
       maxOutputTokens: prepared.maxOutputTokens,
       maxRetries: prepared.maxRetries,

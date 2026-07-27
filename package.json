@@ -47,6 +47,7 @@
   },
   "homepage": "https://github.com/laitim2001/ai-document-extraction-project#readme",
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.21",
     "@ai-sdk/azure": "^4.0.9",
     "@auth/prisma-adapter": "^2.11.1",
     "@azure/ai-form-recognizer": "^5.1.0",

@@ -1,7 +1,7 @@
 # Epic 23 — AI 助手接手指引（Onboarding / Handoff）
 
 > **這份文件是什麼**：給**任何新 AI 助手**（新 session / 新電腦 / 新 worktree）快速進入 Epic 23 狀況的**單一入口**。讀完這份 + 下方連結的文件，就能無縫接續，不必回溯對話歷史。
-> **最後更新**：2026-07-27（規格 v0.4.0；Phase 0 spike 完成；**Story 23.1 step 1–5 + 4b 完成**；**Story 23.2 step 1–3 完成**：憑證/Provider CRUD 服務 + 管理 API（`/api/v1/llm-providers`）+ 後台頁 `admin/llm-providers`（列表/新增/編輯遮罩憑證/連線測試/非 Azure 合規勾選）+ `model-settings` id-based 擴充（`StageModelAssignment` 為指派真實來源、下拉改 DB 已啟用 provider 模型、非 Azure 核心環節準確率回歸警示；**Azure key-bridge 保留、非 Azure 實際執行留 23.3**）。仍剩：harness 實跑等價 + §6.1 per-model 校準（歸 23.3）+ **Story 23.2 E2E 完成**（2026-07-10：本專案首個 Playwright E2E 框架 — `playwright.config.ts`〔webServer 啟乾淨端口 dev server、覆蓋 AUTH_URL/清空 Azure AD 憑證恢復 dev 認證〕+ `tests/e2e/auth.setup.ts`〔dev 登入 globalAdmin → storageState〕+ `tests/e2e/llm-providers.spec.ts`〔provider+model 完整 CRUD 流程〕+ `@playwright/test` devDep + `test:e2e` script；**實跑綠燈 2 passed**〔dev server + 真 DB〕。重跑前置：worktree 需複製主 repo `.env`、chromium build 1200 已裝於全域 cache）；**Story 23.2 模型管理 UI 完成**（2026-07-10：provider 子頁 `admin/llm-providers/[id]/models` 完整 CRUD — 列表／新增／編輯／停用 isEnabled／刪除；補 `[modelId]` PATCH+DELETE route + service `updateModel`/`deleteModel` + 審計 resourceType=LlmModel + 6 service 測試；provider 列表加「管理模型」入口；新增 `models.*` i18n 子樹三語同步）；**Story 23.3 韌性骨架完成**（gateway per-provider circuit breaker〔預設 on、opt-out〕+ failover 骨架〔opt-in `FEATURE_LLM_FAILOVER`，切 isDefault〕+ 健康檢查複用 testConnection；出站限流屬 23.4；⚠️ 非 Azure failover 實際生效待非 Azure wired））；**Story 23.3 P1 完成**（2026-07-27：per-model 信心度路由閾值校準**地基** — `LlmModel.routingThresholds Json?` + `LlmModelConfigService.getRoutingThresholds(stage)`〔per-model → per-provider → null 三層 fallback，不合法設定 warn 不靜默〕+ `ConfidenceV3_1Service` `options.thresholds`〔Partial 覆蓋，未傳即全域 90/70〕+ `extraction-v3.service` Step 6 串接〔讀取失敗只記 warning 不阻斷〕；**未校準時行為零變**；D9-a 拍板方案 A + H1 approve 同日；15 unit test。⚠️ 實際校準值屬 **P2**，仍阻塞於 gold set〔OQ-A〕與非 Azure key〔OQ-B〕；上 Azure 前需補 `apply-schema-drift.js` 條目）｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
+> **最後更新**：2026-07-27（規格 v0.4.0；Phase 0 spike 完成；**Story 23.1 step 1–5 + 4b 完成**；**Story 23.2 step 1–3 完成**：憑證/Provider CRUD 服務 + 管理 API（`/api/v1/llm-providers`）+ 後台頁 `admin/llm-providers`（列表/新增/編輯遮罩憑證/連線測試/非 Azure 合規勾選）+ `model-settings` id-based 擴充（`StageModelAssignment` 為指派真實來源、下拉改 DB 已啟用 provider 模型、非 Azure 核心環節準確率回歸警示；**Azure key-bridge 保留、非 Azure 實際執行留 23.3**）。仍剩：harness 實跑等價 + §6.1 per-model 校準（歸 23.3）+ **Story 23.2 E2E 完成**（2026-07-10：本專案首個 Playwright E2E 框架 — `playwright.config.ts`〔webServer 啟乾淨端口 dev server、覆蓋 AUTH_URL/清空 Azure AD 憑證恢復 dev 認證〕+ `tests/e2e/auth.setup.ts`〔dev 登入 globalAdmin → storageState〕+ `tests/e2e/llm-providers.spec.ts`〔provider+model 完整 CRUD 流程〕+ `@playwright/test` devDep + `test:e2e` script；**實跑綠燈 2 passed**〔dev server + 真 DB〕。重跑前置：worktree 需複製主 repo `.env`、chromium build 1200 已裝於全域 cache）；**Story 23.2 模型管理 UI 完成**（2026-07-10：provider 子頁 `admin/llm-providers/[id]/models` 完整 CRUD — 列表／新增／編輯／停用 isEnabled／刪除；補 `[modelId]` PATCH+DELETE route + service `updateModel`/`deleteModel` + 審計 resourceType=LlmModel + 6 service 測試；provider 列表加「管理模型」入口；新增 `models.*` i18n 子樹三語同步）；**Story 23.3 韌性骨架完成**（gateway per-provider circuit breaker〔預設 on、opt-out〕+ failover 骨架〔opt-in `FEATURE_LLM_FAILOVER`，切 isDefault〕+ 健康檢查複用 testConnection；出站限流屬 23.4；⚠️ 非 Azure failover 實際生效待非 Azure wired））；**Story 23.3 P1 完成**（2026-07-27：per-model 信心度路由閾值校準**地基** — `LlmModel.routingThresholds Json?` + `LlmModelConfigService.getRoutingThresholds(stage)`〔per-model → per-provider → null 三層 fallback，不合法設定 warn 不靜默〕+ `ConfidenceV3_1Service` `options.thresholds`〔Partial 覆蓋，未傳即全域 90/70〕+ `extraction-v3.service` Step 6 串接〔讀取失敗只記 warning 不阻斷〕；**未校準時行為零變**；D9-a 拍板方案 A + H1 approve 同日；15 unit test。⚠️ 實際校準值屬 **P2**，仍阻塞於 gold set〔OQ-A〕與非 Azure key〔OQ-B〕；上 Azure 前需補 `apply-schema-drift.js` 條目）；**Story 23.3 首個非 Azure provider 接線完成**（2026-07-27：裝 `@ai-sdk/anthropic@4.0.21`〔H2 批准〕；gateway `buildModel` 加 `ANTHROPIC` 分支〔`buildAnthropicModel`：用 **modelKey** 非 deployment 名、無 api-version、baseUrl 留空即官方預設〕；`PreparedCall.model` 由 Azure 專屬型別放寬為 AI SDK `LanguageModel`；`llm-provider.service.probe()` 加 Anthropic 連線測試〔`GET {base}/models` + `x-api-key` + `anthropic-version: 2023-06-01`〕；**順帶修一個真 bug**：`resolveModel` 的 `baseUrl` 原本無條件 fallback 到 `AZURE_OPENAI_ENDPOINT`，非 Azure provider 未填 baseUrl 會被導向 Azure 端點 → 改為僅 Azure 適用；spike harness 加 `buildAnthropicCaller()` + `SPIKE_PROVIDER=anthropic` 開關〔預設仍 azure〕。8 unit test。⚠️ **Anthropic 三個踩雷點**：Opus 4.7+ 移除 sampling 參數〔送 `temperature` 直接 400〕、thinking 預設開啟且與回應共用 `max_tokens`〔harness 用 32000 避免思考完就截斷〕、structured output 必須走 native tool-mode〔OpenAI-compat 端點會失效〕。⚠️ **尚未實跑**：需 `.env`〔DB/Azure/storage〕+ ANTHROPIC_API_KEY + 本地 DB；**核心提取 Stage 1-3 仍全走 Azure**〔`getStageModel` 未動，D6/D9 gate 未解〕）｜ **維護**：每完成一個 Story 或重大決策後更新本檔。
 
 ---
 
@@ -68,7 +68,7 @@
 |-------|------|------|
 | **23.1** | Gateway + model(+`keyVersion`) + **抽共用加密模組** + `@ai-sdk/azure` 接 extraction + 播種 + **主管線用量持久化 + 結構化 logging + feature flag/shadow mode** | H1+H2 |
 | 23.2 | 憑證（gateway 解密硬錯誤）+ Provider 管理 API（回遮罩）+ **AuditLog + 遮罩歷史** + 後台 UI + i18n | H1+H4 |
-| 23.3 | 多 provider 接上 + **per-model confidence 校準（P0）**〔✅ P1 地基完成 2026-07-27；P2 校準值待 gold set〕 + 準確率回歸框架 + **circuit breaker/failover**〔✅ 骨架完成〕 | H1+H2 |
+| 23.3 | 多 provider 接上〔✅ Anthropic 已接上 gateway + spike 實跑驗證 2026-07-27〕 + **per-model confidence 校準（P0）**〔✅ P1 地基完成；⚠️ P2 方向需重評——見 §6 炸彈① 實測〕 + 準確率回歸框架 + **circuit breaker/failover**〔✅ 骨架完成〕 | H1+H2 |
 | 23.4 | 其餘 5 處遷移 + per-環節指派 UI + 出站限流 + 成本計價（低優先）+ 測試/觀測 | H1 |
 
 **現在該做**：Phase 0 spike（D8 已定），再照完整 scope（D10）做 Story 23.1；營運骨架納入本 Epic（D11）。
@@ -77,6 +77,18 @@
 
 **🔴🔴 最高風險（三輪審視，實作前提）**：
 - **信心度路由 per-model 校準（P0）**：勿假設換模型只影響準確率——路由分數 65% 是模型自評 confidence + 硬編 90/70，換模型會靜默錯誤路由。換任何非 Azure 模型做核心提取前，**必須**用校準集重定 per-model 閾值（overview §6.1）。
+- 🔴 **炸彈①（confidence 與正確性脫鉤）在 Claude 上同樣成立**（2026-07-27 首次非 Azure 實跑，harness `SPIKE_PROVIDER=anthropic`，claude-opus-5，9 份文件 × 2 回合 = 18 回合，0 失敗）：
+
+  | 指標 | 結果 |
+  |------|------|
+  | 與 Azure 基準欄位一致率 | min 80% / p50 92% / max 100%（跨 20 個百分點） |
+  | `overallConfidence` | min 96 / p50 96 / max 97（**恆定，無區分度**） |
+  | 模擬路由（硬編 90/70） | AUTO_APPROVE 18/18 |
+  | 重跑一致性 | 每份文件兩回合 `agreementRate` **完全相同**，confidence 僅差 1–2 點 |
+  | `fieldConfidence`（n=446） | **雙峰**：不是 0 就是 93–99（Claude 用 0 表示「找不到」；Azure 對所有欄位一律 92–99） |
+
+  **對 D9 的意涵**：一致率 80% 與 100% 的文件拿到**相同的 96–97 分**，相關性近乎零 → **per-model 閾值校準（P2）救不了這件事**，因為分佈本身無區分度，調閾值只會讓全部一起過或一起不過。P1 地基（per-model 閾值可覆寫）仍有價值，但**不足以**作為換 provider 的安全閘；需要的是「不依賴模型自評」的訊號（如欄位級交叉驗證 / 雙模型比對）。此結論須在 P2 開工前重新評估設計方向。
+  - **樣本限制（勿過度外推）**：9 份中 8 份為 CEVA，1 份 NEX；其餘取樣文件的 blob 在本地 Azurite 已 404。「一致率」比對的是 **Azure 原始回應**（非人工 ground truth），故只能讀作「與現行產出的差異」，不等於誰對誰錯。
 - **營運骨架先補**：用量持久化（`logUsage` 目前零呼叫端）、結構化 logging、provider circuit breaker/failover、出站限流——多 provider 的地基，Story 23.1/23.3 已納入（overview §11.5）。
 - **憑證真實安全等級**：GCM 健全但**只防 DB 外洩**（無 Key Vault，進得了容器即拿到明文）；gateway 解密失敗**必須硬錯誤**（現行 `decryptIfNeeded` 會 fail-open 回原始密文）；加密 helper 要抽共用模組；provider 變更要掛審計（overview §11）。
 
@@ -84,10 +96,12 @@
 - 「要 JSON 但無 schema」→ **`generateObject({ output: 'no-schema' })`**（`generateText` **沒有**裸 JSON mode）。
 - 圖片用 **v6 `FilePart`**：`{ type:'file', mediaType:'image/png', data }`（`ImagePart` 已 deprecated）。
 - token 上限 = `maxOutputTokens`；usage = `inputTokens/outputTokens/totalTokens`；reasoning = `providerOptions:{ openai:{ reasoningEffort:'low' } }`；逾時 = `abortSignal: AbortSignal.timeout(ms)`。
-- 對準 **AI SDK v6**。
+- 🔴 **system 訊息不得放進 `messages`**（2026-07-27 實跑抓到，**曾是生產缺陷**）：實際安裝的是 **`ai@7.0.18`**（本檔原記「對準 v6」已過時），v7 的 `standardizePrompt` 只要見到 `role: 'system'` 就丟 `InvalidPromptError`（"Use the instructions option instead"），且**與 provider 無關——Azure 也一樣炸**。Stage 3 prompt 必帶 system 段，故 gateway 灰度一開即全數失敗。已修：`toAiMessages` 抽出 system → `instructions` 參數，多則以空行合併；`llm-gateway.service.test.ts` 補 4 個回歸測試。
+  - **為何既有測試沒抓到**：gateway 測試整包 `vi.mock('ai')`，`standardizePrompt` 從未執行 → 涉及 AI SDK 契約的改動，**必須有一條真實呼叫路徑驗證**（spike harness 即扮演此角色）。
 
 **Provider 差異**：
 - **Anthropic** 的 OpenAI-compat 端點 structured output 失效 → 用 native `@ai-sdk/anthropic`（SDK 自動 tool-mode）。
+- 🔴 **Anthropic structured output 吃不下本專案的 Stage 3 schema**（2026-07-27 實測）：grammar 編譯有硬上限——optional 參數 ≤24、union 型別參數 ≤16、且有總體積上限。`generateOutputSchema`（`stage-3-extraction.service.ts:644`）每個欄位定義產一個 `{value, confidence}` 物件，25–30 欄直接三項全破。**生產不會壞**（gateway G10 降級自動接住 → `generateText` + JSON 指示），代價是**每次提取多一次被拒的 API 呼叫，且 Claude 全程無 schema 約束**。實測 18/18 回合全走降級路徑。若要讓 Anthropic 走真正的 structured output，需另設計精簡 schema（Story 23.4 或後續 CHANGE）。
 - **Gemini** structured output 只支援 JSON schema 子集 → 需降級處理。
 
 **遷移風險**：

@@ -52,6 +52,12 @@ const MASK_PREFIX = '••••';
 /** Azure 連線測試預設 api-version（對齊 gateway） */
 const DEFAULT_AZURE_API_VERSION = '2024-12-01-preview';
 
+/** Anthropic 官方 API 前綴（provider 未填 baseUrl 時採用，對齊 `@ai-sdk/anthropic` 預設） */
+const DEFAULT_ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
+
+/** Anthropic 必填的 `anthropic-version` header 值 */
+const ANTHROPIC_API_VERSION = '2023-06-01';
+
 /** 連線測試逾時（毫秒） */
 const TEST_TIMEOUT_MS = 15_000;
 
@@ -442,14 +448,60 @@ export class LlmProviderService {
     if (!apiKey) {
       return { success: false, supported: true, message: '缺少 API 憑證' };
     }
-    if (provider.providerType !== 'AZURE_OPENAI') {
+    switch (provider.providerType) {
+      case 'AZURE_OPENAI':
+        return this.probeAzure(provider, apiKey);
+      case 'ANTHROPIC':
+        return this.probeAnthropic(provider, apiKey);
+      default:
+        return {
+          success: false,
+          supported: false,
+          message: '此 provider 型別尚未支援連線測試（Story 23.4）',
+        };
+    }
+  }
+
+  /**
+   * Anthropic 連線測試（Story 23.3）：`GET {baseUrl}/models`。
+   *
+   * @description 認證用 `x-api-key` + 必填的 `anthropic-version` header（非 Bearer）。
+   *   `baseUrl` 留空即用官方預設；此端點為唯讀且不計 token，適合當健康檢查。
+   */
+  private async probeAnthropic(
+    provider: LlmProvider,
+    apiKey: string,
+  ): Promise<TestConnectionResult> {
+    const base = (provider.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, '');
+    try {
+      const res = await fetch(`${base}/models`, {
+        method: 'GET',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': ANTHROPIC_API_VERSION,
+        },
+        signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+      });
+      return {
+        success: res.ok,
+        supported: true,
+        statusCode: res.status,
+        message: res.ok ? '連線成功' : `連線失敗（HTTP ${res.status}）`,
+      };
+    } catch (e) {
       return {
         success: false,
-        supported: false,
-        message: '完整連線測試待 Story 23.3（尚未接入 native provider）',
+        supported: true,
+        message: `連線失敗：${e instanceof Error ? e.message : String(e)}`,
       };
     }
+  }
 
+  /** Azure OpenAI 連線測試：`GET {endpoint}/openai/models?api-version=...` */
+  private async probeAzure(
+    provider: LlmProvider,
+    apiKey: string,
+  ): Promise<TestConnectionResult> {
     const base = (provider.baseUrl ?? process.env.AZURE_OPENAI_ENDPOINT ?? '').replace(
       /\/+$/,
       '',
