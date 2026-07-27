@@ -4,7 +4,7 @@
 > **發現方式**: FIX-081 審計延伸（standalone 部署期風險編目中列為待辦項）
 > **影響頁面/功能**: 瀏覽器端 PDF 預覽（審核並排介面、文件預覽）
 > **優先級**: 中（封閉網路 / proxy 環境下會讓 PDF 預覽完全失效）
-> **狀態**: ✅ 已實作（待部署後 E2E 驗證）
+> **狀態**: ✅ 已完成（2026-07-27 Azure DEV E2E 驗證通過：worker 由本站載入、預覽正常、外部主機請求為零）
 
 ---
 
@@ -86,10 +86,23 @@ react-pdf 會比對 `pdfjs.version`（API）與 worker 的版本，不一致即�
 ## 測試驗證
 
 - [x] 腳本解析邏輯驗證：實測 react-pdf 解析到 pdfjs-dist@4.8.69，兩個 worker 來源檔存在（1337 KB / 1377 KB）且複製成功
-- [ ] CI：type-check + lint 通過（PR）
-- [ ] 映像重建：builder `npm run build` 觸發 prebuild、`public/pdfjs/` 進入映像
-- [ ] 部署後 E2E：開啟 PDF 預覽，Network 顯示 worker 從**本站**（非 unpkg）載入、預覽正常、無版本不符錯誤
-- [ ] （封閉網路）確認預覽不再依賴外部 CDN
+- [x] CI：type-check + lint 通過（PR 已合併）
+- [x] 映像重建：builder `npm run build` 觸發 prebuild、`public/pdfjs/` 進入映像（2026-07-27 實測）
+- [x] 部署後 E2E：開啟 PDF 預覽，Network 顯示 worker 從**本站**（非 unpkg）載入、預覽正常、無版本不符錯誤（2026-07-27 實測）
+- [x] （封閉網路）確認預覽不再依賴外部 CDN（2026-07-27 實測外部主機請求為空陣列）
+
+---
+
+## 2026-07-27 Azure DEV 執行期驗證
+
+| 檢查 | 結果 |
+|---|---|
+| worker 已進入映像 | `GET /pdfjs/pdf.worker.min.mjs` → **200, 1337.7 KB**；`/pdfjs/legacy/pdf.worker.min.mjs` → **200, 1377.6 KB** |
+| 實際載入來源 | 文件詳情頁的 `performance.getEntriesByType('resource')` 顯示 worker 由**本站** origin 載入（400 KB 傳輸、86 ms） |
+| 預覽正常 | PDF 渲染出 2 個 canvas，無版本不符錯誤 |
+| **封閉網路** | 該頁所有資源請求中，**非本站 origin 的外部主機數 = 0**（空陣列）—— unpkg / cdnjs / jsdelivr 皆無請求 |
+
+> 「外部主機為空陣列」是封閉網路驗收項最直接的證據：不僅 worker，整個頁面都沒有任何外部依賴。
 
 ---
 
