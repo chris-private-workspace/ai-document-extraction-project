@@ -9,6 +9,18 @@
  *
  * @module tests/unit/services/gpt-caller-gateway-routing.test
  * @since Epic 23 - Story 23.1 step 4
+ * @lastModified 2026-07-27
+ *
+ * @remarks
+ *   🔴 `BASE_INPUT.model` 必須是 `AVAILABLE_LLM_MODELS`（`src/lib/constants/llm-models.ts`）
+ *   白名單內的 key。`GptCallerService.call()` 在判斷 gateway flag **之前**就會用
+ *   `getLlmModelOption()` 驗模型，未知 key 一律提早回傳 `未知模型: X` —— 屆時**四個
+ *   測試會全部失敗**（含 flag off 那個），且 `response` 為空字串，症狀不會指向模型名。
+ *
+ *   本檔原用 `'gpt-5.2'`，該 key 已由 CHANGE-102 移出白名單（Azure deployment 不復
+ *   存在），測試未同步 → 自 2026-07-10（#99）起 4 項全紅。因 CI 不跑 vitest 而長期未被發現。
+ *   選 `gpt-5.4-mini` 而非 `-nano`：後者 `supportsJsonSchema: false`，與本檔驗證
+ *   `output.mode === 'object'` 的預期不符。
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -33,8 +45,11 @@ function mockFetchOk() {
   });
 }
 
+/** 白名單模型 key（見檔頭 @remarks —— 不可任意改成白名單外的值） */
+const MODEL_KEY = 'gpt-5.4-mini';
+
 const BASE_INPUT = {
-  model: 'gpt-5.2',
+  model: MODEL_KEY,
   systemPrompt: 'sys',
   userPrompt: 'usr',
   imageBase64Array: ['data:image/png;base64,AAAA'],
@@ -76,7 +91,7 @@ describe('GptCallerService gateway 路由（step 4）', () => {
     expect(r.success).toBe(true);
     expect(r.response).toBe('GATEWAY_RESULT');
     expect(r.tokenUsage).toEqual({ input: 5, output: 5, total: 10 });
-    expect(r.model).toBe('gpt-5.2');
+    expect(r.model).toBe(MODEL_KEY);
     // 未打 fetch
     expect(fetch).not.toHaveBeenCalled();
     // GptCallInput → LlmCallInput 映射：有 jsonSchema → object 模式
