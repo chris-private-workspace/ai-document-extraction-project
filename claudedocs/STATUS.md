@@ -7,7 +7,7 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 107 | CHANGE-109 | **CHANGE-110** |
+| CHANGE | 108 | CHANGE-110 | **CHANGE-111** |
 | FIX | 136 | FIX-134 | **FIX-135** |
 
 ## 📋 未開始（26）
@@ -86,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（193）
+## ✅ 已完成（194）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -167,6 +167,7 @@
 | [CHANGE-107](4-changes/feature-changes/CHANGE-107-template-field-mapping-copy-record.md) | template field mapping copy record | ✅ 已完成（2026-07-25 本地實機驗證 10/10 驗收項通過；2026-07-27 已部署 Azure DEV 並完成實機驗收 … |
 | [CHANGE-108](4-changes/feature-changes/CHANGE-108-azure-to-local-config-sync.md) | azure to local config sync | ✅ 已完成（2026-07-26，Phase 1-3 全部執行完畢；Blob 原始檔同步未做，見「後續項」） |
 | [CHANGE-109](4-changes/feature-changes/CHANGE-109-template-instance-newer-invoice-version-detection.md) | template instance newer invoice version detection | ✅ 已完成（2026-07-27 本地三閘 + 10 項單元測試通過；同日已部署 Azure DEV 並完成實機驗收 —— 映像 `dev… |
+| [CHANGE-110](4-changes/feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) | internal scheduler stuck processing sweeper | ✅ 已完成（2026-07-27 本地實作完成 —— `type-check` / `lint` 0 warning / 8 項單元測試全… |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |

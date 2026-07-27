@@ -5,7 +5,7 @@
 > **影響頁面/功能**: 文件處理管線 / 文件列表頁 + 詳情頁「重試」/ `retryProcessing`
 > **優先級**: 中
 > **狀態**: ✅ 已驗證（2026-07-27 於 Azure DEV 實測，`sweptCount=13`、三項驗收通過）。方案 A（閾值式手動重試）列為可選、尚未實作
-> **⚠️ 前置條件**：本 FIX 需要**外部觸發器**才會生效。2026-07-27 已補設 Azure `CRON_SECRET` app setting 打通 cron 途徑，但**尚未設定任何排程**——未設排程前仍需手動觸發（見下方「2026-07-27 驗證記錄」）
+> **✅ 排程已補上（2026-07-27）**：本 FIX 原本需要**外部觸發器**才會生效，而專案沒有任何排程機制。已由 [CHANGE-110](../feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) 以**應用程式內排程器**補上（`src/instrumentation.ts`，每 5 分鐘，開關 `ENABLE_INTERNAL_SCHEDULER`），不再依賴外部呼叫。`CRON_SECRET` 途徑保留為後備。
 
 ---
 
@@ -146,7 +146,7 @@
 
 | 項目 | 說明 |
 |---|---|
-| **排程未設** | `CRON_SECRET` 已可用，但沒有任何排程器在呼叫。未設之前 FIX-094 仍需人工觸發，卡住文件會再度累積 |
+| ~~**排程未設**~~ | ✅ **已解決** —— [CHANGE-110](../feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) 以應用程式內排程器補上（`src/instrumentation.ts`，啟動 60 秒後首跑、之後每 5 分鐘）。2026-07-27 實作完成並通過三閘 + 8 項單元測試；**Azure 部署並設定 `ENABLE_INTERNAL_SCHEDULER=true` 後生效** |
 | 重試按鈕點擊後的實際重跑 | 只確認按鈕出現，未點擊驗證 OCR→映射流程 |
 
 ---
