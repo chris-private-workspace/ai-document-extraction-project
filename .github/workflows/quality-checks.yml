@@ -1,6 +1,15 @@
-# Quality Checks — type-check / lint / i18n 同步
+# Quality Checks — type-check / lint / i18n 同步 / 單元測試 / production build
 # Story 22-4 AC8 (SDLC-08)：CI 強制 type-check + lint + i18n
 # 此 workflow 為 Day 1 required（非 advisory）；對應 npm scripts: type-check / lint / i18n:check
+#
+# CHANGE-110 後補：unit-tests + build
+#   在此之前 CI 完全不跑 vitest 也不跑 next build，造成兩個實際損失：
+#   1. tests/unit/services/gpt-caller-gateway-routing.test.ts 自 2026-07-10（#99）起
+#      4 項全紅（CHANGE-102 把 'gpt-5.2' 移出模型白名單，測試未同步），無聲存在 17 天，
+#      直到 2026-07-27 人手跑完整套件才發現（該檔已由 #155 修好）。
+#   2. CHANGE-110 初版的 instrumentation.ts 讓 next build 失敗，type-check / lint /
+#      單元測試全過卻毫無徵兆，一路送到 az acr build 才連續兩次失敗。
+#   bundle / runtime 解析問題（FIX-069 re2-wasm、FIX-083 pdfkit 亦然）只有 build 抓得到。
 name: Quality Checks
 
 on:
@@ -48,6 +57,45 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run i18n:check
+
+  # CHANGE-110：單元測試（vitest）
+  #   測試皆 mock @/lib/prisma 等外部依賴，不需資料庫或 env。
+  #   需 prisma generate —— 部分被測模組（llm-gateway、template-instance 等）import 鏈
+  #   會觸及 @prisma/client，缺 generated client 會在 import 期整檔失敗。
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run test
+
+  # CHANGE-110：production build
+  #   唯一能抓到 bundle / runtime 解析問題的 gate（edge bundle 誤含 node-only 依賴、
+  #   WASM 頂層 import、standalone trace 漏檔等）。
+  #   env 為**明顯的假值**，只為讓 build 期的模組初始化通過；build 不連任何外部服務。
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci?schema=public'
+      AUTH_SECRET: 'ci-dummy-auth-secret-not-a-real-value'
+      NEXTAUTH_SECRET: 'ci-dummy-auth-secret-not-a-real-value'
+      JWT_SECRET: 'ci-dummy-jwt-secret-not-a-real-value'
+      ENCRYPTION_KEY: 'ci-dummy-encryption-key-not-a-real-value'
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run build
 
   # CHANGE-104：CHANGE/FIX 文檔一致性
   #   R1 編號不得重複 | R2 必須有可解析的狀態欄位 | R3 STATUS.md 必須與現況相符
