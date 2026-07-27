@@ -94,6 +94,32 @@ interface FieldMappingEntry {
 // ============================================================================
 
 /**
+ * CHANGE-109: 提取結果中發票號的欄位鍵。
+ * 與 src/constants/standard-fields.ts 的 STANDARD_FIELDS（isCommon: true）一致。
+ */
+const INVOICE_NUMBER_FIELD = 'invoice_number';
+
+/**
+ * CHANGE-109: 從 fieldMappings 取出發票號，供反正規化到可索引的 invoiceNumber 欄位。
+ *
+ * @description
+ *   用途是「判斷兩筆文件是不是同一張發票」。刻意只做 trim、不做大小寫或去符號正規化 ——
+ *   過度正規化會把不同發票誤判為同一張，而漏判的後果只是「沒提示」。
+ *   空字串或缺欄位回 null（不參與同發票比對）。
+ *
+ * @param fieldMappings - convertMappedFieldsToJson 的產出
+ * @returns 發票號字串，或 null（無可用值）
+ */
+function extractInvoiceNumber(
+  fieldMappings: Record<string, FieldMappingEntry>,
+): string | null {
+  const raw = fieldMappings[INVOICE_NUMBER_FIELD]?.value;
+  if (raw == null) return null;
+  const text = String(raw).trim();
+  return text.length > 0 ? text : null;
+}
+
+/**
  * 將 MappedFieldValue[] 轉換為 ExtractionResult.fieldMappings JSON 格式
  *
  * @description
@@ -232,6 +258,8 @@ export async function persistProcessingResult(
     result.overallConfidence,
   );
   const unmappedFieldDetails = convertUnmappedFieldsToJson(unmappedFieldsList);
+  // CHANGE-109: 反正規化發票號到可索引欄位（JSON 內的原值仍是真相來源）
+  const invoiceNumber = extractInvoiceNumber(fieldMappings);
 
   // 轉換 pipeline steps
   const pipelineSteps = result.stepResults?.length
@@ -308,6 +336,8 @@ export async function persistProcessingResult(
         referenceNumberMatch: result.referenceNumberMatch
           ? (result.referenceNumberMatch as unknown as Prisma.InputJsonValue)
           : undefined,
+        // CHANGE-109: 可索引的發票號（供「同一發票是否有更新文件」偵測）
+        invoiceNumber,
       },
       update: {
         companyId: result.companyId ?? null,
@@ -350,6 +380,8 @@ export async function persistProcessingResult(
         referenceNumberMatch: result.referenceNumberMatch
           ? (result.referenceNumberMatch as unknown as Prisma.InputJsonValue)
           : undefined,
+        // CHANGE-109: 重新處理時一併更新（提取結果可能取到不同的發票號）
+        invoiceNumber,
       },
     }),
 

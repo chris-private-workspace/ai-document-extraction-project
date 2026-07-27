@@ -599,6 +599,10 @@ model ExtractionResult {
   stage3Result         Json?            @map("stage_3_result")
   referenceNumberMatch Json?            @map("reference_number_match")
   fxConversionResult   Json?            @map("fx_conversion_result")
+  // CHANGE-109：從 fieldMappings 的 invoice_number 反正規化而來，供「同一發票是否有更新文件」
+  // 的查詢走索引。埋在 JSON 裡的原值仍是真相來源，本欄位只是可索引副本；為空表示該次提取
+  // 沒有取到發票號（提取失敗 / 該格式無此欄位），此時不參與同發票比對。
+  invoiceNumber        String?          @map("invoice_number")
   company              Company?         @relation("CompanyExtractionResults", fields: [companyId], references: [id])
   document             Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
   forwarder            Forwarder?       @relation(fields: [forwarderId], references: [id])
@@ -611,6 +615,8 @@ model ExtractionResult {
   @@index([createdAt])
   @@index([extractionVersion])
   @@index([stage2ConfigSource])
+  // CHANGE-109：同公司同發票號的查詢走此索引（欄位順序＝查詢條件順序）
+  @@index([companyId, invoiceNumber])
   @@map("extraction_results")
 }
 
