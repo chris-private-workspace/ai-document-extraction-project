@@ -141,6 +141,27 @@ export interface StaleSourceDocument {
 }
 
 /**
+ * 同一發票的更新版本文件
+ * @description
+ *   CHANGE-109：與本行來源為同一張發票（同 companyId + 同 invoice_number），但處理時間
+ *   較晚的**另一筆** document 記錄。與 {@link StaleSourceDocument} 是兩種不同訊號：
+ *   前者是「本行的來源文件本身被重新處理」（補救＝重跑模板匹配），
+ *   後者是「另有更新的文件記錄」（補救＝改用新文件重建本行）。
+ */
+export interface NewerInvoiceVersion {
+  /** 更新版本的文件 ID */
+  id: string;
+  /** 文件檔名 */
+  fileName: string;
+  /** 該文件處理完成時間（ISO，晚於本行的 updatedAt） */
+  processedAt: string;
+  /** 發票號（比對依據，供 UI 需要時顯示） */
+  invoiceNumber: string;
+  /** 本行的哪一份來源文件與它是同一張發票 */
+  supersedesDocumentId: string;
+}
+
+/**
  * 模版實例行
  * @description 實例中的單行數據
  */
@@ -159,6 +180,8 @@ export interface TemplateInstanceRow {
   sourceDocuments?: { id: string; fileName: string }[];
   /** 來源已更新的文件清單（CHANGE-106；空/未提供 = 本行未過期） */
   staleSources?: StaleSourceDocument[];
+  /** 同一發票的更新版本文件（CHANGE-109；空/未提供 = 無更新版本） */
+  newerVersions?: NewerInvoiceVersion[];
   /** 欄位值 */
   fieldValues: Record<string, unknown>;
   /** 驗證錯誤 */

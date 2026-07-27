@@ -1,7 +1,7 @@
 # CHANGE-109: Template Instance 過期偵測擴充 —— 同一發票存在更新的文件記錄
 
 > **日期**: 2026-07-27
-> **狀態**: ⏳ 待實作
+> **狀態**: ✅ 已完成實作（2026-07-27，本地三閘 + 10 項單元測試通過；**尚未部署 Azure**，部署需帶 2 個旗標，見 §部署注意）
 > **優先級**: Medium（不影響資料正確性，但補上 [CHANGE-106](CHANGE-106-template-instance-staleness-indicator.md) 涵蓋不到的主要情境）
 > **類型**: Feature
 > **影響範圍**: `ExtractionResult` schema（純加 nullable 欄位 + 索引）、提取結果寫入路徑、Template Instance 列表與明細、i18n
@@ -173,6 +173,94 @@ AND d2.id <> d1.id
 2. **必須**帶 `RUN_INVOICE_NUMBER_BACKFILL=true` 一次，之後設回 `false`（runbook §A.5）
 3. 部署前確認**線上映像落後 main 的完整範圍**，不是「工作樹 vs main」（runbook §A.0、§16 事故）
 4. 新程式碼未新增任何 env 讀取 → 無 §16 那類靜默 fallback 風險（實作後仍應複查）
+
+---
+
+## 實作記錄（2026-07-27）
+
+### 規劃前提的更正：`prisma migrate dev` 在本 repo 不可用
+
+規劃寫「新增 migration（本地 `migrate dev` 路徑）」是**錯的假設**。實測 `migrate dev` 失敗：
+
+```
+Error: P3006
+Migration `20260716113449_add_company_suspected_duplicate_of_id` failed to apply
+cleanly to the shadow database. Error code: P1014
+The underlying table for model `companies` does not exist.
+```
+
+根因：`prisma/migrations/` 只有 13 個 migration，2025-12 之後直接跳到 2026-07 —— 建立 `companies` 表的 migration（REFACTOR-001）**從不存在於版控**（無 `_archive` 資料夾）。因此 migration 歷史**無法從零重播**，shadow database 必然缺表。
+
+這代表本 repo 實際上**不以 migration 為真相來源**：`schema.prisma` 是；Azure 走 `init.sql`（`migrate diff --from-empty` 生成）、本地走 `db push`。`apply-schema-drift.js` 的存在正是因為 migration 到不了 Azure。**這不是本 CHANGE 造成的，對任何新 migration 都一樣。**
+
+採用做法（沿用 FIX-133 兩天前在同一區域建立的先例）：
+
+| 步驟 | 指令 |
+|---|---|
+| 1. 手寫 migration SQL | `prisma/migrations/20260727060000_change109_.../migration.sql`（冪等）|
+| 2. 直接套用本地 | `npx prisma db execute --file <該檔>`（⚠️ 此版本**不接受** `--schema`，datasource 由 `prisma.config.ts` 讀取）|
+| 3. 標記為已套用 | `npx prisma migrate resolve --applied 20260727060000_...` |
+| 4. 漂移驗證 | `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` → `-- This is an empty migration.` ✅ |
+
+> ⚠️ 步驟 4 的旗標名在 Prisma 7.2 已改：`--to-schema-datamodel` 被移除，須用 `--to-schema`；`--from-schema-datasource` 須用 `--from-config-datasource`。
+>
+> 另記錄一個**既有**、非本次造成的狀況：`migrate status` 顯示 `20260722020000_add_transform_diagnostics_to_template_instance_rows`（FIX-128）未套用，但該欄位已由 `apply-schema-drift.js` 補上。FIX-133 已記錄此事，本次同樣未處理。
+
+### 🔴 實作期踩到的 bug：兩處各自寫比對鍵，分隔符分歧
+
+寫入端與讀取端各自寫了 template literal 組比對鍵。實際落到檔案裡的是：
+
+| 位置 | 分隔符 |
+|---|---|
+| 建立候選表（2 處）| **NUL**（` `）|
+| 逐 row 比對（1 處）| 空白 |
+
+後果是 `newerByKey.get(...)` **永遠落空**，功能靜默回空陣列、不拋任何錯誤。單元測試的 4 個正向案例失敗、負向案例全過 —— 若當初只寫負向測試，這個 bug 會直接上線。
+
+診斷過程也繞了路：查詢參數正確、mock 回傳值正確、函式邏輯逐行看都對，最後靠在服務內插入臨時 `throw` 傾印中間值，才看到鍵長成 `"company-ceva F260017865"`。附帶症狀：該檔被 git 判定為 **binary**（NUL 所致），`grep` 也拒絕搜尋。
+
+**修法不是把字元改一致，而是消除分歧的可能**：新增模組層級的 `invoiceIdentityKey(companyId, invoiceNumber)`，三處全部改用它。分隔符改為 `::`（companyId 為 cuid/uuid，字元集不含冒號，無歧義）。
+
+### 附帶修正：6 個檔案的行尾被翻成 CRLF
+
+編輯過程把 6 個原本 LF 的檔案整檔翻成 CRLF，使 `template-instance.service.ts` 的 diff 膨脹到 **1160 增 / 1021 刪**（實際改動僅約 160 行），會嚴重掩蓋真實變更。`.gitattributes` 目前**只保護 `*.sh`**（`text eol=lf`），故其他檔案無防護。
+
+已全部正規化回 LF，`template-instance.service.ts` 的 diff 降回 **160 / 3**。
+
+> 建議（未執行，超出本 CHANGE 範圍）：`.gitattributes` 增加 `* text=auto eol=lf` 或針對 `*.ts` / `*.tsx` / `*.prisma` 的規則，讓這類污染在源頭被擋掉。
+
+### 實際改動檔案
+
+| 檔案 | 改動 | diff |
+|------|------|------|
+| `prisma/schema.prisma` | 🔧 `ExtractionResult` 加 `invoiceNumber` + `@@index([companyId, invoiceNumber])` | +6 |
+| `prisma/migrations/20260727060000_change109_extraction_result_invoice_number/migration.sql` | 🆕 冪等 DDL（加欄位 + 索引）| 新檔 |
+| `prisma/apply-schema-drift.js` | 🔧 加 2 條 CHANGE-109 冪等 DDL；`@lastModified` 更新 | +14/-1 |
+| `prisma/backfill-invoice-number.js` | 🆕 gated 回填（預設 dry-run、分批、只補 null、含欄位存在前置檢查）| 新檔 |
+| `scripts/docker-entrypoint.sh` | 🔧 加 `RUN_INVOICE_NUMBER_BACKFILL` gated 區塊（非致命）| +10 |
+| `src/services/processing-result-persistence.service.ts` | 🔧 加 `INVOICE_NUMBER_FIELD` 常量 + `extractInvoiceNumber()`；upsert 的 create/update 兩處填 `invoiceNumber` | +32 |
+| `src/services/template-instance.service.ts` | 🔧 `invoiceIdentityKey()` 共用鍵函式；`getRows` 取識別鍵 + 單一批次候選查詢；`collectNewerVersions()` | +160/-3 |
+| `src/types/template-instance.ts` | 🔧 新增 `NewerInvoiceVersion`；`TemplateInstanceRow.newerVersions?` | +23 |
+| `src/components/features/template-instance/InstanceRowsTable.tsx` | 🔧 天藍色 badge + `Files` 圖示（與琥珀色的 CHANGE-106 badge 並存可區分）| +26/-2 |
+| `src/components/features/template-instance/RowDetailDrawer.tsx` | 🔧 第二個警示區塊，逐份列出更新版本與處理時間 | +27/-2 |
+| `messages/{en,zh-TW,zh-CN}/templateInstance.json` | 🔧 各加 5 個 key（`rows.newerVersion*` + `rowDetail.newerVersions.*`）| 各 +9/-2 |
+| `tests/unit/services/template-instance-newer-version.test.ts` | 🆕 10 項單元測試 | 新檔 |
+
+### 本地驗證
+
+| 項目 | 結果 |
+|---|---|
+| `npm run type-check` | ✅ exit 0 |
+| `npm run lint` | ✅ exit 0；2 個 warning 皆為**既有**（`changeStatus` 的未使用 `errorMessage`，HEAD 即存在），依 Karpathy 1.3 只提不改 |
+| `npm run i18n:check` | ✅ exit 0 |
+| 單元測試 | ✅ **15 passed**（本次 10 + CHANGE-106 既有 5，無回歸）|
+| Prisma 漂移 | ✅ 空 migration |
+| 欄位與索引落地 | ✅ `\d extraction_results` 確認 `invoice_number text` 與 `extraction_results_company_id_invoice_number_idx btree (company_id, invoice_number)` |
+| i18n diff 純新增 | ✅ 三語言各 +9/-2，既有內容零改動 |
+
+### 單元測試涵蓋
+
+同公司同發票號較晚 → 標記｜候選較早 → 不標記｜同發票號但不同公司 → 不標記（嚴格判定）｜來源無 `invoiceNumber` → 不查候選｜來源無提取結果 → 不查候選｜兩份來源同一發票 → 候選去重｜多候選依時間新到舊排序｜**兩種訊號並存**｜候選查詢排除自身來源（`documentId: { notIn }` 契約）｜無來源文件 → 兩個查詢都不發
 
 ---
 

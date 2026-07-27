@@ -11,12 +11,12 @@
  *
  * @module src/components/features/template-instance/InstanceRowsTable
  * @since Epic 19 - Story 19.5
- * @lastModified 2026-01-22
+ * @lastModified 2026-07-27
  */
 
 import * as React from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { Search, AlertCircle, Eye, Edit, Trash2, MoreHorizontal, RefreshCw } from 'lucide-react';
+import { Search, AlertCircle, Eye, Edit, Trash2, MoreHorizontal, RefreshCw, Files } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -372,6 +372,30 @@ export function InstanceRowsTable({
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>{t('rows.staleTooltip', { count: row.staleSources.length })}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        {/* CHANGE-109: 同一發票另有更新的文件記錄 → 本行指向舊的那一份。
+                            與上方琥珀色的「來源已更新」是不同訊號，故用天藍色 + 不同圖示區分。 */}
+                        {row.newerVersions && row.newerVersions.length > 0 && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge
+                                  variant="outline"
+                                  className="w-fit border-sky-500/60 bg-sky-50 text-sky-700"
+                                >
+                                  <Files className="mr-1 h-3 w-3" />
+                                  {t('rows.newerVersionBadge')}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>
+                                  {t('rows.newerVersionTooltip', {
+                                    count: row.newerVersions.length,
+                                  })}
+                                </p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>

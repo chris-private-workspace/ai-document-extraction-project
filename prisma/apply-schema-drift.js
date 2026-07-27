@@ -17,7 +17,7 @@
  *
  * @module prisma/apply-schema-drift
  * @since CHANGE-086 (2026-06-23)
- * @lastModified 2026-07-16
+ * @lastModified 2026-07-27
  */
 const { Client } = require('pg')
 
@@ -84,6 +84,19 @@ const MIGRATIONS = [
       on "template_field_mappings" ("data_template_id", "scope", "company_id", "document_format_id")
       nulls not distinct
       where "is_active" = true;`,
+  },
+  // CHANGE-109：extraction_results.invoice_number（從 fieldMappings JSON 反正規化，供
+  // 「同一發票是否有更新的文件記錄」查詢走索引）。對應 migration 20260727060000。
+  // 加完欄位後**還要跑一次回填**（RUN_INVOICE_NUMBER_BACKFILL=true），否則既有資料的
+  // invoice_number 全為 null，功能對存量實例靜默無效 —— 而存量實例正是要偵測的對象。
+  {
+    id: 'CHANGE-109 column extraction_results.invoice_number',
+    sql: `alter table "extraction_results" add column if not exists "invoice_number" text;`,
+  },
+  {
+    id: 'CHANGE-109 index extraction_results (company_id, invoice_number)',
+    sql: `create index if not exists "extraction_results_company_id_invoice_number_idx"
+      on "extraction_results" ("company_id", "invoice_number");`,
   },
 ]
 

@@ -6,7 +6,7 @@
  *
  * @module src/services/template-instance
  * @since Epic 19 - Story 19.2
- * @lastModified 2026-01-22
+ * @lastModified 2026-07-27
  *
  * @features
  *   - 實例 CRUD 操作（列表、詳情、創建、更新、軟刪除）
@@ -33,6 +33,7 @@ import type {
   TemplateInstanceRowFilters,
   ValidationResult,
   BatchValidationResult,
+  NewerInvoiceVersion,
 } from '@/types/template-instance';
 import {
   STATUS_TRANSITIONS,
@@ -83,6 +84,24 @@ interface DataTemplateInfo {
 // ============================================================================
 // Service Class
 // ============================================================================
+
+/**
+ * CHANGE-109：組出「同一發票」的比對鍵（companyId + invoiceNumber）
+ *
+ * @description
+ *   寫入端（建立候選表）與讀取端（逐 row 比對）**必須共用此函式**。實作期踩過的坑：
+ *   兩處各自寫 template literal，分隔符一端變成 NUL、一端是空白，查詢因此永遠落空，
+ *   且不會有任何錯誤 —— 只是靜默回空陣列。共用單一函式讓這類分歧不可能發生。
+ *
+ *   `::` 作為分隔符是無歧義的：companyId 為 cuid/uuid，字元集不含冒號。
+ *
+ * @param companyId - 公司 ID
+ * @param invoiceNumber - 發票號
+ * @returns 比對鍵
+ */
+function invoiceIdentityKey(companyId: string, invoiceNumber: string): string {
+  return `${companyId}::${invoiceNumber}`;
+}
 
 /**
  * 模版實例服務類
@@ -379,21 +398,102 @@ export class TemplateInstanceService {
 
     // CHANGE-091 1.6: 批量解析來源文件檔名（id → fileName），供 UI 顯示來源
     // CHANGE-106: 一併取 processingEndedAt，判斷來源文件是否在 row 產生後被重新處理
+    // CHANGE-109: 一併取提取結果的 companyId + invoiceNumber，作為「同一發票」的識別鍵
     const sourceIds = Array.from(
       new Set(rows.flatMap((row) => row.sourceDocumentIds ?? []))
     );
-    const docMap = new Map<string, { fileName: string; processingEndedAt: Date | null }>();
+    const docMap = new Map<
+      string,
+      {
+        fileName: string;
+        processingEndedAt: Date | null;
+        companyId: string | null;
+        invoiceNumber: string | null;
+      }
+    >();
     if (sourceIds.length > 0) {
       const docs = await prisma.document.findMany({
         where: { id: { in: sourceIds } },
-        select: { id: true, fileName: true, processingEndedAt: true },
+        select: {
+          id: true,
+          fileName: true,
+          processingEndedAt: true,
+          // 識別鍵取自 extractionResult 而非 document —— 索引建在
+          // extraction_results(company_id, invoice_number)，兩側同源才走得到索引
+          extractionResult: { select: { companyId: true, invoiceNumber: true } },
+        },
       });
       docs.forEach((doc) =>
         docMap.set(doc.id, {
           fileName: doc.fileName,
           processingEndedAt: doc.processingEndedAt,
+          companyId: doc.extractionResult?.companyId ?? null,
+          invoiceNumber: doc.extractionResult?.invoiceNumber ?? null,
         })
       );
+    }
+
+    // CHANGE-109: 找出「同公司 + 同發票號 + 處理時間較晚」的**其他**文件記錄。
+    // 重新上傳同一份發票會產生新的 document 記錄（不是原地更新），因此 CHANGE-106 的
+    // processingEndedAt 比對偵測不到 —— 舊 row 的來源文件確實沒變。此處補上該情境。
+    //
+    // 單一批次查詢：先收集本頁所有來源文件的識別鍵，一次撈出候選，再於記憶體內逐 row 比對。
+    const identityKeys = Array.from(
+      new Map(
+        Array.from(docMap.values())
+          .filter((doc) => doc.companyId !== null && doc.invoiceNumber !== null)
+          .map((doc) => [
+            invoiceIdentityKey(doc.companyId as string, doc.invoiceNumber as string),
+            { companyId: doc.companyId as string, invoiceNumber: doc.invoiceNumber as string },
+          ])
+      ).values()
+    );
+
+    // key → 該發票的候選更新版本（已排除本頁 row 自己的來源文件）
+    const newerByKey = new Map<
+      string,
+      { id: string; fileName: string; processedAt: Date; invoiceNumber: string }[]
+    >();
+    if (identityKeys.length > 0) {
+      // 下限：本頁最早的 row 更新時間。早於它的候選對任何 row 都不算「更新」，
+      // 先在 DB 端濾掉，避免把該發票的全部歷史記錄都撈回來。
+      const earliestRowUpdatedAt = rows.reduce<Date>(
+        (min, row) => (row.updatedAt < min ? row.updatedAt : min),
+        rows[0]?.updatedAt ?? new Date()
+      );
+
+      const candidates = await prisma.extractionResult.findMany({
+        where: {
+          OR: identityKeys,
+          documentId: { notIn: sourceIds },
+          document: { processingEndedAt: { gt: earliestRowUpdatedAt } },
+        },
+        select: {
+          documentId: true,
+          companyId: true,
+          invoiceNumber: true,
+          document: { select: { fileName: true, processingEndedAt: true } },
+        },
+      });
+
+      candidates.forEach((candidate) => {
+        if (
+          candidate.companyId === null ||
+          candidate.invoiceNumber === null ||
+          candidate.document.processingEndedAt === null
+        ) {
+          return;
+        }
+        const key = invoiceIdentityKey(candidate.companyId, candidate.invoiceNumber);
+        const list = newerByKey.get(key) ?? [];
+        list.push({
+          id: candidate.documentId,
+          fileName: candidate.document.fileName,
+          processedAt: candidate.document.processingEndedAt,
+          invoiceNumber: candidate.invoiceNumber,
+        });
+        newerByKey.set(key, list);
+      });
     }
 
     return {
@@ -419,9 +519,66 @@ export class TemplateInstanceService {
             },
           ];
         }),
+        // CHANGE-109: 同一發票（同公司 + 同發票號）另有處理時間較晚的文件記錄 →
+        // 本行指向舊的那一份。與 staleSources 是兩種不同訊號，故分開回傳。
+        newerVersions: this.collectNewerVersions(row, docMap, newerByKey),
       })),
       total,
     };
+  }
+
+  /**
+   * 為單一 row 收集「同一發票的更新版本文件」
+   *
+   * @description
+   *   CHANGE-109。逐一檢視本行的來源文件，用其（companyId, invoiceNumber）到預先撈好的
+   *   候選表查詢處理時間晚於本行 updatedAt 者。以文件 ID 去重（同一候選可能同時對應本行
+   *   的多份來源），並依處理時間新到舊排序。
+   *
+   * @param row - 實例行（需要 sourceDocumentIds 與 updatedAt）
+   * @param docMap - 來源文件資訊（含識別鍵）
+   * @param newerByKey - `companyId 空白 invoiceNumber` → 候選更新版本清單
+   * @returns 更新版本清單（空陣列 = 無更新版本）
+   */
+  private collectNewerVersions(
+    row: { sourceDocumentIds: string[]; updatedAt: Date },
+    docMap: Map<
+      string,
+      {
+        fileName: string;
+        processingEndedAt: Date | null;
+        companyId: string | null;
+        invoiceNumber: string | null;
+      }
+    >,
+    newerByKey: Map<
+      string,
+      { id: string; fileName: string; processedAt: Date; invoiceNumber: string }[]
+    >
+  ): NewerInvoiceVersion[] {
+    const collected = new Map<string, NewerInvoiceVersion>();
+
+    for (const sourceId of row.sourceDocumentIds ?? []) {
+      const source = docMap.get(sourceId);
+      if (!source?.companyId || !source.invoiceNumber) continue;
+
+      const candidates = newerByKey.get(invoiceIdentityKey(source.companyId, source.invoiceNumber)) ?? [];
+      for (const candidate of candidates) {
+        if (candidate.processedAt <= row.updatedAt) continue;
+        if (collected.has(candidate.id)) continue;
+        collected.set(candidate.id, {
+          id: candidate.id,
+          fileName: candidate.fileName,
+          processedAt: candidate.processedAt.toISOString(),
+          invoiceNumber: candidate.invoiceNumber,
+          supersedesDocumentId: sourceId,
+        });
+      }
+    }
+
+    return Array.from(collected.values()).sort((a, b) =>
+      b.processedAt.localeCompare(a.processedAt)
+    );
   }
 
   /**

@@ -115,7 +115,9 @@
       "title": "No Matching Rows",
       "description": "No rows match the current filter criteria"
     },
-    "showing": "Showing {start} - {end} of {total} rows"
+    "showing": "Showing {start} - {end} of {total} rows",
+    "newerVersionBadge": "Newer version",
+    "newerVersionTooltip": "{count} newer document(s) exist for the same invoice; this row points at an older one"
   },
   "rowActions": {
     "view": "View Details",
@@ -155,7 +157,12 @@
       "processedAt": "reprocessed at {date}"
     },
     "createdAt": "Created At",
-    "updatedAt": "Updated At"
+    "updatedAt": "Updated At",
+    "newerVersions": {
+      "title": "A newer document exists for this invoice",
+      "description": "The documents below are the same invoice as this row’s source (same company and invoice number) but were processed later. The values here come from the older one.",
+      "processedAt": "processed at {date}"
+    }
   },
   "bulkActions": {
     "title": "Bulk Actions",
