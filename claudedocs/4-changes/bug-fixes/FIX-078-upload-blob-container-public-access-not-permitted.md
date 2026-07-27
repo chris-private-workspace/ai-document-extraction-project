@@ -4,7 +4,7 @@
 > **發現方式**: 用戶於 Azure DEV 環境實測回報（瀏覽器 console 顯示 `POST /api/documents/upload 400`）
 > **影響頁面/功能**: `/[locale]/documents/upload`（文件上傳）→ `POST /api/documents/upload`；Azure DEV 環境下**所有**上傳一律失敗
 > **優先級**: 高（核心功能在 Azure 完全不可用）
-> **狀態**: ✅ 已修復（2026-06-17，程式碼）｜⏳ 待 Azure 重建映像部署後做執行期驗證
+> **狀態**: ✅ 已修復並完成 Azure 執行期驗證（2026-07-27：`/blob` 200 串流、詳情頁預覽正常、容器 log 近 30 天 `PublicAccessNotPermitted` 0 hits）｜本地 Azurite 驗證與直接上傳測試未做
 
 ---
 
@@ -121,9 +121,26 @@ await client.createIfNotExists()   // private container，無匿名公開存取
 - [x] `npm run type-check` 通過（2026-06-17）
 - [x] ESLint（`src/lib/azure/storage.ts`、`src/lib/azure-blob.ts`）exit 0、無 warning（2026-06-17）
 - [ ] 本地（Azurite）：上傳 PDF 成功、詳情頁可預覽、`/api/documents/[id]/blob` 可下載（確認 private container 不影響本地）
-- [ ] 重建映像並部署 Azure DEV 後：上傳 PDF 回 `201`、`uploaded` 含該檔
-- [ ] Azure DEV：上傳後文件詳情頁可正常預覽（伺服器端串流）
-- [ ] Azure DEV 容器 log 不再出現 `PublicAccessNotPermitted`
+- [ ] 重建映像並部署 Azure DEV 後：上傳 PDF 回 `201`、`uploaded` 含該檔 —— **未直接測上傳**（見下方 2026-07-27 記錄的間接證據）
+- [x] Azure DEV：上傳後文件詳情頁可正常預覽（伺服器端串流）（2026-07-27 實測）
+- [x] Azure DEV 容器 log 不再出現 `PublicAccessNotPermitted`（2026-07-27 查證近 30 天 0 hits）
+
+---
+
+## 2026-07-27 Azure DEV 執行期驗證
+
+程式碼自 2026-06-17 起就在線上映像內（當前映像 `dev-fix131-132-20260723111721`），本次補做執行期驗證。
+
+| 檢查 | 結果 |
+|---|---|
+| Storage 帳號設定 | `stscmdocprocessingdev`：`allowBlobPublicAccess: false`、`publicNetworkAccess: Disabled` —— 正是本 FIX 的成因環境，而 app 正常運作即證明 private container 改法生效 |
+| 伺服器端串流 | `GET /api/documents/{id}/blob` → **200**、`application/pdf`、`89728` bytes、`content-disposition: inline` |
+| 詳情頁預覽 | PDF 實際渲染成功（2 個 canvas） |
+| 容器 log | Log Analytics 近 30 天 `PublicAccessNotPermitted` **0 hits** |
+
+> **關於 0 hits 的效力**：同期確有持續上傳活動（7/10、7/13、7/16 皆有新文件，總數並於驗證期間由 567 增至 568），若修復無效必然報錯。故 0 hits 具實質意義，非「沒有流量所以沒錯誤」。
+>
+> 未直接執行上傳測試（避免在使用者測試環境產生額外資料），故驗收項「上傳回 201」保留未勾。
 
 ---
 
