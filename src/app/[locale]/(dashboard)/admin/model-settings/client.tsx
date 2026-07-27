@@ -31,7 +31,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useSession } from 'next-auth/react'
-import { AlertTriangle, Check, Cpu, Loader2, ShieldCheck, X } from 'lucide-react'
+import { AlertTriangle, Check, Cpu, Info, Loader2, ShieldCheck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Alert,
@@ -142,6 +142,7 @@ function StageAssignmentRow({
   modelById,
   modelGroups,
   disabled,
+  gatewayEnabled,
   onChange,
 }: {
   stage: LlmStageDefinition
@@ -149,6 +150,7 @@ function StageAssignmentRow({
   modelById: Map<string, LlmModel>
   modelGroups: ModelGroup[]
   disabled: boolean
+  gatewayEnabled: boolean
   onChange: (value: string) => void
 }) {
   const t = useTranslations('systemSettings')
@@ -158,6 +160,8 @@ function StageAssignmentRow({
     stage.isCore &&
     !!selectedModel &&
     selectedModel.providerType !== AZURE_PROVIDER_TYPE
+  // 主開關關閉 → 這些環節的指派完全不會被讀取，必須讓管理員看見（否則儲存成功但毫無作用）
+  const showGatewayDisabledNotice = stage.requiresGateway && !gatewayEnabled
 
   return (
     <div className="space-y-2">
@@ -183,6 +187,15 @@ function StageAssignmentRow({
         </SelectContent>
       </Select>
       <CapabilityHints model={selectedModel} />
+      {showGatewayDisabledNotice && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>{t('modelSettings.gatewayDisabledTitle')}</AlertTitle>
+          <AlertDescription>
+            {t('modelSettings.gatewayDisabledNotice')}
+          </AlertDescription>
+        </Alert>
+      )}
       {showAccuracyWarning && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -316,6 +329,7 @@ export function ModelSettingsClient() {
       modelById={modelById}
       modelGroups={modelGroups}
       disabled={!isGlobalAdmin || updateMutation.isPending}
+      gatewayEnabled={data?.gatewayEnabled ?? false}
       onChange={(value) => handleStageChange(stage.key, value)}
     />
   )

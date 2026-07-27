@@ -55,6 +55,18 @@ export interface LlmStageDefinition {
   i18nKey: string;
   /** 核心提取環節（見檔頭）：非 Azure 指派會被強制回退，UI 顯示準確率回歸警示 */
   isCore: boolean;
+  /**
+   * 指派是否**只有經 gateway 才生效**。
+   *
+   * @description
+   *   - `false`（extraction stage1-3）：指派經 `getStageModel` 的 modelKey key-bridge 生效，
+   *     **與 `FEATURE_LLM_GATEWAY_ENABLED` 無關**（CHANGE-099 起即如此）。
+   *   - `true`（Story 23.4 Phase 1 遷移的 6 個呼叫點）：指派只在 `callGatewayByModelKey`
+   *     內解析，而該函數第一件事就是檢查 gateway 主開關 → **主開關關閉時指派完全不生效**。
+   *
+   *   後台 UI 依此在主開關關閉時對受影響的環節顯示提示，避免管理員誤以為設定已生效。
+   */
+  requiresGateway: boolean;
   /** 未指派 / 指派失效時的白名單 fallback ——＝各呼叫點遷移前的現行模型（行為零變基準） */
   defaultModelKey: string;
 }
@@ -71,54 +83,63 @@ export const LLM_STAGES: readonly LlmStageDefinition[] = [
     key: LLM_STAGE_KEYS.EXTRACTION_STAGE_1,
     i18nKey: 'stage1',
     isCore: true,
+    requiresGateway: false,
     defaultModelKey: DEFAULT_STAGE_MODELS.stage1,
   },
   {
     key: LLM_STAGE_KEYS.EXTRACTION_STAGE_2,
     i18nKey: 'stage2',
     isCore: true,
+    requiresGateway: false,
     defaultModelKey: DEFAULT_STAGE_MODELS.stage2,
   },
   {
     key: LLM_STAGE_KEYS.EXTRACTION_STAGE_3,
     i18nKey: 'stage3',
     isCore: true,
+    requiresGateway: false,
     defaultModelKey: DEFAULT_STAGE_MODELS.stage3,
   },
   {
     key: LLM_STAGE_KEYS.VISION_EXTRACTION,
     i18nKey: 'visionExtraction',
     isCore: true,
+    requiresGateway: true,
     defaultModelKey: 'gpt-5.4-mini',
   },
   {
     key: LLM_STAGE_KEYS.EXTRACTION_V3_UNIFIED,
     i18nKey: 'unifiedExtraction',
     isCore: true,
+    requiresGateway: true,
     defaultModelKey: 'gpt-5.4-mini',
   },
   {
     key: LLM_STAGE_KEYS.EXTRACTION_V2_MINI,
     i18nKey: 'miniExtractor',
     isCore: true,
+    requiresGateway: true,
     defaultModelKey: 'gpt-5.4-nano',
   },
   {
     key: LLM_STAGE_KEYS.VISION_CLASSIFICATION,
     i18nKey: 'visionClassification',
     isCore: false,
+    requiresGateway: true,
     defaultModelKey: 'gpt-5.4-mini',
   },
   {
     key: LLM_STAGE_KEYS.TERM_CLASSIFICATION,
     i18nKey: 'termClassification',
     isCore: false,
+    requiresGateway: true,
     defaultModelKey: 'gpt-5.4-mini',
   },
   {
     key: LLM_STAGE_KEYS.TERM_VALIDATION,
     i18nKey: 'termValidation',
     isCore: false,
+    requiresGateway: true,
     defaultModelKey: 'gpt-5.4-mini',
   },
 ];

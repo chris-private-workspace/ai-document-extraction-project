@@ -15,12 +15,18 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { isLlmGatewayEnabled } from '@/config/feature-flags';
 import { LlmModelConfigService } from '@/services/llm-model-config.service';
 import { updateStageAssignmentsSchema } from '@/lib/validations/llm-model-config.schema';
 
 /**
  * GET /api/v1/model-configs
  * 回傳可選模型（已啟用 provider 的已啟用模型）與各處理環節目前的模型指派（value = LlmModel.id）。
+ *
+ * @remarks
+ *   另回傳 `gatewayEnabled`（gateway 主開關 `FEATURE_LLM_GATEWAY_ENABLED`）。
+ *   `requiresGateway` 的環節在主開關關閉時**指派完全不生效**，UI 需據此顯示提示，
+ *   避免管理員誤以為設定已套用。此為布林旗標狀態、非憑證，可安全回傳給 globalAdmin 介面。
  */
 export async function GET() {
   try {
@@ -47,6 +53,7 @@ export async function GET() {
       data: {
         models,
         assignments,
+        gatewayEnabled: isLlmGatewayEnabled(),
       },
     });
   } catch (error) {

@@ -202,6 +202,8 @@
     "saveError": "儲存模型設定失敗",
     "save": "儲存設定",
     "pendingChanges": "已變更 {count} 個環節",
+    "gatewayDisabledTitle": "尚未生效",
+    "gatewayDisabledNotice": "LLM gateway 主開關目前關閉，而此環節只經由 gateway 讀取指派，因此設定會儲存但不會被讀到。提取階段 1-3 不受影響，無論開關與否都會生效。要讓此環節生效，需開啟 FEATURE_LLM_GATEWAY_ENABLED。",
     "accuracyWarningTitle": "準確率回歸風險",
     "accuracyWarning": "此為核心提取環節。非 Azure 模型需先通過準確率回歸與 per-model 信心度重新校準（Story 23.3）才可使用。此選擇會儲存，但在此之前管線仍以 Azure 執行。"
   },

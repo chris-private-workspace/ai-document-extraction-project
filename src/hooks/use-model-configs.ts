@@ -64,6 +64,11 @@ export type StageAssignments = Record<string, string>
 export interface ModelConfigsData {
   models: LlmModel[]
   assignments: StageAssignments
+  /**
+   * gateway 主開關（`FEATURE_LLM_GATEWAY_ENABLED`）目前是否開啟。
+   * 關閉時 `requiresGateway` 的環節指派**不會生效**，UI 需顯示提示。
+   */
+  gatewayEnabled: boolean
 }
 
 // ============================================================

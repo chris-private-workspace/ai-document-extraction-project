@@ -91,6 +91,28 @@ describe('環節目錄（LLM_STAGES）', () => {
       expect(['gpt-5.4-mini', 'gpt-5.4-nano']).toContain(stage.defaultModelKey);
     }
   });
+
+  it('should mark exactly the migrated call sites as gateway-dependent', () => {
+    // extraction stage1-3 走 getStageModel 的 modelKey key-bridge，與 gateway 主開關無關；
+    // 其餘 6 個只在 callGatewayByModelKey 內解析 → 主開關關閉時指派完全不生效。
+    // 後台 UI 依此顯示「尚未生效」提示，這條測試釘住兩者不會漂移。
+    const gatewayDependent = LLM_STAGES.filter((s) => s.requiresGateway).map((s) => s.key);
+    expect(gatewayDependent).toEqual([
+      'vision.extraction',
+      'extraction.v3.unified',
+      'extraction.v2.mini',
+      'vision.classification',
+      'term.classification',
+      'term.validation',
+    ]);
+
+    const alwaysEffective = LLM_STAGES.filter((s) => !s.requiresGateway).map((s) => s.key);
+    expect(alwaysEffective).toEqual([
+      'extraction.model.stage1',
+      'extraction.model.stage2',
+      'extraction.model.stage3',
+    ]);
+  });
 });
 
 describe('LlmModelConfigService.resolveModelIdForStage（Azure 閘門）', () => {

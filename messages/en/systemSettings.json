@@ -202,6 +202,8 @@
     "saveError": "Failed to save model settings",
     "save": "Save Settings",
     "pendingChanges": "{count} stage(s) changed",
+    "gatewayDisabledTitle": "Not in effect yet",
+    "gatewayDisabledNotice": "The LLM gateway is switched off, and this stage is only reached through it, so the assignment is stored but never read. Extraction stages 1-3 are unaffected — they take effect regardless. Turn on FEATURE_LLM_GATEWAY_ENABLED to activate this one.",
     "accuracyWarningTitle": "Accuracy regression risk",
     "accuracyWarning": "This is a core extraction stage. Non-Azure models require an accuracy regression pass and per-model confidence recalibration (Story 23.3) before use. The selection is saved, but the pipeline keeps running on Azure until then."
   },
