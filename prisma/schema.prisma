@@ -4447,6 +4447,9 @@ model LlmModel {
   label       String
   capability  Json // { maxTokens, supportsTemperature, temperature?, defaultImageDetail, supportsJsonSchema, supportsVision }
   pricing     Json? // { inputPer1k, outputPer1k, currency } — 跨 provider 計價（低優先）
+  /// Story 23.3 P1（D9-a 方案 A）：per-model 信心度路由閾值 { autoApprove, quickReview }。
+  /// null = 未校準 → fallback 至 provider.extraConfig.routingThresholds → 全域 90/70（行為零變）。
+  routingThresholds Json?            @map("routing_thresholds")
   isEnabled   Boolean                @default(true) @map("is_enabled")
   assignments StageModelAssignment[]
   createdAt   DateTime               @default(now()) @map("created_at")

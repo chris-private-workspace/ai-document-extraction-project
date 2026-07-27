@@ -11,9 +11,12 @@
  *   Fallback 鏈（確保未播種 / 舊環境行為零變）：
  *     StageModelAssignment（Azure 白名單）→ 舊 SystemConfig key → DEFAULT_STAGE_MODELS。
  *
+ *   **Story 23.3 P1（D9-a/D9-b）**：新增 `getRoutingThresholds(stage)`，解析 per-model →
+ *   per-provider → null（全域預設）的信心度路由閾值 fallback 鏈，供 confidence 計算覆蓋硬編 90/70。
+ *
  * @module src/services/llm-model-config
  * @since CHANGE-099 - LLM 模型選擇管理
- * @lastModified 2026-07-10
+ * @lastModified 2026-07-27
  *
  * @related
  *   - src/lib/constants/llm-models.ts - 模型白名單與能力（Azure 執行 fallback 基準）
@@ -28,6 +31,7 @@ import {
   isValidLlmModel,
   type ExtractionStage,
 } from '@/lib/constants/llm-models';
+import { aiLogger } from '@/services/logging/logger.service';
 
 /** 各 Stage 對應的 `StageModelAssignment.stageKey`（沿用 CHANGE-099 的 SystemConfig key，播種已對齊） */
 const STAGE_KEYS: Record<ExtractionStage, string> = {
@@ -54,6 +58,37 @@ export interface SelectableModel {
   providerId: string;
   providerName: string;
   providerType: string;
+}
+
+/**
+ * per-model 信心度路由閾值（Story 23.3 P1 / D9-a 方案 A）。
+ *
+ * @description 覆蓋 `ROUTING_THRESHOLDS_V3_1` 的 AUTO_APPROVE / QUICK_REVIEW 下界。
+ *   換 provider/model 後模型自評習性改變，需 per-model 重新校準（tech-spec §6.1）。
+ */
+export interface RoutingThresholdsOverride {
+  /** AUTO_APPROVE 下界（分數 ≥ 此值即自動批准） */
+  autoApprove: number;
+  /** QUICK_REVIEW 下界（分數 ≥ 此值即快速審核） */
+  quickReview: number;
+}
+
+/**
+ * 解析 DB Json 欄位為路由閾值；格式不合即回 null（由呼叫端落下一層 fallback）。
+ *
+ * @param raw - `LlmModel.routingThresholds` 或 `LlmProvider.extraConfig.routingThresholds`
+ * @returns 合法閾值，或 null（缺值 / 格式錯 / 值域不合理）
+ */
+function parseRoutingThresholds(raw: unknown): RoutingThresholdsOverride | null {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const { autoApprove, quickReview } = raw as Record<string, unknown>;
+  if (typeof autoApprove !== 'number' || typeof quickReview !== 'number') return null;
+  if (!Number.isFinite(autoApprove) || !Number.isFinite(quickReview)) return null;
+  // 值域：0 ≤ quickReview ≤ autoApprove ≤ 100（倒置或超界視為設定錯誤）
+  if (quickReview < 0 || autoApprove > 100 || quickReview > autoApprove) return null;
+
+  return { autoApprove, quickReview };
 }
 
 /**
@@ -181,6 +216,78 @@ export class LlmModelConfigService {
     if (cfg?.value && isValidLlmModel(cfg.value)) return cfg.value;
 
     return DEFAULT_STAGE_MODELS[stage];
+  }
+
+  /**
+   * 讀取某 Stage 實際指派模型的 per-model 路由閾值（Story 23.3 P1 / D9-b fallback 鏈）。
+   *
+   * @description
+   *   fallback 鏈：
+   *     1. `LlmModel.routingThresholds`（per-model，主粒度）
+   *     2. `LlmProvider.extraConfig.routingThresholds`（per-provider，同 provider 共用）
+   *     3. **回 null** → 呼叫端不覆蓋 → `ConfidenceV3_1Service` 用全域 `ROUTING_THRESHOLDS_V3_1`
+   *        （90/70），即**未校準時行為零變**。
+   *
+   *   第 3 層刻意回 null 而非回全域值，讓「全域預設」的唯一來源留在 confidence service
+   *   （本服務不反向依賴 extraction 層）。
+   *
+   * @param stage - extraction 階段（校準對象通常是 stage3 核心提取）
+   * @returns 該模型的閾值覆蓋，或 null（未校準 / 未指派 / 已停用 / 設定格式不合法）
+   */
+  static async getRoutingThresholds(
+    stage: ExtractionStage,
+  ): Promise<RoutingThresholdsOverride | null> {
+    const assignment = await prisma.stageModelAssignment.findUnique({
+      where: { stageKey: STAGE_KEYS[stage] },
+      select: {
+        llmModel: {
+          select: {
+            id: true,
+            routingThresholds: true,
+            isEnabled: true,
+            provider: { select: { id: true, isEnabled: true, extraConfig: true } },
+          },
+        },
+      },
+    });
+
+    const model = assignment?.llmModel;
+    if (!model?.isEnabled || !model.provider.isEnabled) return null;
+
+    // 第 1 層：per-model
+    const perModel = parseRoutingThresholds(model.routingThresholds);
+    if (perModel) return perModel;
+    if (model.routingThresholds != null) {
+      void aiLogger
+        .warn(`忽略格式不合法的 per-model routingThresholds（LlmModel ${model.id}）`, {
+          details: { stage, llmModelId: model.id, raw: model.routingThresholds },
+          methodName: 'getRoutingThresholds',
+        })
+        .catch(() => undefined);
+    }
+
+    // 第 2 層：per-provider
+    const extraConfig = model.provider.extraConfig;
+    const rawProvider =
+      extraConfig && typeof extraConfig === 'object'
+        ? (extraConfig as Record<string, unknown>).routingThresholds
+        : undefined;
+    const perProvider = parseRoutingThresholds(rawProvider);
+    if (perProvider) return perProvider;
+    if (rawProvider != null) {
+      void aiLogger
+        .warn(
+          `忽略格式不合法的 per-provider routingThresholds（LlmProvider ${model.provider.id}）`,
+          {
+            details: { stage, llmProviderId: model.provider.id, raw: rawProvider },
+            methodName: 'getRoutingThresholds',
+          },
+        )
+        .catch(() => undefined);
+    }
+
+    // 第 3 層：交由 confidence service 的全域預設
+    return null;
   }
 
   /**
