@@ -4,7 +4,8 @@
 > **發現方式**: 用戶回報（Azure DEV 文件卡 OCR_PROCESSING 約 12 小時）+ 代碼追蹤
 > **影響頁面/功能**: 文件處理管線 / 文件列表頁 + 詳情頁「重試」/ `retryProcessing`
 > **優先級**: 中
-> **狀態**: 🟡 方案 B 已實作（2026-06-28，`type-check` + 改動檔 `lint` 0 error 通過；待部署 Azure 驗證）。方案 A（閾值式手動重試）列為可選、尚未實作
+> **狀態**: ✅ 已驗證（2026-07-27 於 Azure DEV 實測，`sweptCount=13`、三項驗收通過）。方案 A（閾值式手動重試）列為可選、尚未實作
+> **⚠️ 前置條件**：本 FIX 需要**外部觸發器**才會生效。2026-07-27 已補設 Azure `CRON_SECRET` app setting 打通 cron 途徑，但**尚未設定任何排程**——未設排程前仍需手動觸發（見下方「2026-07-27 驗證記錄」）
 
 ---
 
@@ -82,11 +83,71 @@
 
 ## 測試驗證
 
-- [ ] 模擬卡在 `OCR_PROCESSING` 超過閾值的文件 → 背景 job 自動標記為 `OCR_FAILED` + 寫入 `error_message`
-- [ ] 正常處理中（未超過閾值）的文件**不被**標記、**不顯示**重試按鈕（無競態）
-- [ ] 被標記 `OCR_FAILED` 後，列表頁與詳情頁出現重試按鈕，點擊可重跑完整 OCR→映射流程
+- [x] 模擬卡在 `OCR_PROCESSING` 超過閾值的文件 → 背景 job 自動標記為 `OCR_FAILED` + 寫入 `error_message`（2026-07-27 Azure DEV 實測 13 筆）
+- [x] 正常處理中（未超過閾值）的文件**不被**標記、**不顯示**重試按鈕（無競態）（2026-07-27 真實場景驗證，見下方記錄）
+- [x] 被標記 `OCR_FAILED` 後，列表頁與詳情頁出現重試按鈕（2026-07-27 詳情頁確認「重試」按鈕出現）｜⚠️ **點擊後實際重跑 OCR→映射流程未測**
 - [x] `type-check` / 改動檔 `lint` 0 error 通過（2026-06-28）
-- [ ] （方向 A 若採用）三處重試判斷邏輯與閾值一致
+- [ ] （方向 A 若採用）三處重試判斷邏輯與閾值一致 — 方案 A 未實作，N/A
+
+---
+
+## 2026-07-27 Azure DEV 驗證記錄
+
+### 🔴 驗證前發現：sweeper 在 Azure 上「三重不可達」
+
+程式碼早在 2026-07-23 的映像 `dev-fix131-132-20260723111721` 內，但從未執行過一次：
+
+| 觸發途徑 | 實測狀態 |
+|---|---|
+| 排程 | **無**。Log Analytics 近 30 天 `StuckProcessingSweeper` 執行 **0 次**、`/api/jobs` 被呼叫 **0 次**。容器化 App Service 不支援 WebJob（`az webapp webjob list` 回 `Conflict`） |
+| 管理員手動 | **403**。`System Admin` 角色的 `permissions = ["*"]`，但 route 的 `hasPermission()` 用 `includes('INVOICE_REVIEW')` 精確比對 → `false`，且完全不看 `isGlobalAdmin` → 見 **FIX-134** |
+| `x-cron-secret` | **關閉**。Azure 50 個 app settings 內沒有 `CRON_SECRET` → `isValidCronSecret()` 直接 `return false` |
+
+> `src/jobs/stuck-processing-sweeper-job.ts` 的 `@note` 寫「可配合 n8n / Vercel Cron」——那是**規劃建議、非現況**。本專案無任何排程機制。
+
+### 卡住實況（驗證前）
+
+13 筆卡在 `OCR_PROCESSING`，`updatedAt` 距當時 **15577–35719 分鐘**（10.8–24.8 天），全部遠超 10 分鐘閾值，`error_message` 全空：
+
+| 檔案 | 卡住時長 |
+|---|---|
+| `CEVA_CIM250004_05808.pdf` | 595.1 小時 |
+| `CEVA_RCIM250124_31832.pdf` / `CEVA_RCIM260005_20078.PDF` | 457.0 小時 |
+| `CEVA_RCIM250271_59335.PDF` 等 4 筆 | 407.5 小時 |
+| `RIL_RCIM250085_15670 (1).pdf` | 259.4 小時 |
+
+### 執行方式（用戶選定：打通 cron 途徑而非改資料）
+
+1. 補設 Azure app setting `CRON_SECRET`（32 bytes 隨機、base64url）
+2. **關鍵細節**：設定後直接呼叫仍回 **401** —— `/api/health` 雖回 200，但那是尚未載入新環境變數的舊 worker。需明確 `az webapp restart`，待 `uptime < 200s` 確認是新 instance 後才成功
+3. `POST /api/jobs/stuck-processing-sweeper` + `x-cron-secret` header
+
+### 執行結果
+
+```json
+{"success":true,"sweptCount":13,"thresholdMinutes":10,"executionTimeMs":120}
+```
+
+`error_message` 寫入：「處理程序逾時：文件卡在處理中狀態超過 10 分鐘無進度，已自動標記為失敗以便重試（FIX-094 殭屍處理回收）」
+
+### 狀態分布前後對照（證明無誤標）
+
+| 狀態 | 執行前 | 執行後 |
+|---|---|---|
+| `OCR_PROCESSING` | 13 | **1** |
+| `OCR_FAILED` | 4 | **17**（= 4 + 13） |
+| `MAPPING_COMPLETED` | 504 | 504（未動） |
+| `REF_MATCH_FAILED` | 40 | 40（未動） |
+| `UPLOADED` | 6 | 6（未動） |
+
+> **驗收項 2 的真實場景驗證**：執行期間文件總數由 567 → 568，有使用者上傳了新文件並正在處理。那筆 `OCR_PROCESSING` **未被誤標**（`updatedAt` 未超閾值）——比人工模擬更有力。
+
+### 尚未完成
+
+| 項目 | 說明 |
+|---|---|
+| **排程未設** | `CRON_SECRET` 已可用，但沒有任何排程器在呼叫。未設之前 FIX-094 仍需人工觸發，卡住文件會再度累積 |
+| 重試按鈕點擊後的實際重跑 | 只確認按鈕出現，未點擊驗證 OCR→映射流程 |
 
 ---
 
