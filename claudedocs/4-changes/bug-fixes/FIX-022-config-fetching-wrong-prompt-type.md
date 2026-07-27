@@ -1,5 +1,7 @@
 # FIX-022: CONFIG_FETCHING 使用錯誤的 PromptType
 
+> **狀態**: ✅ 已修復
+
 ## 問題描述
 
 CHANGE-006 驗證過程中發現，`CONFIG_FETCHING` 步驟無法正確載入已創建的 `PromptConfig`。

@@ -470,6 +470,8 @@ model Company {
   nameVariants              String[]                 @map("name_variants")
   identificationPatterns    String[]                 @map("identification_patterns")
   mergedIntoId              String?                  @map("merged_into_id")
+  // CHANGE-103 Phase 2（組件 4）：灰帶 JIT 建 PENDING 時記錄「疑似重複於」目標公司，供人工審核
+  suspectedDuplicateOfId    String?                  @map("suspected_duplicate_of_id")
   firstSeenDocumentId       String?                  @map("first_seen_document_id")
   logoUrl                   String?                  @map("logo_url")
   contactEmail              String?                  @map("contact_email")
@@ -484,6 +486,8 @@ model Company {
   defaultTemplate           DataTemplate?            @relation("CompanyDefaultTemplate", fields: [defaultTemplateId], references: [id])
   mergedInto                Company?                 @relation("CompanyMerge", fields: [mergedIntoId], references: [id])
   mergedFrom                Company[]                @relation("CompanyMerge")
+  suspectedDuplicateOf      Company?                 @relation("CompanySuspectedDuplicate", fields: [suspectedDuplicateOfId], references: [id])
+  suspectedDuplicates       Company[]                @relation("CompanySuspectedDuplicate")
   correctionPatterns        CorrectionPattern[]      @relation("CompanyCorrectionPatterns")
   dataTemplates             DataTemplate[]
   documentFormats           DocumentFormat[]
@@ -509,6 +513,7 @@ model Company {
   @@index([source])
   @@index([createdById])
   @@index([mergedIntoId])
+  @@index([suspectedDuplicateOfId])
   @@map("companies")
 }
 
@@ -3096,7 +3101,17 @@ model TemplateFieldMapping {
   dataTemplate     DataTemplate              @relation(fields: [dataTemplateId], references: [id], onDelete: Cascade)
   documentFormat   DocumentFormat?           @relation(fields: [documentFormatId], references: [id])
 
-  @@unique([dataTemplateId, scope, companyId, documentFormatId], name: "unique_template_mapping")
+  // FIX-133：唯一性改由 DB 端的部分唯一索引保證，Prisma 無法在此表示。
+  //   索引名 template_field_mappings_active_unique
+  //   定義   (data_template_id, scope, company_id, document_format_id)
+  //          NULLS NOT DISTINCT WHERE is_active = true
+  // 原 @@unique([dataTemplateId, scope, companyId, documentFormatId]) 已移除，因為
+  // PostgreSQL 預設 NULLS DISTINCT 使其對任何範圍都不生效（每種範圍必含 ≥1 個 NULL），
+  // 是一條實務上從未擋下任何重複的約束。改用 NULLS NOT DISTINCT 才真正生效，
+  // 並限定 is_active = true —— 對應 service.create() 的檢查條件，且保留「停用舊配置、
+  // 建新配置」的既有使用模式。Prisma 7.2 不支援 nullsNotDistinct 亦不支援部分索引，
+  // 故此索引由 migration 的 raw SQL 建立，並列於 prisma/apply-schema-drift.js 供 Azure 套用。
+  // ⚠️ 不要把 @@unique 加回來 —— 那會讓 prisma migrate 重建無效的全表唯一索引。
   @@index([dataTemplateId])
   @@index([scope])
   @@index([companyId])
@@ -3159,6 +3174,8 @@ model TemplateInstanceRow {
   sourceDocumentIds  String[]                  @map("source_document_ids")
   fieldValues        Json                      @map("field_values")
   validationErrors   Json?                     @map("validation_errors")
+  /// FIX-128: 轉換診斷（targetField → 引用了 row 中不存在的來源 key 清單）
+  transformDiagnostics Json?                   @map("transform_diagnostics")
   status             TemplateInstanceRowStatus @default(PENDING)
   createdAt          DateTime                  @default(now()) @map("created_at")
   updatedAt          DateTime                  @updatedAt @map("updated_at")

@@ -39,7 +39,9 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useMergeCompanies, type PendingCompany } from '@/hooks/use-pending-companies'
+import { useMergeCompanies } from '@/hooks/use-pending-companies'
+import { MergeSkippedReportAlert } from './MergeSkippedReportAlert'
+import type { MergeTransferSkip } from '@/services/company-merge-transfer.service'
 import { Loader2, GitMerge, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -47,10 +49,25 @@ import { toast } from 'sonner'
 // Types
 // ============================================================
 
+/**
+ * 合併對話框所需的最小公司形狀（FIX-131）
+ *
+ * @description
+ *   原本綁死 `PendingCompany[]`，只適用 PENDING 審核清單。放寬為此最小型別後，
+ *   詳情頁「合併兩間 ACTIVE 公司」可用「當前公司 + 選中公司」組成兩筆傳入。
+ *   `PendingCompany` 結構相容此型別，既有審核頁呼叫端不需改動。
+ */
+export interface MergeableCompany {
+  id: string
+  name: string
+  /** 文件/出現次數（選填——來自公司列表 API 的候選公司不含此欄位） */
+  documentCount?: number
+}
+
 interface CompanyMergeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  companies: PendingCompany[]
+  companies: MergeableCompany[]
   onSuccess?: () => void
 }
 
@@ -77,7 +94,23 @@ export function CompanyMergeDialog({
 }: CompanyMergeDialogProps) {
   const t = useTranslations('companies')
   const [primaryId, setPrimaryId] = React.useState<string>('')
+  // FIX-129: 合併結果快照（skipped 非空時顯示結果視圖而非自動關閉）。
+  // 用快照而非即時 prop —— onSuccess 刷新列表後 companies 會變，不能再依賴它。
+  const [mergeOutcome, setMergeOutcome] = React.useState<{
+    skipped: MergeTransferSkip[]
+    mergedCount: number
+  } | null>(null)
   const mergeMutation = useMergeCompanies()
+
+  // 對話框「開啟瞬間」重置結果視圖（不能依賴 companies —— 合併成功後
+  // 列表刷新會改變 companies 引用，若在此 reset 會把結果視圖清掉）
+  const prevOpenRef = React.useRef(false)
+  React.useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setMergeOutcome(null)
+    }
+    prevOpenRef.current = open
+  }, [open])
 
   // 重置選擇當對話框打開
   React.useEffect(() => {
@@ -100,18 +133,51 @@ export function CompanyMergeDialog({
     }
 
     try {
-      await mergeMutation.mutateAsync({
+      const result = await mergeMutation.mutateAsync({
         primaryId,
         secondaryIds: secondaryCompanies.map((c) => c.id),
       })
       toast.success(t('merge.success', { count: secondaryCompanies.length }))
-      onOpenChange(false)
+
+      // FIX-129: 有設定因唯一鍵衝突未轉移 → 留在對話框顯示明細，不自動關閉
+      const skipped = result.knowledgeTransfer?.skipped ?? []
+      if (skipped.length > 0) {
+        toast.warning(t('merge.skipped.toast', { count: skipped.length }))
+        setMergeOutcome({ skipped, mergedCount: secondaryCompanies.length })
+      } else {
+        onOpenChange(false)
+      }
       onSuccess?.()
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t('merge.error')
       )
     }
+  }
+
+  // FIX-129: 合併完成但有設定未轉移 → 顯示結果視圖（明細 + 手動關閉）
+  if (mergeOutcome !== null) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitMerge className="h-5 w-5" />
+              {t('merge.skipped.resultTitle')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('merge.success', { count: mergeOutcome.mergedCount })}
+            </DialogDescription>
+          </DialogHeader>
+          <MergeSkippedReportAlert skipped={mergeOutcome.skipped} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              {t('merge.close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   if (companies.length < 2) {
@@ -163,9 +229,11 @@ export function CompanyMergeDialog({
                     className="flex-1 cursor-pointer"
                   >
                     <div className="font-medium">{company.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t('merge.documentCount', { count: company.documentCount })}
-                    </div>
+                    {company.documentCount !== undefined && (
+                      <div className="text-xs text-muted-foreground">
+                        {t('merge.documentCount', { count: company.documentCount })}
+                      </div>
+                    )}
                   </Label>
                 </div>
               ))}

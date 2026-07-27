@@ -356,9 +356,28 @@ export function InstanceRowsTable({
                     })}
                     {/* CHANGE-091 1.6: 來源文件 */}
                     <TableCell>
-                      {row.sourceDocuments && row.sourceDocuments.length > 0 ? (
-                        <div className="flex max-w-[200px] flex-col gap-0.5">
-                          {row.sourceDocuments.map((doc) => (
+                      <div className="flex max-w-[200px] flex-col gap-0.5">
+                        {/* CHANGE-106: 來源文件在本行產生後被重新處理 → 舊快照標記 */}
+                        {row.staleSources && row.staleSources.length > 0 && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge
+                                  variant="outline"
+                                  className="w-fit border-amber-500/60 bg-amber-50 text-amber-700"
+                                >
+                                  <RefreshCw className="mr-1 h-3 w-3" />
+                                  {t('rows.staleBadge')}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{t('rows.staleTooltip', { count: row.staleSources.length })}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        {row.sourceDocuments && row.sourceDocuments.length > 0 ? (
+                          row.sourceDocuments.map((doc) => (
                             <a
                               key={doc.id}
                               href={`/documents/${doc.id}`}
@@ -369,11 +388,11 @@ export function InstanceRowsTable({
                             >
                               {doc.fileName}
                             </a>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </div>
                     </TableCell>
                     {/* Status */}
                     <TableCell>

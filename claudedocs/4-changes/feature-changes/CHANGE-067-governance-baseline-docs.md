@@ -1,5 +1,7 @@
 # CHANGE-067: 治理基線文檔（Governance Baseline — Risk Register + Tech Debt + Access Review + Security Officer）
 
+> **狀態**: 📋 規劃中
+
 > ## ✅ 用戶決策確認（2026-04-28）
 >
 > | ID | 決策 |

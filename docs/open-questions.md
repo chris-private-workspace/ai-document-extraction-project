@@ -1,7 +1,7 @@
 # Open Questions（OQ）追蹤
 
 > **本文件追蹤項目中**未解決的設計決策、文檔誤差、規格與代碼不一致**等狀況。AI 助手按 OQ 狀態決定 default behavior（詳見 CLAUDE.md §Open Questions 機制）。
-> **最後更新**：2026-06-20
+> **最後更新**：2026-07-14（OQ-Q1 resolved；OQ-Q2/Q3/Q4 仍 Open）
 
 ---
 
@@ -16,20 +16,6 @@
 ---
 
 ## 當前 Open Questions
-
-### OQ-Q1: 信心度路由閾值文檔誤差
-
-- **狀態**：🟡 Open
-- **問題**：CLAUDE.md 文檔記錄信心度閾值為 95%/80%，但代碼實際為 90%/70%
-- **代碼位置**：`src/services/extraction-v3/confidence-v3-1.service.ts` 第 112-119 行
-- **影響**：開發新功能時不清楚該以哪個為準
-- **AI Default Behavior**：**以代碼實際值為準（90%/70%）**，commit message 標 `Note: depends on OQ-Q1`
-- **解決方向**：用戶確認哪個是正確值 →
-  - 選項 A：修文檔配合代碼（90%/70%）
-  - 選項 B：修代碼配合文檔（95%/80%）— 影響歷史資料路由結果
-- **待用戶決策日期**：—
-
----
 
 ### OQ-Q2: Auth 覆蓋率缺口處理優先順序
 
@@ -73,7 +59,14 @@
 
 > 移到此區段表示已 resolved，AI 直接用 resolved value 即可。
 
-（暫無記錄 — 等開始累積 OQ 後再加入歷史）
+### OQ-Q1: 信心度路由閾值文檔誤差 ✅ Resolved（2026-07-14）
+
+- **原問題**：CLAUDE.md 記錄信心度閾值為 95%/80%，但代碼實際為 90%/70%（`src/services/extraction-v3/confidence-v3-1.service.ts` 第 112-119 行）
+- **Resolved value**：**90% / 70%**（AUTO_APPROVE ≥ 90%、QUICK_REVIEW 70–89%、FULL_REVIEW < 70%）
+- **決議**：採選項 A —— **修文檔配合代碼，代碼不動**
+- **理由**：代碼是實際跑了數個月的行為，歷史資料的路由決策全部基於它；改文檔零風險，改代碼會使歷史資料與新資料的路由結果失去可比性
+- **已同步更新**：`CLAUDE.md` §信心度路由機制、§When in Doubt、§當前 Open 差異、`claudedocs/reference/known-discrepancies.md`
+- **後續影響**：Epic 23 Story 23.3 的 per-model confidence 校準以 90/70 為基準閾值
 
 ---
 
@@ -110,6 +103,7 @@
 
 ## 變更歷史
 
+- **2026-07-14**：OQ-Q1（信心度閾值）resolved —— 文檔對齊代碼 90%/70%（CHANGE-104 文檔治理）
 - **2026-05-26**：初版（CLAUDE.md v4.0.0 引入 OQ 機制時建立）
 
 ---

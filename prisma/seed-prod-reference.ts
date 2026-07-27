@@ -14,7 +14,12 @@
  * - 此 seed **永不**自動執行，必須帶 --confirm flag 或 PRISMA_SEED_PROD_ALLOW=true
  * - 後續部署絕不重複執行（會覆寫 prod admin 修改的資料）
  * - **Tier 2 Forwarder-Specific Mappings 不在此 seed 範圍**（學習機制建立）
- * - Reference data 必須從 `prisma/seed-data/reference/*.json` 讀取（手動整理的 prod-grade JSON）
+ * - Companies / Tier1 Mappings / Exchange Rates 從 `prisma/seed-data/reference/*.json` 讀取
+ *   （手動整理的 prod-grade JSON）
+ * - 🔴 **Prompt Configs 例外**（FIX-118，2026-07-20）：改讀 `prisma/seed-data/prompt-configs.ts`
+ *   的 `PROMPT_CONFIG_SEEDS`（單一真相來源），不再有 reference JSON 副本。
+ *   原副本自建立後從未同步，內容為另一套與現行管線不相容的設計；而 seedPromptConfigs()
+ *   對既有 GLOBAL prompt 是直接覆寫，執行後會讓 Stage 1/2/3 全部失效。
  *
  * 執行：
  *   PRISMA_SEED_PROD_ALLOW=true npx ts-node prisma/seed-prod-reference.ts --confirm
@@ -43,6 +48,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 import * as fs from 'fs'
 import * as path from 'path'
+import { PROMPT_CONFIG_SEEDS } from './seed-data/prompt-configs'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -57,8 +63,26 @@ const DRY_RUN = process.argv.includes('--dry-run')
 const REFERENCE_DIR = path.join(__dirname, 'seed-data', 'reference')
 const COMPANIES_FILE = path.join(REFERENCE_DIR, 'companies.json')
 const MAPPINGS_FILE = path.join(REFERENCE_DIR, 'tier1-mappings.json')
-const PROMPTS_FILE = path.join(REFERENCE_DIR, 'prompt-configs.json')
 const RATES_FILE = path.join(REFERENCE_DIR, 'exchange-rates.json')
+
+/**
+ * FIX-118: Prompt 改讀單一真相來源 `seed-data/prompt-configs.ts`，不再有
+ * `seed-data/reference/prompt-configs.json` 副本。
+ *
+ * 原因：該 JSON 自 2026-04-27 建立後從未與 seed 主來源同步，內容是另一套設計
+ * （三階段皆英文、基於 OCR 文字、輸出形狀與 parseFormatResult 不相容）。
+ * 而本檔的 seedPromptConfigs() 對既有 GLOBAL prompt 是**直接覆寫**，
+ * 一旦執行會讓 Stage 1/2/3 全部失效（FIX-095 曾記錄此風險但未根治）。
+ *
+ * 只取 3 個 V3.1 STAGE 類型，與原 JSON 涵蓋範圍一致。
+ * 刻意**不含** FIELD_EXTRACTION —— FIX-111 才剛停用該型的 active GLOBAL prompt
+ * （與 STAGE_3 併存會造成提取 prompt 選擇非確定性），帶進來會重新引入該問題。
+ */
+const PROD_PROMPT_TYPES = [
+  'STAGE_1_COMPANY_IDENTIFICATION',
+  'STAGE_2_FORMAT_IDENTIFICATION',
+  'STAGE_3_FIELD_EXTRACTION',
+] as const
 
 // ============================================================================
 // JSON Type Definitions（對齊 reference JSON 結構，與 Prisma model 透過 mapper 轉換）
@@ -143,8 +167,8 @@ async function safetyChecks(): Promise<void> {
     }
   }
 
-  // Check 3: 確認 4 份 JSON 存在
-  for (const file of [COMPANIES_FILE, MAPPINGS_FILE, PROMPTS_FILE, RATES_FILE]) {
+  // Check 3: 確認 3 份 JSON 存在（FIX-118 起 prompt 不再來自 JSON）
+  for (const file of [COMPANIES_FILE, MAPPINGS_FILE, RATES_FILE]) {
     if (!fs.existsSync(file)) {
       console.error(`❌ Missing reference data file: ${file}`)
       console.error('   Reference data must be manually curated prod-grade JSON.')
@@ -232,6 +256,36 @@ function validateMappings(data: any[]): string | null {
     seenFieldNames.add(item.fieldName)
   }
   return null
+}
+
+/**
+ * FIX-118: 從單一真相來源 `seed-data/prompt-configs.ts` 取得 prod 要種的 prompt。
+ *
+ * 取代原本讀 `seed-data/reference/prompt-configs.json` 的做法 —— 該副本從未與
+ * 主來源同步，內容是另一套與現行管線不相容的設計。改讀主來源後兩者不可能再漂移。
+ *
+ * 仍套用 validatePromptConfigs 作為防呆：若日後有人從 PROMPT_CONFIG_SEEDS
+ * 移除任一 V3.1 階段，這裡會直接擋下而非種出殘缺的 prod 環境。
+ */
+function loadPromptConfigsFromSeedSource(): PromptConfigJson[] {
+  const selected = PROMPT_CONFIG_SEEDS.filter((s) =>
+    (PROD_PROMPT_TYPES as readonly string[]).includes(s.promptType)
+  ).map<PromptConfigJson>((s) => ({
+    promptType: s.promptType as PromptConfigJson['promptType'],
+    name: s.name,
+    description: s.description,
+    systemPrompt: s.systemPrompt,
+    userPromptTemplate: s.userPromptTemplate,
+    variables: s.variables as any[],
+  }))
+
+  const error = validatePromptConfigs(selected)
+  if (error) {
+    throw new Error(
+      `PROMPT_CONFIG_SEEDS (seed-data/prompt-configs.ts) validation failed: ${error}`
+    )
+  }
+  return selected
 }
 
 function validatePromptConfigs(data: any[]): string | null {
@@ -537,7 +591,7 @@ async function main(): Promise<void> {
   console.log('\n📋 Loading reference data...')
   const companies = loadAndValidate<CompanyJson>(COMPANIES_FILE, validateCompanies)
   const mappings = loadAndValidate<Tier1MappingJson>(MAPPINGS_FILE, validateMappings)
-  const prompts = loadAndValidate<PromptConfigJson>(PROMPTS_FILE, validatePromptConfigs)
+  const prompts = loadPromptConfigsFromSeedSource()
   const rates = loadAndValidate<ExchangeRateJson>(RATES_FILE, validateExchangeRates)
   console.log(
     `  ✅ Loaded: ${companies.length} companies / ${mappings.length} mappings / ` +

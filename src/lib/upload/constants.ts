@@ -42,8 +42,24 @@ export const UPLOAD_CONFIG = {
   /** 最大文件大小顯示文字 */
   MAX_FILE_SIZE_DISPLAY: '10MB',
 
-  /** 每批次最大文件數量 */
-  MAX_FILES_PER_BATCH: 20,
+  /**
+   * 每批次最大文件數量
+   *
+   * FIX-106: 由 20 降為 15。上傳後所有文件會在 upload/route.ts 被同時投入處理，
+   * 20 份曾使 App Service 記憶體達 95%、事件迴圈凍結，導致 pg 連線握手逾時。
+   * 此值僅降低峰值，未移除觸發機制 —— 治本需限制併發處理數。
+   */
+  MAX_FILES_PER_BATCH: 15,
+
+  /**
+   * 自動處理管線的併發上限（FIX-106 治本）
+   *
+   * 上傳後文件在 upload/route.ts 分批投入處理，每批最多同時處理此數量。
+   * 這才是真正綁住「同時載入記憶體的 PDF 數」的旋鈕 —— MAX_FILES_PER_BATCH
+   * 只限制單次上傳份數，處理仍是全部併發。避免一次過多 buffer／圖片轉換／
+   * base64 耗盡 App Service 記憶體、凍結事件迴圈。
+   */
+  PROCESS_CONCURRENCY: 3,
 
   /** UI 顯示用的接受格式標籤 */
   ACCEPT_LABEL: 'PDF, JPG, PNG',

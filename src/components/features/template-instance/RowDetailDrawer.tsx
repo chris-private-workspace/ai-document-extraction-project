@@ -17,7 +17,7 @@
 import * as React from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/routing';
-import { ExternalLink, AlertCircle, CheckCircle } from 'lucide-react';
+import { ExternalLink, AlertCircle, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -102,6 +102,12 @@ export function RowDetailDrawer({
   const statusConfig = getRowStatusConfig(row.status);
   const errors = row.validationErrors ?? {};
   const hasErrors = Object.keys(errors).length > 0;
+  // FIX-128: 轉換診斷（targetField → 引用了不存在的來源 key 清單）
+  const diagnostics = row.transformDiagnostics ?? {};
+  const hasDiagnostics = Object.keys(diagnostics).length > 0;
+  // CHANGE-106: 來源文件在本行產生後被重新處理 → 本行是舊快照
+  const staleSources = row.staleSources ?? [];
+  const isStale = staleSources.length > 0;
 
   // Sorted fields
   const sortedFields = React.useMemo(() => {
@@ -120,6 +126,27 @@ export function RowDetailDrawer({
 
         <ScrollArea className="h-[calc(90vh-160px)] mt-6">
           <div className="space-y-6 pr-4">
+            {/* CHANGE-106: 來源已更新警示（本行欄位值為舊快照） */}
+            {isStale && (
+              <Alert className="border-amber-500/50 text-amber-700 dark:text-amber-500 [&>svg]:text-amber-600">
+                <RefreshCw className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="text-sm mb-2 font-medium">{t('rowDetail.staleSources.title')}</p>
+                  <p className="text-sm mb-2">{t('rowDetail.staleSources.description')}</p>
+                  <ul className="list-disc pl-4 space-y-1 text-sm">
+                    {staleSources.map((doc) => (
+                      <li key={doc.id}>
+                        {doc.fileName} —{' '}
+                        {t('rowDetail.staleSources.processedAt', {
+                          date: formatDateTime(new Date(doc.processedAt), locale as Locale),
+                        })}
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Basic Info */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -209,6 +236,39 @@ export function RowDetailDrawer({
                     {t('rowDetail.noErrors')}
                   </AlertDescription>
                 </Alert>
+                <Separator />
+              </>
+            )}
+
+            {/* Transform Diagnostics（FIX-128：公式引用了不存在的來源 key） */}
+            {hasDiagnostics && (
+              <>
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">
+                    {t('rowDetail.transformDiagnostics.title')}
+                  </h4>
+                  <Alert className="border-amber-500/50 text-amber-700 dark:text-amber-500 [&>svg]:text-amber-600">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <p className="text-sm mb-2">
+                        {t('rowDetail.transformDiagnostics.description')}
+                      </p>
+                      <ul className="list-disc pl-4 space-y-1 text-sm">
+                        {Object.entries(diagnostics).map(([targetField, keys]) => {
+                          const field = templateFields.find((f) => f.name === targetField);
+                          return (
+                            <li key={targetField}>
+                              <strong>{field ? getFieldLabel(field) : targetField}:</strong>{' '}
+                              {t('rowDetail.transformDiagnostics.unknownKeys', {
+                                keys: keys.join(', '),
+                              })}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                </div>
                 <Separator />
               </>
             )}

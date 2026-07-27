@@ -21,6 +21,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CompanyType, CompanyStatus } from '@prisma/client'
+// FIX-129: 合併回應帶出處理知識轉移報告（type-only import，不拉入伺服器端 runtime）
+import type { MergeTransferReport } from '@/services/company-merge-transfer.service'
 
 // ============================================================
 // Types
@@ -71,6 +73,14 @@ export interface MergeCompaniesRequest {
   secondaryIds: string[]
 }
 
+/** 合併 API 回應（FIX-129：附處理知識轉移報告，含因唯一鍵衝突而跳過的記錄） */
+export interface MergeCompaniesResponse {
+  success: boolean
+  data?: unknown
+  error?: string
+  knowledgeTransfer?: MergeTransferReport
+}
+
 // ============================================================
 // API Functions
 // ============================================================
@@ -106,7 +116,7 @@ async function updateCompany(
 
 async function mergeCompanies(
   data: MergeCompaniesRequest
-): Promise<{ success: boolean; data?: unknown; error?: string }> {
+): Promise<MergeCompaniesResponse> {
   const response = await fetch('/api/admin/companies/merge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

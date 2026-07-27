@@ -28,6 +28,8 @@ import { Prisma } from '@prisma/client';
 import { templateFieldMappingService } from './template-field-mapping.service';
 import { templateInstanceService } from './template-instance.service';
 import { TransformExecutor } from './transform';
+// FIX-128: 未知來源 key 診斷
+import { findUnknownRuleSourceKeys } from '@/lib/template-mapping-source-keys';
 import type {
   MatchDocumentsParams,
   MatchResult,
@@ -260,7 +262,8 @@ export class TemplateMatchingEngineService {
       const rowKey = this.extractRowKey(mappedFields, rowKeyField);
 
       // 轉換欄位
-      const transformResult = await this.transformFields(mappedFields, mappingConfig.mappings);
+      const { values: transformResult, unresolvedSourceKeys } =
+        await this.transformFields(mappedFields, mappingConfig.mappings);
 
       // 驗證
       const validation = templateInstanceService.validateRowData(transformResult, templateFields);
@@ -270,6 +273,9 @@ export class TemplateMatchingEngineService {
         rowKey,
         fieldValues: transformResult,
         validation,
+        ...(Object.keys(unresolvedSourceKeys).length > 0
+          ? { unresolvedSourceKeys }
+          : {}),
       });
 
       if (validation.isValid) {
@@ -371,6 +377,15 @@ export class TemplateMatchingEngineService {
     return prisma.$transaction(async (tx) => {
       const results: RowResult[] = [];
 
+      // FIX-132: 交易前查一次目前最大 rowIndex，之後以記憶體計數器遞增，
+      // 取代每份文件各查一次 findFirst（縮短交易佔用連線的時間，緩解連線池壓力）。
+      const maxRow = await tx.templateInstanceRow.findFirst({
+        where: { templateInstanceId: instance.id },
+        orderBy: { rowIndex: 'desc' },
+        select: { rowIndex: true },
+      });
+      let nextRowIndex = (maxRow?.rowIndex ?? -1) + 1;
+
       for (const doc of documents) {
         try {
           const mappedFields = doc.mappedFields as Record<string, unknown> || {};
@@ -379,11 +394,12 @@ export class TemplateMatchingEngineService {
           const rowKey = this.extractRowKey(mappedFields, rowKeyField);
 
           // 轉換欄位（含 AGGREGATE 所需的 lineItems context）
-          const transformedFields = await this.transformFields(
-            mappedFields,
-            mappingConfig.mappings,
-            doc.stage3Result
-          );
+          const { values: transformedFields, unresolvedSourceKeys } =
+            await this.transformFields(
+              mappedFields,
+              mappingConfig.mappings,
+              doc.stage3Result
+            );
 
           // 驗證
           let validation: ValidationResult = { isValid: true };
@@ -391,14 +407,17 @@ export class TemplateMatchingEngineService {
             validation = templateInstanceService.validateRowData(transformedFields, templateFields);
           }
 
-          // 創建或更新行
-          const row = await this.upsertRow(tx, {
+          // 創建或更新行（FIX-132: 傳入預分配的 rowIndex，新建列時消耗並遞增）
+          const { row, created } = await this.upsertRow(tx, {
             instanceId: instance.id,
             rowKey,
             documentId: doc.id,
             fieldValues: transformedFields,
             validation,
+            unresolvedSourceKeys,
+            rowIndex: nextRowIndex,
           });
+          if (created) nextRowIndex++;
 
           results.push({
             documentId: doc.id,
@@ -406,6 +425,9 @@ export class TemplateMatchingEngineService {
             rowKey,
             status: validation.isValid ? 'VALID' : 'INVALID',
             errors: validation.errors,
+            ...(Object.keys(unresolvedSourceKeys).length > 0
+              ? { unresolvedSourceKeys }
+              : {}),
           });
         } catch (error) {
           results.push({
@@ -432,14 +454,28 @@ export class TemplateMatchingEngineService {
    * 轉換欄位值
    *
    * @description
-   *   根據映射規則將源欄位轉換為目標欄位
+   *   根據映射規則將源欄位轉換為目標欄位。
+   *
+   *   FIX-128：同時收集轉換診斷 —— 規則引用了 row 中不存在的來源 key
+   *   （拼錯 / 欄位定義缺失）時，該項在公式中被靜默視為 0，這裡把
+   *   未解析的 key 記錄為 `unresolvedSourceKeys[targetField]`，供
+   *   儲存與介面顯示，讓設定者能察覺「欄位永遠空白」的原因。
+   *   `li_*` / `_ref_*` 為動態合成欄位（依文件內容產生），缺席不代表
+   *   拼錯，一律豁免。
+   *
+   * @lastModified FIX-128 (2026-07-22)
    */
   private async transformFields(
     sourceFields: Record<string, unknown>,
     mappings: TemplateFieldMappingRule[],
     stage3Result?: unknown
-  ): Promise<Record<string, unknown>> {
+  ): Promise<{
+    values: Record<string, unknown>;
+    unresolvedSourceKeys: Record<string, string[]>;
+  }> {
     const result: Record<string, unknown> = {};
+    const unresolvedSourceKeys: Record<string, string[]> = {};
+    const knownRowKeys = new Set(Object.keys(sourceFields));
 
     // CHANGE-043 Phase 2: 從 stage3Result 提取 lineItems/extraCharges 供 AGGREGATE 使用
     const s3 = (stage3Result && typeof stage3Result === 'object') ? stage3Result as {
@@ -452,6 +488,12 @@ export class TemplateMatchingEngineService {
 
     for (const mapping of sortedMappings) {
       const sourceValue = sourceFields[mapping.sourceField];
+
+      // FIX-128: 記錄引用了 row 中不存在的來源 key（li_* / _ref_* 豁免）
+      const unresolved = findUnknownRuleSourceKeys(mapping, knownRowKeys);
+      if (unresolved.length > 0) {
+        unresolvedSourceKeys[mapping.targetField] = unresolved;
+      }
 
       try {
         const transformedValue = await this.transformExecutor.execute(
@@ -479,7 +521,7 @@ export class TemplateMatchingEngineService {
       }
     }
 
-    return result;
+    return { values: result, unresolvedSourceKeys };
   }
 
   // --------------------------------------------------------------------------
@@ -492,6 +534,9 @@ export class TemplateMatchingEngineService {
    * @description
    *   同 rowKey 的多個文件會合併到同一行
    *   合併策略：新值覆蓋空值，追加 documentId
+   *
+   * @returns `{ row, created }` —— `created` 為 true 表示建立了新列
+   *   （processBatch 依此遞增 rowIndex 計數器，FIX-132）
    */
   private async upsertRow(
     tx: Prisma.TransactionClient,
@@ -507,6 +552,13 @@ export class TemplateMatchingEngineService {
       },
     });
 
+    // FIX-128: 診斷反映最近一次處理；無診斷時清空（規則修好後不殘留舊警告）
+    const diagnostics =
+      params.unresolvedSourceKeys &&
+      Object.keys(params.unresolvedSourceKeys).length > 0
+        ? (params.unresolvedSourceKeys as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull;
+
     if (existing) {
       // 合併欄位值
       const mergedValues = this.mergeFieldValues(
@@ -520,7 +572,7 @@ export class TemplateMatchingEngineService {
         params.documentId,
       ])];
 
-      return tx.templateInstanceRow.update({
+      const row = await tx.templateInstanceRow.update({
         where: { id: existing.id },
         data: {
           fieldValues: mergedValues as Prisma.InputJsonValue,
@@ -528,32 +580,28 @@ export class TemplateMatchingEngineService {
           validationErrors: params.validation.errors
             ? (params.validation.errors as unknown as Prisma.InputJsonValue)
             : Prisma.JsonNull,
+          transformDiagnostics: diagnostics,
           status: params.validation.isValid ? 'VALID' : 'INVALID',
         },
       });
+      return { row, created: false };
     } else {
-      // 取得當前最大 rowIndex
-      const maxRow = await tx.templateInstanceRow.findFirst({
-        where: { templateInstanceId: params.instanceId },
-        orderBy: { rowIndex: 'desc' },
-        select: { rowIndex: true },
-      });
-
-      const newRowIndex = (maxRow?.rowIndex ?? -1) + 1;
-
-      return tx.templateInstanceRow.create({
+      // FIX-132: rowIndex 由 processBatch 於交易前統一分配（不再每列各查一次 findFirst）
+      const row = await tx.templateInstanceRow.create({
         data: {
           templateInstanceId: params.instanceId,
           rowKey: params.rowKey,
-          rowIndex: newRowIndex,
+          rowIndex: params.rowIndex,
           sourceDocumentIds: [params.documentId],
           fieldValues: params.fieldValues as Prisma.InputJsonValue,
           validationErrors: params.validation.errors
             ? (params.validation.errors as unknown as Prisma.InputJsonValue)
             : Prisma.JsonNull,
+          transformDiagnostics: diagnostics,
           status: params.validation.isValid ? 'VALID' : 'INVALID',
         },
       });
+      return { row, created: true };
     }
   }
 

@@ -28,7 +28,7 @@ import { FieldMappingScope, Prisma } from '@prisma/client';
 const listQuerySchema = z.object({
   scope: z.nativeEnum(FieldMappingScope).optional(),
   companyId: z.string().uuid().optional(),
-  documentFormatId: z.string().uuid().optional(),
+  documentFormatId: z.string().cuid().optional(),
   isActive: z.enum(['true', 'false']).transform(v => v === 'true').optional(),
   search: z.string().max(100).optional(),
   page: z.coerce.number().min(1).default(1),
@@ -45,7 +45,7 @@ const createConfigSchema = z.object({
   description: z.string().max(500).optional(),
   scope: z.nativeEnum(FieldMappingScope).default(FieldMappingScope.GLOBAL),
   companyId: z.string().uuid().optional().nullable(),
-  documentFormatId: z.string().uuid().optional().nullable(),
+  documentFormatId: z.string().cuid().optional().nullable(),
   isActive: z.boolean().default(true),
 }).refine(
   (data) => {

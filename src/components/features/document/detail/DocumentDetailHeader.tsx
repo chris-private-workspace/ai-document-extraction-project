@@ -40,7 +40,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
-import type { DocumentStatusKey } from '@/lib/document-status'
+import { canRetryStatus, type DocumentStatusKey } from '@/lib/document-status'
 
 // ============================================================
 // Types
@@ -81,7 +81,10 @@ export function DocumentDetailHeader({
   const [isDeleting, setIsDeleting] = React.useState(false)
 
   // 可重試的狀態
-  const isRetryable = ['OCR_FAILED', 'FAILED'].includes(document.status)
+  // FIX-117: 改用 document-status.ts 的共用判斷，與列表頁 DocumentListTable 一致。
+  //          原本硬編碼 ['OCR_FAILED', 'FAILED'] 漏掉 REF_MATCH_FAILED，
+  //          導致該狀態的文件在列表頁有重試按鈕、進到詳情頁卻沒有。
+  const isRetryable = canRetryStatus(document.status)
 
   // 處理下載
   const handleDownload = React.useCallback(async () => {

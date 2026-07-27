@@ -155,10 +155,13 @@ const DEFAULT_CONFIG: Required<GptExtractionConfig> = {
   maxTokens: 4096,
   temperature: 0.1, // 低溫度以獲得更一致的輸出
   timeout: 300000, // 5 分鐘 - GPT Vision 處理多頁文件可能需要較長時間
-  retryCount: 2,
+  retryCount: 4, // FIX-107 弱點A：2→4（共 5 次嘗試），配合下方指數退避
   retryDelay: 1000,
   imageDetailMode: 'auto', // CHANGE-023: 預設使用自動模式
 };
+
+/** FIX-107 弱點A：單次重試退避上限（毫秒），避免指數退避無限增長 */
+const MAX_RETRY_BACKOFF_MS = 15000;
 
 /** API 版本 */
 const API_VERSION = '2024-06-01';
@@ -266,8 +269,13 @@ export class UnifiedGptExtractionService {
           // 如果是最後一次嘗試，不再重試
           if (attempt === this.config.retryCount) break;
 
-          // 等待後重試
-          await this.delay(this.config.retryDelay * (attempt + 1));
+          // FIX-107 弱點A：指數退避 + jitter（原線性 1s/2s 過短，無法騎過 provider
+          // 短暫降級；jitter 避免併發重試同步化造成 retry storm）
+          const backoffBase = Math.min(
+            this.config.retryDelay * Math.pow(2, attempt),
+            MAX_RETRY_BACKOFF_MS
+          );
+          await this.delay(backoffBase / 2 + Math.random() * (backoffBase / 2));
         }
       }
 

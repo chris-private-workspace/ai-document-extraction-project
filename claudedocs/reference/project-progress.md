@@ -48,12 +48,11 @@
 
 ## 變更管理統計
 
-| 類型 | 數量 | 路徑 |
-|------|------|------|
-| 功能變更 (CHANGE) | 33 份 | `claudedocs/4-changes/feature-changes/` |
-| Bug 修復 (FIX) | 35 份 | `claudedocs/4-changes/bug-fixes/` |
-
-> **CHANGE 下一個編號**: 034 | **FIX 下一個編號**: 036
+> 🔴 **本區的手寫統計已於 2026-07-14 移除**（CHANGE-104）。
+>
+> 原本這裡寫著「CHANGE 33 份 / FIX 35 份，下一個編號 034 / 036」—— 到 2026-07 實際已是 CHANGE-104 / FIX-109，**過期了整整 70 個編號**。這種手寫數字注定會漂移，因此不再維護。
+>
+> **份數、最大編號、下一個可用編號一律查**：**[`claudedocs/STATUS.md`](../STATUS.md)**（由 `npm run docs:status` 自動生成，CI 會驗證其與現況相符）。
 
 ---
 

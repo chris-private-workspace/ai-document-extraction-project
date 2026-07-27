@@ -73,7 +73,9 @@
     "IN_REVIEW": "審核中",
     "COMPLETED": "已完成",
     "FAILED": "處理失敗",
-    "REF_MATCH_FAILED": "參考編號匹配失敗"
+    "REF_MATCH_FAILED": "參考編號匹配失敗",
+    "APPROVED": "已核准",
+    "ESCALATED": "已升級"
   },
   "upload": {
     "title": "上傳文件",

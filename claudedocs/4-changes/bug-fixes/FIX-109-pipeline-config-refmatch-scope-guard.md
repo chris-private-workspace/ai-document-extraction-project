@@ -1,4 +1,6 @@
-# FIX-077: Pipeline Config 表單允許在 COMPANY/FORMAT scope 設定無效的 Reference Number Matching
+# FIX-109: Pipeline Config 表單允許在 COMPANY/FORMAT scope 設定無效的 Reference Number Matching
+
+> ⚠️ **編號更正（2026-07-14，CHANGE-104）**：本文件原誤編為 `FIX-077`，與 `FIX-077-stage1-company-drift-jit-duplicates.md`（2026-06-16 建立、已嵌入 `stage-1-company.service.ts` 程式碼註釋）撞號。本文件建立較晚且無程式碼引用，故改編為 **FIX-109**。原始修復內容與日期不變。
 
 > **建立日期**: 2026-06-18
 > **發現方式**: 用戶回報 + 代碼審查（document 3a8cc323 / Fairate Express 調查）

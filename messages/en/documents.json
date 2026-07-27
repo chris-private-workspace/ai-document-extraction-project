@@ -73,7 +73,9 @@
     "IN_REVIEW": "In Review",
     "COMPLETED": "Completed",
     "FAILED": "Failed",
-    "REF_MATCH_FAILED": "Ref Match Failed"
+    "REF_MATCH_FAILED": "Ref Match Failed",
+    "APPROVED": "Approved",
+    "ESCALATED": "Escalated"
   },
   "upload": {
     "title": "Upload Documents",

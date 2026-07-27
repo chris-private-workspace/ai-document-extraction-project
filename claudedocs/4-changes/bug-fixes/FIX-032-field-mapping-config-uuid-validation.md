@@ -1,5 +1,7 @@
 # FIX-032: Field Mapping Config API UUID 驗證錯誤
 
+> **狀態**: ✅ 已修復
+
 ## 問題描述
 
 **發現日期**: 2026-01-21

@@ -1,5 +1,7 @@
 # FIX-012: Resizable Panel Layout Optimization
 
+> **狀態**: ✅ 已完成
+
 ## Bug 概述
 
 | 項目 | 說明 |

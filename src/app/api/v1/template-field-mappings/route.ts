@@ -22,6 +22,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
+import { isAppError } from '@/lib/errors';
 import { templateFieldMappingService } from '@/services/template-field-mapping.service';
 import {
   createTemplateFieldMappingSchema,
@@ -154,18 +156,44 @@ export async function POST(request: NextRequest) {
     // 創建配置
     const mapping = await templateFieldMappingService.create(result.data);
 
+    // FIX-128: 檢查規則是否引用了不存在的來源 key（警告，不擋儲存）
+    const warnings = await templateFieldMappingService.computeUnknownSourceKeyWarnings({
+      scope: result.data.scope,
+      companyId: result.data.companyId,
+      documentFormatId: result.data.documentFormatId,
+      rules: result.data.mappings,
+    });
+
     return NextResponse.json(
       {
         success: true,
         data: mapping,
+        ...(warnings.length > 0 ? { warnings } : {}),
       },
       { status: 201 }
     );
   } catch (error) {
     console.error('[POST /api/v1/template-field-mappings] Error:', error);
 
-    // 處理唯一約束違反
-    if (error instanceof Error && error.message.includes('unique')) {
+    // CHANGE-107: 服務層的重複檢查以 AppError(409) 表達（DB 唯一約束因 NULL
+    // 語意而不會觸發，見 service.create 的說明）。沿用本路由既有的 nested
+    // 錯誤結構，避免破壞前端 hook 的 `error.error?.detail` 解析。
+    if (isAppError(error)) {
+      return NextResponse.json(
+        { success: false, error: error.toJSON() },
+        { status: error.status }
+      );
+    }
+
+    // 處理唯一約束違反（defence in depth：若日後改為 NULLS NOT DISTINCT 即可觸發）
+    // CHANGE-107: 改用 Prisma error code 判斷。原本比對訊息中的小寫 'unique'，
+    // 但 Prisma P2002 的訊息是 'Unique constraint failed on the fields: (...)'，
+    // 大小寫敏感的比對會落空而回 500。複製流程會頻繁觸發此路徑
+    //（使用者未改身分欄位就儲存），必須確實回 409 才能讓使用者知道要重選目標。
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
       return NextResponse.json(
         {
           success: false,

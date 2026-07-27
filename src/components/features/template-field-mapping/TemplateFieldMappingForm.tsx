@@ -21,7 +21,7 @@ import { useRouter } from '@/i18n/routing';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Save, ArrowLeft, Loader2 } from 'lucide-react';
+import { Save, ArrowLeft, Loader2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
@@ -45,6 +45,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -59,6 +60,7 @@ import {
 } from '@/hooks/use-template-field-mappings';
 import type {
   TemplateFieldMapping,
+  TemplateFieldMappingRule,
   TemplateFieldMappingRuleInput,
 } from '@/types/template-field-mapping';
 import { SCOPE_OPTIONS } from '@/types/template-field-mapping';
@@ -67,8 +69,26 @@ import { SCOPE_OPTIONS } from '@/types/template-field-mapping';
 // Types
 // ============================================================================
 
+/**
+ * 複製來源（CHANGE-107）
+ * @description
+ *   只帶「可重用的內容」——規則、說明、優先級、啟用狀態與原名稱。
+ *   四個身分欄位（dataTemplateId / scope / companyId / documentFormatId）
+ *   刻意不在此結構中：它們構成 unique_template_mapping 唯一鍵，
+ *   同值複製在 DB 層必被擋，因此一律留空由使用者重選。
+ */
+export interface TemplateFieldMappingCopySource {
+  name: string;
+  description: string | null;
+  priority: number;
+  isActive: boolean;
+  mappings: TemplateFieldMappingRule[];
+}
+
 interface TemplateFieldMappingFormProps {
   mappingId?: string;
+  /** 複製模式的來源內容（CHANGE-107），與 mappingId 互斥 */
+  copySource?: TemplateFieldMappingCopySource;
   dataTemplates: Array<{ id: string; name: string; fields: TemplateField[] }>;
   companies: Array<{ id: string; name: string }>;
   documentFormats: Array<{ id: string; name: string }>;
@@ -81,7 +101,11 @@ interface TemplateFieldMappingFormProps {
 
 const formSchema = z.object({
   dataTemplateId: z.string().min(1, '請選擇數據模版'),
-  scope: z.enum(['GLOBAL', 'COMPANY', 'FORMAT']),
+  // CHANGE-107: '' is the unselected state, used by copy mode so the user must
+  // pick a scope explicitly. Without it, copy would fall back to GLOBAL — the
+  // only scope that needs no further field and therefore the only one that can
+  // be saved unnoticed, silently applying the mapping to every company.
+  scope: z.enum(['', 'GLOBAL', 'COMPANY', 'FORMAT']),
   companyId: z.string().optional(),
   documentFormatId: z.string().optional(),
   name: z.string().min(1, '名稱不能為空').max(200, '名稱過長'),
@@ -89,6 +113,9 @@ const formSchema = z.object({
   priority: z.number().int().min(0).max(1000),
   isActive: z.boolean(),
 }).refine(
+  (data) => data.scope !== '',
+  { message: '請選擇範圍', path: ['scope'] }
+).refine(
   (data) => {
     if (data.scope === 'COMPANY' && !data.companyId) {
       return false;
@@ -119,6 +146,7 @@ type FormValues = z.infer<typeof formSchema>;
  */
 export function TemplateFieldMappingForm({
   mappingId,
+  copySource,
   dataTemplates,
   companies,
   documentFormats,
@@ -140,6 +168,7 @@ export function TemplateFieldMappingForm({
   return (
     <TemplateFieldMappingFormInner
       existingMapping={existingMapping}
+      copySource={copySource}
       dataTemplates={dataTemplates}
       companies={companies}
       documentFormats={documentFormats}
@@ -154,6 +183,7 @@ export function TemplateFieldMappingForm({
 
 interface FormInnerProps {
   existingMapping: TemplateFieldMapping | null;
+  copySource?: TemplateFieldMappingCopySource;
   dataTemplates: Array<{ id: string; name: string; fields: TemplateField[] }>;
   companies: Array<{ id: string; name: string }>;
   documentFormats: Array<{ id: string; name: string }>;
@@ -168,6 +198,7 @@ interface FormInnerProps {
  */
 function TemplateFieldMappingFormInner({
   existingMapping,
+  copySource,
   dataTemplates,
   companies,
   documentFormats,
@@ -186,8 +217,9 @@ function TemplateFieldMappingFormInner({
   const [mappingRules, setMappingRules] = React.useState<Partial<TemplateFieldMappingRuleInput>[]>(
     () => {
       // Initialize from existing data immediately (no useEffect needed)
-      if (existingMapping) {
-        return existingMapping.mappings.map((r) => ({
+      const source = existingMapping?.mappings ?? copySource?.mappings;
+      if (source) {
+        return source.map((r) => ({
           sourceField: r.sourceField,
           targetField: r.targetField,
           transformType: r.transformType,
@@ -216,6 +248,21 @@ function TemplateFieldMappingFormInner({
         isActive: existingMapping.isActive,
       };
     }
+    // CHANGE-107: copy mode reuses the source's content but never its identity.
+    // The four identity fields stay empty so the user must retarget — an
+    // identical copy would violate unique_template_mapping anyway.
+    if (copySource) {
+      return {
+        dataTemplateId: '',
+        scope: '',
+        companyId: '',
+        documentFormatId: '',
+        name: `${copySource.name}${t('form.copyNameSuffix')}`,
+        description: copySource.description || '',
+        priority: copySource.priority,
+        isActive: copySource.isActive,
+      };
+    }
     return {
       dataTemplateId: '',
       scope: 'GLOBAL',
@@ -226,7 +273,7 @@ function TemplateFieldMappingFormInner({
       priority: 0,
       isActive: true,
     };
-  }, [existingMapping]);
+  }, [existingMapping, copySource, t]);
 
   // Form - defaultValues is correct from first render, no values prop needed
   const form = useForm<FormValues>({
@@ -274,11 +321,33 @@ function TemplateFieldMappingFormInner({
       return;
     }
 
+    // CHANGE-107: block target fields that do not exist in the selected
+    // template. The API schema only checks the string's shape, so a stale
+    // targetField carried over by a copy would otherwise be persisted and then
+    // silently produce no value at match time.
+    const templateFieldNames = new Set(templateFields.map((f) => f.name));
+    const invalidTargetCount = mappingRules.filter(
+      (r) => r.targetField && !templateFieldNames.has(r.targetField)
+    ).length;
+    if (invalidTargetCount > 0) {
+      toast.error(t('form.errors.invalidTargetFields', { count: invalidTargetCount }));
+      return;
+    }
+
+    // Zod already rejects an unselected scope; destructuring it out narrows the
+    // type for the API payload below (a `...values` spread would keep the
+    // wider '' | 'GLOBAL' | 'COMPANY' | 'FORMAT' type).
+    const { scope: selectedScope, ...restValues } = values;
+    if (!selectedScope) {
+      return;
+    }
+
     try {
       const input = {
-        ...values,
-        companyId: values.scope === 'COMPANY' ? values.companyId : undefined,
-        documentFormatId: values.scope === 'FORMAT' ? values.documentFormatId : undefined,
+        ...restValues,
+        scope: selectedScope,
+        companyId: selectedScope === 'COMPANY' ? values.companyId : undefined,
+        documentFormatId: selectedScope === 'FORMAT' ? values.documentFormatId : undefined,
         mappings: mappingRules.map((r, i) => ({
           sourceField: r.sourceField!,
           targetField: r.targetField!,
@@ -290,12 +359,19 @@ function TemplateFieldMappingFormInner({
         })),
       };
 
-      if (isEditing) {
-        await updateMapping(input);
-        toast.success(t('toast.updated.title'));
-      } else {
-        await createMapping(input);
-        toast.success(t('toast.created.title'));
+      const { warnings } = isEditing
+        ? await updateMapping(input)
+        : await createMapping(input);
+      toast.success(isEditing ? t('toast.updated.title') : t('toast.created.title'));
+
+      // FIX-128: 儲存成功但有規則引用了不存在的來源 key → 顯示警告
+      if (warnings && warnings.length > 0) {
+        toast.warning(t('toast.sourceKeyWarning.title', { count: warnings.length }), {
+          description: warnings
+            .map((w) => `${w.targetField}: ${w.unknownKeys.join(', ')}`)
+            .join('\n'),
+          duration: 10000,
+        });
       }
 
       router.push('/admin/template-field-mappings');
@@ -316,6 +392,22 @@ function TemplateFieldMappingFormInner({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className={cn('space-y-6', className)}>
+        {/* CHANGE-107: copy provenance. Kept visible for the whole form because
+            the rule editor is not rendered until a data template is chosen —
+            without this the page looks empty and the copy appears to have
+            failed, even though the rules are already held in state. */}
+        {copySource && (
+          <Alert>
+            <Copy className="h-4 w-4" />
+            <AlertDescription>
+              {t('form.copyBanner', {
+                name: copySource.name,
+                count: copySource.mappings.length,
+              })}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Basic Info Section */}
         <Card>
           <CardHeader>
@@ -409,7 +501,7 @@ function TemplateFieldMappingFormInner({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder={t('form.scopePlaceholder')} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>

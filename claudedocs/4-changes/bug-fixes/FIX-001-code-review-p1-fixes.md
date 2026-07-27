@@ -2,6 +2,7 @@
 
 > **Bug ID**: FIX-001
 > **Date**: 2025-12-23
+> **狀態**: ✅ 已修復
 **Severity**: P1 (High Priority)
 **Status**: Fixed
 

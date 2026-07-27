@@ -17,7 +17,7 @@
  *
  * @module prisma/apply-schema-drift
  * @since CHANGE-086 (2026-06-23)
- * @lastModified 2026-06-23
+ * @lastModified 2026-07-16
  */
 const { Client } = require('pg')
 
@@ -44,6 +44,46 @@ const MIGRATIONS = [
   {
     id: 'CHANGE-086 index reference_numbers_document_sub_type_idx',
     sql: `create index if not exists "reference_numbers_document_sub_type_idx" on "reference_numbers" ("document_sub_type");`,
+  },
+  // CHANGE-103 Phase 2（組件 4）：companies.suspected_duplicate_of_id（灰帶 JIT 記錄疑似重複目標）。
+  // 對應 migration 20260716113449；Azure 既有 companies 表非空，bootstrap 不會套用，需此增量補上。
+  {
+    id: 'CHANGE-103 P2 column companies.suspected_duplicate_of_id',
+    sql: `alter table "companies" add column if not exists "suspected_duplicate_of_id" text;`,
+  },
+  {
+    id: 'CHANGE-103 P2 index companies_suspected_duplicate_of_id_idx',
+    sql: `create index if not exists "companies_suspected_duplicate_of_id_idx" on "companies" ("suspected_duplicate_of_id");`,
+  },
+  {
+    id: 'CHANGE-103 P2 fk companies_suspected_duplicate_of_id_fkey',
+    sql: `do $$ begin
+      alter table "companies" add constraint "companies_suspected_duplicate_of_id_fkey"
+        foreign key ("suspected_duplicate_of_id") references "companies"("id")
+        on delete set null on update cascade;
+    exception when duplicate_object then null; end $$;`,
+  },
+  // FIX-128：template_instance_rows.transform_diagnostics（轉換診斷：引用了不存在來源 key 的清單）。
+  // 對應 migration 20260722020000；Azure 既有表非空，bootstrap 不會套用，需此增量補上。
+  {
+    id: 'FIX-128 column template_instance_rows.transform_diagnostics',
+    sql: `alter table "template_instance_rows" add column if not exists "transform_diagnostics" jsonb;`,
+  },
+  // FIX-133：template_field_mappings 唯一性改為 NULLS NOT DISTINCT 的部分唯一索引。
+  // 原 @@unique 因 PostgreSQL 預設 NULLS DISTINCT 而對任何範圍都不生效（每種 scope 必含
+  // ≥1 個 NULL），從未擋下任何重複。改限定 is_active = true —— 對應 service.create() 的
+  // 檢查條件，且既有停用列不受約束、無需刪除任何資料。
+  // 對應 migration 20260725060000 與 prisma/post-init-indexes.sql（三處須保持一致）。
+  {
+    id: 'FIX-133 drop ineffective full-table unique index on template_field_mappings',
+    sql: `drop index if exists "template_field_mappings_data_template_id_scope_company_id_d_key";`,
+  },
+  {
+    id: 'FIX-133 index template_field_mappings_active_unique (NULLS NOT DISTINCT, partial)',
+    sql: `create unique index if not exists "template_field_mappings_active_unique"
+      on "template_field_mappings" ("data_template_id", "scope", "company_id", "document_format_id")
+      nulls not distinct
+      where "is_active" = true;`,
   },
 ]
 

@@ -31,7 +31,7 @@ const updateConfigSchema = z.object({
   description: z.string().max(500).optional().nullable(),
   scope: z.nativeEnum(FieldMappingScope).optional(),
   companyId: z.string().uuid().optional().nullable(),
-  documentFormatId: z.string().uuid().optional().nullable(),
+  documentFormatId: z.string().cuid().optional().nullable(),
   isActive: z.boolean().optional(),
   version: z.number().int().positive(), // 必須提供版本號進行樂觀鎖檢查
 });

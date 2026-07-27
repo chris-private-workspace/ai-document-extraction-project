@@ -1,5 +1,7 @@
 # CHANGE-061: Permission 檢查統一 withAuth HOF（IAM-03 L1 → L3）
 
+> **狀態**: 📋 規劃中（規劃日期 2026-04-28）
+
 ## 變更摘要
 
 | 項目 | 內容 |

@@ -28,6 +28,12 @@
 
 import { prisma } from '@/lib/prisma'
 import { CompanyStatus, CompanySource, CompanyType, Company } from '@prisma/client'
+// FIX-125: 合併時一併轉移「公司處理知識」類關聯
+import {
+  transferCompanyKnowledge,
+  logMergeTransferSkips,
+  type MergeTransferReport,
+} from './company-merge-transfer.service'
 import {
   findMatchingCompany,
   findPossibleDuplicates,
@@ -440,20 +446,24 @@ export async function addNameVariant(
  *   將副公司合併到主公司：
  *   1. 將副公司的名稱變體添加到主公司
  *   2. 將副公司的名稱作為變體添加到主公司
- *   3. 將副公司狀態設為 MERGED
- *   4. 記錄合併關係
+ *   3. 將副公司的文件、提取結果、映射規則轉移到主公司（FIX-112 補齊）
+ *   4. 將副公司狀態設為 MERGED
+ *   5. 記錄合併關係
  *
- *   NOTE: 此函數用於 JIT 自動建立流程中的合併操作。
- *   對於一般公司管理的合併操作，請使用 company.service.ts 的 mergeCompanies。
+ *   NOTE: 此函數為 admin 合併 UI（POST /api/admin/companies/merge）的實際後端。
+ *   FIX-112 前僅更新 nameVariants + MERGED，未轉移副公司關聯資料，導致合併後
+ *   documents / extraction_results / mapping_rules 全部孤兒化（COMPANY 級 template
+ *   映射因 companyId 不相等而失效）。現與 company.service.ts 的
+ *   mergeCompanies / confirmCompanyMerge 行為一致。
  *
  * @param primaryId - 主公司 ID（保留）
  * @param secondaryIds - 副公司 ID 列表（將被合併）
- * @returns 合併後的主公司
+ * @returns 合併後的主公司 + 處理知識轉移報告（FIX-129：供介面顯示跳過明細）
  */
 export async function autoMergeCompanies(
   primaryId: string,
   secondaryIds: string[]
-): Promise<Company> {
+): Promise<{ company: Company; knowledgeTransfer: MergeTransferReport }> {
   // 獲取主公司
   const primaryCompany = await prisma.company.findUnique({
     where: { id: primaryId },
@@ -492,6 +502,27 @@ export async function autoMergeCompanies(
       },
     })
 
+    // FIX-112：轉移副公司的關聯資料到主公司（原本缺失，導致合併後孤兒化）。
+    // 與 company.service.ts 的 confirmCompanyMerge 一致。
+    await tx.document.updateMany({
+      where: { companyId: { in: secondaryIds } },
+      data: { companyId: primaryId },
+    })
+    await tx.extractionResult.updateMany({
+      where: { companyId: { in: secondaryIds } },
+      data: { companyId: primaryId },
+    })
+    await tx.mappingRule.updateMany({
+      where: { companyId: { in: secondaryIds } },
+      data: { companyId: primaryId },
+    })
+
+    // FIX-125：document_formats / field_definition_sets 等原本「刻意不轉」，理由是
+    // 「副公司設 MERGED 後 inert」。該假設對 documents 成立，對公司處理知識不成立 ——
+    // 存活公司仍會收到同樣版面的文件，辨識所需的定義留在原地等同遺失
+    // （Azure DEV 實證：CEVA 8 個格式散落 8 間公司，FIX-115 因此完全無效）。
+    const knowledgeTransfer = await transferCompanyKnowledge(tx, secondaryIds, primaryId)
+
     // 更新所有副公司
     await tx.company.updateMany({
       where: { id: { in: secondaryIds } },
@@ -501,7 +532,12 @@ export async function autoMergeCompanies(
       },
     })
 
-    return updatedPrimary
+    logMergeTransferSkips(
+      knowledgeTransfer,
+      `autoMergeCompanies [${secondaryIds.join(', ')}] → ${primaryId}`
+    )
+
+    return { company: updatedPrimary, knowledgeTransfer }
   })
 
   clearMatcherCache()

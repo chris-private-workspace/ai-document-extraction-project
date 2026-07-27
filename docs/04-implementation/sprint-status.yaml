@@ -1,4 +1,22 @@
+# ==============================================================================
+# ⚠️ 已封存 —— 本檔不再是 Sprint 真實來源（2026-07-14 起，CHANGE-104）
+# ==============================================================================
+#
+# 本檔最後一次實質更新為 2026-02-06，僅涵蓋 Epic 0-21 的歷史完成狀態。
+# Epic 22（企業安全治理）與 Epic 23（多 LLM Provider）從未寫入本檔，
+# 2026-02-06 之後的 CHANGE-084~ / FIX-088~ 亦無任何對應。
+# 續用本檔判斷「還有什麼沒做」會得到「全部完成」的錯誤結論。
+#
+# 改查以下來源（皆為當下真實狀態）：
+#   - CHANGE/FIX 狀態 + 下一個可用編號 → claudedocs/STATUS.md（npm run docs:status 自動生成）
+#   - Epic 22 → docs/04-implementation/stories/epic-22-enterprise-security/
+#   - Epic 23 → docs/04-implementation/tech-specs/epic-23-multi-llm-provider/AI-HANDOFF.md
+#
+# 保留本檔的理由：Epic 0-21 的歷史完成記錄仍有查考價值。請勿再手動維護。
+# ==============================================================================
+
 # generated: 2025-12-15
+# archived: 2026-07-14
 # project: ai-document-extraction-project
 # tracking_system: file-system
 # story_location: docs/04-implementation/stories

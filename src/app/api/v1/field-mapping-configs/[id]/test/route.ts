@@ -28,7 +28,7 @@ import { FieldMappingScope, FieldTransformType } from '@prisma/client';
 const testRequestSchema = z.object({
   sampleData: z.record(z.string(), z.unknown()).optional(),
   companyId: z.string().uuid().optional(),
-  documentFormatId: z.string().uuid().optional(),
+  documentFormatId: z.string().cuid().optional(),
 });
 
 // =====================

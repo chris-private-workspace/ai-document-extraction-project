@@ -22,6 +22,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { nanoid } from 'nanoid';
+import { createConflictError } from '@/lib/errors';
 import type { Prisma } from '@prisma/client';
 import type {
   TemplateFieldMapping,
@@ -37,6 +38,11 @@ import type {
   UpdateTemplateFieldMappingInput,
 } from '@/validations/template-field-mapping';
 import { SCOPE_PRIORITY } from '@/types/template-field-mapping';
+import type { FieldTransformType, TransformParams } from '@/types/template-field-mapping';
+// FIX-128: 儲存時未知來源 key 警告
+import { findUnknownRuleSourceKeys } from '@/lib/template-mapping-source-keys';
+import { getResolvedFields } from '@/services/field-definition-set.service';
+import { STANDARD_FIELDS } from '@/constants/standard-fields';
 
 // ============================================================================
 // Constants
@@ -181,11 +187,39 @@ export class TemplateFieldMappingService {
    * @param input - 創建輸入資料
    * @param createdBy - 創建者 ID
    * @returns 新建的配置
+   * @throws AppError(409) 若相同範圍與關聯的啟用配置已存在
    */
   async create(
     input: CreateTemplateFieldMappingInput,
     createdBy?: string
   ): Promise<TemplateFieldMapping> {
+    // CHANGE-107: 應用層重複檢查。
+    //
+    // 為何不能只靠 DB 的 unique_template_mapping：PostgreSQL 的唯一約束把 NULL
+    // 視為互不相同，而這四欄組合在每一種範圍下都必然含至少一個 NULL
+    //（GLOBAL: companyId + documentFormatId 皆 NULL；COMPANY: documentFormatId
+    // 為 NULL；FORMAT: companyId 為 NULL），因此該約束實務上從未生效，
+    // 相同四元組可以無聲重複建立（2026-07-25 實測確認）。
+    //
+    // 只比對 isActive: true —— 軟刪除（DELETE 只設 isActive: false）留下的舊記錄
+    // 不應阻擋重建，且 resolveMapping 只撈啟用配置，故不會造成解析歧義。
+    const duplicate = await prisma.templateFieldMapping.findFirst({
+      where: {
+        dataTemplateId: input.dataTemplateId,
+        scope: input.scope,
+        companyId: input.companyId || null,
+        documentFormatId: input.documentFormatId || null,
+        isActive: true,
+      },
+      select: { name: true },
+    });
+
+    if (duplicate) {
+      throw createConflictError(
+        `相同範圍和關聯的映射配置已存在：「${duplicate.name}」。請改選其他數據模版、範圍或目標。`
+      );
+    }
+
     // 為每條規則生成 ID
     const mappingsWithIds = input.mappings.map((rule, index) => ({
       ...rule,
@@ -285,6 +319,59 @@ export class TemplateFieldMappingService {
     this.invalidateCache(existing.dataTemplateId);
 
     return this.mapToDto(mapping);
+  }
+
+  /**
+   * FIX-128: 計算映射規則中「引用了不存在來源 key」的警告
+   *
+   * @description
+   *   儲存時的 best-effort 檢查（不擋儲存，僅回傳警告）：
+   *   把規則引用的來源 key 與該 scope 解析出的欄位定義 + 標準欄位比對，
+   *   列出未知 key。設計上刻意保守，避免誤報擋住合法流程：
+   *   - GLOBAL scope 一律不判定（無公司語境，欄位集合無從確定）
+   *   - `li_*` / `_ref_*` 動態合成欄位豁免
+   *   - 欄位解析失敗時回空（警告失敗不影響儲存）
+   *
+   * @param params - scope 語境 + 待檢查的規則
+   * @returns 每條有問題規則的 targetField + 未知 key 清單（空陣列 = 無警告）
+   * @since FIX-128
+   */
+  async computeUnknownSourceKeyWarnings(params: {
+    scope: TemplateFieldMappingScope;
+    companyId?: string | null;
+    documentFormatId?: string | null;
+    rules: Array<{
+      targetField: string;
+      sourceField: string;
+      transformType: FieldTransformType;
+      transformParams?: TransformParams;
+    }>;
+  }): Promise<Array<{ targetField: string; unknownKeys: string[] }>> {
+    if (params.scope === 'GLOBAL') return [];
+
+    try {
+      const resolved = await getResolvedFields(
+        params.companyId ?? undefined,
+        params.documentFormatId ?? undefined
+      );
+
+      const knownKeys = new Set<string>(STANDARD_FIELDS.map((f) => f.name));
+      for (const entry of resolved.fields ?? []) {
+        knownKeys.add(entry.key);
+      }
+
+      const warnings: Array<{ targetField: string; unknownKeys: string[] }> = [];
+      for (const rule of params.rules) {
+        const unknownKeys = findUnknownRuleSourceKeys(rule, knownKeys);
+        if (unknownKeys.length > 0) {
+          warnings.push({ targetField: rule.targetField, unknownKeys });
+        }
+      }
+      return warnings;
+    } catch (error) {
+      console.error('[TemplateFieldMapping] FIX-128 warning check failed:', error);
+      return [];
+    }
   }
 
   /**

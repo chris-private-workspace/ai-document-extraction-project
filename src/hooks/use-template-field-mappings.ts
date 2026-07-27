@@ -27,6 +27,7 @@ import type {
   TemplateFieldMappingFilters,
   ResolvedMappingConfig,
   ResolveMappingParams,
+  MappingSourceKeyWarning,
 } from '@/types/template-field-mapping';
 import type {
   CreateTemplateFieldMappingInput,
@@ -86,6 +87,8 @@ interface ListResponse {
 interface DetailResponse {
   success: boolean;
   data: TemplateFieldMapping;
+  /** FIX-128: 儲存時的未知來源 key 警告（不影響儲存成功與否） */
+  warnings?: MappingSourceKeyWarning[];
 }
 
 /**
@@ -386,7 +389,11 @@ export function useResolveMappings(
  * 創建映射配置的返回類型
  */
 export interface UseCreateTemplateFieldMappingResult {
-  createMapping: (input: CreateTemplateFieldMappingInput) => Promise<TemplateFieldMapping>;
+  createMapping: (input: CreateTemplateFieldMappingInput) => Promise<{
+    mapping: TemplateFieldMapping;
+    /** FIX-128: 儲存時的未知來源 key 警告 */
+    warnings?: MappingSourceKeyWarning[];
+  }>;
   isCreating: boolean;
   error: Error | null;
 }
@@ -425,7 +432,7 @@ export function useCreateTemplateFieldMapping(): UseCreateTemplateFieldMappingRe
   return {
     createMapping: async (input: CreateTemplateFieldMappingInput) => {
       const result = await mutation.mutateAsync(input);
-      return result.data;
+      return { mapping: result.data, warnings: result.warnings };
     },
     isCreating: mutation.isPending,
     error: mutation.error as Error | null,
@@ -436,7 +443,11 @@ export function useCreateTemplateFieldMapping(): UseCreateTemplateFieldMappingRe
  * 更新映射配置的返回類型
  */
 export interface UseUpdateTemplateFieldMappingResult {
-  updateMapping: (input: UpdateTemplateFieldMappingInput) => Promise<TemplateFieldMapping>;
+  updateMapping: (input: UpdateTemplateFieldMappingInput) => Promise<{
+    mapping: TemplateFieldMapping;
+    /** FIX-128: 儲存時的未知來源 key 警告 */
+    warnings?: MappingSourceKeyWarning[];
+  }>;
   isUpdating: boolean;
   error: Error | null;
 }
@@ -484,7 +495,7 @@ export function useUpdateTemplateFieldMapping(
   return {
     updateMapping: async (input: UpdateTemplateFieldMappingInput) => {
       const result = await mutation.mutateAsync(input);
-      return result.data;
+      return { mapping: result.data, warnings: result.warnings };
     },
     isUpdating: mutation.isPending,
     error: mutation.error as Error | null,

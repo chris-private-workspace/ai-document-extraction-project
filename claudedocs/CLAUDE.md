@@ -10,7 +10,7 @@
 
 - **項目規劃**: Epic 架構設計、功能規劃、路線圖
 - **進度追蹤**: 每日/每週進度報告、Sprint 計劃
-- **變更管理**: Bug 修復記錄（54 份，FIX-050~054 全數完成）、功能變更追蹤（56 份，最新 CHANGE-056）
+- **變更管理**: Bug 修復記錄（FIX-*）、功能變更追蹤（CHANGE-*）— 份數與狀態見自動生成的 [`STATUS.md`](STATUS.md)
 - **AI 協作**: 情境提示詞、工作流程指南、分析報告
 - **知識傳承**: 開發經驗、故障排查、部署指南
 
@@ -154,12 +154,11 @@ claudedocs/
 | Epic 20 | 參考編號主檔管理 | ✅ 已完成 | 2026-02-05 |
 | Epic 21 | 匯率管理 | ✅ 已完成 | 2026-02-06 |
 
-### 變更管理統計（2026-04-22 更新）
+### 變更管理統計
 
-| 類型 | 數量 | 最新編號 | 路徑 |
-|------|------|---------|------|
-| 功能變更 (CHANGE) | **56 份** | CHANGE-056 | `4-changes/feature-changes/` |
-| Bug 修復 (FIX) | **54 份**（全部已完成）| FIX-054 | `4-changes/bug-fixes/` |
+> 🔴 **手寫統計已於 2026-07-14 移除**（CHANGE-104）。原記載「CHANGE 56 份 / FIX 54 份（全部已完成）」，實際早已遠超且**FIX 並非全部完成**。
+>
+> **份數、最大編號、下一個可用編號、以及哪些還沒做完** → 一律查 **[`STATUS.md`](STATUS.md)**（`npm run docs:status` 自動生成，CI `docs:check` 驗證）。
 
 ### FIX-050 ~ FIX-054（Codebase 品質與部署可靠性系列）✅ 全數完成
 
@@ -219,13 +218,13 @@ claudedocs/
 
 位於 `claudedocs/4-changes/feature-changes/`，命名格式 `CHANGE-{NNN}-{description}.md`
 
-**CHANGE 編號範圍**: 001-056（共 56 份；CHANGE-055/056 規劃中）
+**CHANGE 編號範圍**: 見 [`STATUS.md`](STATUS.md)（自動生成，含最大編號與下一個可用編號）
 
 ### Bug 修復 (FIX-*)
 
 位於 `claudedocs/4-changes/bug-fixes/`，命名格式 `FIX-{NNN}-{description}.md`
 
-**FIX 編號範圍**: 001-054（共 54 份；FIX-050~054 全數完成）
+**FIX 編號範圍**: 見 [`STATUS.md`](STATUS.md)（自動生成，含最大編號與下一個可用編號）
 
 ### 進度報告
 
@@ -385,7 +384,8 @@ claudedocs/
 2. **使用正確的命名約定** - CHANGE 下一個編號 034，FIX 下一個編號 036
 3. **遵循格式範本** - 參考 `7-archive/templates/` 下的範本
 
-> **下一個可用編號**: CHANGE-057、FIX-055（建立前請 Glob `CHANGE-*.md` / `FIX-*.md` 確認最新編號）
+> **下一個可用編號**: 查 [`STATUS.md`](STATUS.md) 的「編號」表（自動生成，永遠是當下值）。
+> ⚠️ 建立新 CHANGE/FIX 後，**務必執行 `npm run docs:status` 重新生成 STATUS.md 並一併提交** —— 否則 CI 的 `docs:check` 會擋下 PR。
 
 ---
 

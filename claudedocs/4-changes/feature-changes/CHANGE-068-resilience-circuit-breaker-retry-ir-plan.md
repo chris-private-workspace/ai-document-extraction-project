@@ -1,5 +1,7 @@
 # CHANGE-068: 韌性強化（Resilience — Circuit Breaker + 統一 Retry + Incident Response Plan）
 
+> **狀態**: 📋 規劃中
+
 ## 變更摘要
 
 | 項目 | 內容 |

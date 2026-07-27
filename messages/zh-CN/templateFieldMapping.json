@@ -4,6 +4,8 @@
     "description": "配置标准字段到模板字段的映射关系",
     "createTitle": "创建映射配置",
     "createDescription": "创建新的字段映射配置",
+    "copyTitle": "复制映射配置",
+    "copyDescription": "从现有配置复制规则，重新选择模板与范围",
     "editTitle": "编辑：{name}",
     "editDescription": "修改映射配置和规则",
     "notFound": "找不到映射配置"
@@ -44,6 +46,7 @@
   "actions": {
     "create": "创建配置",
     "edit": "编辑",
+    "copy": "复制",
     "delete": "删除",
     "retry": "重试"
   },
@@ -74,6 +77,9 @@
     "updateError": {
       "title": "更新失败"
     },
+    "sourceKeyWarning": {
+      "title": "{count} 条规则引用了未知的来源字段"
+    },
     "deleted": {
       "title": "配置已删除",
       "description": "映射配置已被删除。"
@@ -95,6 +101,7 @@
     "dataTemplatePlaceholder": "选择数据模板",
     "dataTemplateDescription": "映射目标的模板",
     "scope": "范围",
+    "scopePlaceholder": "选择范围",
     "scopeDescription": "决定此映射的适用范围",
     "company": "公司",
     "companyPlaceholder": "选择公司",
@@ -104,6 +111,8 @@
     "priorityDescription": "较高优先级会覆盖较低的映射（0-1000）",
     "isActive": "启用",
     "isActiveDescription": "启用或停用此映射",
+    "copyBanner": "已从「{name}」复制 {count} 条规则。请选择数据模板与范围后保存。",
+    "copyNameSuffix": "（复制）",
     "mappingRules": {
       "title": "映射规则",
       "description": "定义标准字段到模板字段的映射方式",
@@ -115,7 +124,8 @@
     "saving": "保存中...",
     "errors": {
       "noRules": "请至少添加一条映射规则",
-      "incompleteRules": "请完成所有映射规则"
+      "incompleteRules": "请完成所有映射规则",
+      "invalidTargetFields": "{count} 条规则的目标字段不属于所选模板，请修正后再保存"
     }
   },
   "mappingRules": {
@@ -151,7 +161,8 @@
     "noResults": "找不到匹配的字段",
     "alreadyMapped": "已映射",
     "required": "必填",
-    "noTemplate": "请先选择数据模板"
+    "noTemplate": "请先选择数据模板",
+    "invalidValue": "不存在于所选模板"
   },
   "transformType": {
     "label": "转换类型",
@@ -175,6 +186,7 @@
     "quickInsert": "快速插入",
     "valid": "公式格式正确",
     "usedVariables": "使用的变量",
+    "unknownVariablesWarning": "未知的来源字段：{variables}。它们不在此范围的字段列表中，执行时会被视为 0 —— 请检查是否拼错或字段定义尚未创建。",
     "operators": "支持的运算符"
   },
   "lookup": {

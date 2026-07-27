@@ -1,5 +1,7 @@
 # CHANGE-069: ACA / ACR Bicep 安全強化（Azure Container Apps + Container Registry Hardening）
 
+> **狀態**: 📋 規劃中
+
 > ## ✅ 用戶決策確認（2026-04-28）
 >
 > | ID | 決策 |

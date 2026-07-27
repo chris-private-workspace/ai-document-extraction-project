@@ -92,6 +92,13 @@ export function TargetFieldSelector({
     [templateFields, value]
   );
 
+  // CHANGE-107: A non-empty value that matches no template field is surfaced
+  // instead of silently falling back to the placeholder. This happens when a
+  // copied rule keeps a targetField from the source configuration's template
+  // and the user then picks a different data template — the stale value would
+  // otherwise be invisible here while still being submitted.
+  const hasInvalidValue = !!value && !selectedField;
+
   const handleSelect = React.useCallback(
     (fieldName: string) => {
       onChange(fieldName);
@@ -122,11 +129,23 @@ export function TargetFieldSelector({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className={cn('w-full justify-between', className)}
+          className={cn(
+            'w-full justify-between',
+            hasInvalidValue && 'border-destructive text-destructive',
+            className
+          )}
         >
           {selectedField ? (
             <span className="truncate">
               {selectedField.label || selectedField.name}
+            </span>
+          ) : hasInvalidValue ? (
+            <span className="flex min-w-0 items-center gap-1.5">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="truncate">{value}</span>
+              <Badge variant="destructive" className="shrink-0 text-[10px] px-1 py-0">
+                {t('targetField.invalidValue')}
+              </Badge>
             </span>
           ) : (
             <span className="text-muted-foreground">

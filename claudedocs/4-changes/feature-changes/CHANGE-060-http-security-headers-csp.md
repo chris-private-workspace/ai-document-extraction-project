@@ -1,5 +1,7 @@
 # CHANGE-060: HTTP Security Headers + CSP（DP-02 + AppSec-03 + AppSec-08 合併）
 
+> **狀態**: 📋 規劃中（規劃日期 2026-04-28）
+
 ## 變更摘要
 
 | 項目 | 內容 |

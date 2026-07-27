@@ -101,8 +101,10 @@
 - **A3（已部署 DB，關鍵）** — 經查證 prompt 生命週期：
   - **本地**：`npm run db seed`（`seed.ts:943`）以 findFirst→update 更新既有 `PromptConfig`；改 `prisma/seed-data/prompt-configs.ts` 後重跑即可更新本地 DB。
   - **Azure**：容器啟動的 `seed-prod-essential.ts` **完全不 seed PromptConfig**。Azure 現用的中文 `invoiceData` prompt 來自 2026-06-15「本地 DB 同步匯入」（非任何啟動 seed）。因此更新 Azure **必須**在 VNet 內直接跑一次性 `PromptConfig.update` 腳本，或透過 Prompt 管理 UI（Epic 14）手動編輯該 GLOBAL 記錄——**重新部署/容器啟動不會更新它**。
-  - 🔴 **警告**：勿在 Azure 跑 `seed-prod-reference.ts`——其 `prisma/seed-data/reference/prompt-configs.json` 的 STAGE_3 是**另一套不相干的英文 `fields` 陣列格式**（`[{fieldName, value, confidence}]` + `{{ocrText}}` 變數），會覆蓋現用 prompt 並引發更嚴重問題。
-  - ⚠️ 附帶技術債：`seed-data/prompt-configs.ts`（中文 `invoiceData`）與 `seed-data/reference/prompt-configs.json`（英文 `fields` 陣列）是**兩套互不一致的 STAGE_3 prompt**，超出本 FIX 範圍，另記。
+  - ~~🔴 **警告**：勿在 Azure 跑 `seed-prod-reference.ts`——其 `prisma/seed-data/reference/prompt-configs.json` 的 STAGE_3 是**另一套不相干的英文 `fields` 陣列格式**（`[{fieldName, value, confidence}]` + `{{ocrText}}` 變數），會覆蓋現用 prompt 並引發更嚴重問題。~~
+    ✅ **已於 2026-07-20 由 [FIX-118](FIX-118-prod-reference-seed-overwrites-prompts-with-stale-copy.md) 根治**：`seed-prod-reference.ts` 改讀 `seed-data/prompt-configs.ts` 單一真相來源，該 reference JSON 已刪除。此警告不再適用。
+  - ~~⚠️ 附帶技術債：`seed-data/prompt-configs.ts`（中文 `invoiceData`）與 `seed-data/reference/prompt-configs.json`（英文 `fields` 陣列）是**兩套互不一致的 STAGE_3 prompt**，超出本 FIX 範圍，另記。~~
+    ✅ 同由 FIX-118 消除（副本已刪，不再有兩套）。當時查證範圍只涵蓋 STAGE_3，實際 Stage 1 / Stage 2 亦同樣不一致。
 
 效果：SYSTEM 與 USER 一致 → GPT 穩定輸出含基本欄位的 `fields` 格式 → `standardFields` 齊全 → FIELD_COMPLETENESS 正確 → 兩邊信心度一致。
 
