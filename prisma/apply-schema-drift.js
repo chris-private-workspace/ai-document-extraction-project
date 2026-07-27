@@ -17,7 +17,7 @@
  *
  * @module prisma/apply-schema-drift
  * @since CHANGE-086 (2026-06-23)
- * @lastModified 2026-07-16
+ * @lastModified 2026-07-27
  */
 const { Client } = require('pg')
 
@@ -84,6 +84,110 @@ const MIGRATIONS = [
       on "template_field_mappings" ("data_template_id", "scope", "company_id", "document_format_id")
       nulls not distinct
       where "is_active" = true;`,
+  },
+  // ── Epic 23（Story 23.1 資料模型 + Story 23.3 P1 routing_thresholds）────────────
+  // ⚠️ 這三張表是 Epic 23 全新建立的，而 init.sql 尚未含它們 —— 兩種情況 bootstrap 都不會建：
+  //    既有 DB（Azure DEV）直接 skip init.sql；全新空庫套的 init.sql 裡也沒有這三張表。
+  //    因此必須在此**完整建表**，只補 routing_thresholds 欄位會因表不存在而失敗。
+  // DDL 由 `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script`
+  // 生成後逐字對齊（僅關鍵字轉小寫配合本檔風格；型別名 "LlmProviderType" 大小寫敏感，保留原樣）。
+  // 對應 schema.prisma:4405-4477 的 LlmProvider / LlmModel / StageModelAssignment。
+  {
+    id: 'Epic-23 enum LlmProviderType',
+    sql: `do $$ begin
+      create type "LlmProviderType" as enum
+        ('AZURE_OPENAI', 'OPENAI', 'ANTHROPIC', 'GOOGLE_GEMINI', 'XAI_GROK', 'OPENAI_COMPATIBLE');
+    exception when duplicate_object then null; end $$;`,
+  },
+  {
+    id: 'Epic-23 table llm_providers',
+    sql: `create table if not exists "llm_providers" (
+      "id" text not null,
+      "name" text not null,
+      "provider_type" "LlmProviderType" not null,
+      "base_url" text,
+      "api_version" text,
+      "api_key_enc" text,
+      "is_encrypted" boolean not null default true,
+      "key_version" integer not null default 1,
+      "is_enabled" boolean not null default true,
+      "is_default" boolean not null default false,
+      "allow_sensitive_data" boolean not null default false,
+      "extra_config" jsonb,
+      "created_at" timestamp(3) not null default current_timestamp,
+      "updated_at" timestamp(3) not null,
+      "updated_by" text,
+      constraint "llm_providers_pkey" primary key ("id")
+    );`,
+  },
+  {
+    id: 'Epic-23 table llm_models',
+    sql: `create table if not exists "llm_models" (
+      "id" text not null,
+      "provider_id" text not null,
+      "model_key" text not null,
+      "label" text not null,
+      "capability" jsonb not null,
+      "pricing" jsonb,
+      "routing_thresholds" jsonb,
+      "is_enabled" boolean not null default true,
+      "created_at" timestamp(3) not null default current_timestamp,
+      "updated_at" timestamp(3) not null,
+      constraint "llm_models_pkey" primary key ("id")
+    );`,
+  },
+  {
+    id: 'Epic-23 table stage_model_assignments',
+    sql: `create table if not exists "stage_model_assignments" (
+      "id" text not null,
+      "stage_key" text not null,
+      "llm_model_id" text,
+      "updated_by" text,
+      "created_at" timestamp(3) not null default current_timestamp,
+      "updated_at" timestamp(3) not null,
+      constraint "stage_model_assignments_pkey" primary key ("id")
+    );`,
+  },
+  // 表已存在（例如先前以舊版 schema 建過）時 create table 會整句 skip，故欄位另外補一次。
+  // 對應 migration 20260727030000_add_routing_thresholds_to_llm_models。
+  {
+    id: 'Epic-23 column llm_models.routing_thresholds',
+    sql: `alter table "llm_models" add column if not exists "routing_thresholds" jsonb;`,
+  },
+  {
+    id: 'Epic-23 indexes llm_providers',
+    sql: `create unique index if not exists "llm_providers_name_key" on "llm_providers" ("name");
+      create index if not exists "llm_providers_provider_type_idx" on "llm_providers" ("provider_type");
+      create index if not exists "llm_providers_is_enabled_idx" on "llm_providers" ("is_enabled");`,
+  },
+  {
+    id: 'Epic-23 indexes llm_models',
+    sql: `create index if not exists "llm_models_is_enabled_idx" on "llm_models" ("is_enabled");
+      create unique index if not exists "llm_models_provider_id_model_key_key"
+        on "llm_models" ("provider_id", "model_key");`,
+  },
+  {
+    id: 'Epic-23 indexes stage_model_assignments',
+    sql: `create unique index if not exists "stage_model_assignments_stage_key_key"
+        on "stage_model_assignments" ("stage_key");
+      create index if not exists "stage_model_assignments_llm_model_id_idx"
+        on "stage_model_assignments" ("llm_model_id");`,
+  },
+  {
+    id: 'Epic-23 fk llm_models_provider_id_fkey',
+    sql: `do $$ begin
+      alter table "llm_models" add constraint "llm_models_provider_id_fkey"
+        foreign key ("provider_id") references "llm_providers"("id")
+        on delete cascade on update cascade;
+    exception when duplicate_object then null; end $$;`,
+  },
+  {
+    id: 'Epic-23 fk stage_model_assignments_llm_model_id_fkey',
+    sql: `do $$ begin
+      alter table "stage_model_assignments" add constraint "stage_model_assignments_llm_model_id_fkey"
+        foreign key ("llm_model_id") references "llm_models"("id")
+        on delete set null on update cascade;
+    exception when duplicate_object then null; end $$;`,
   },
 ]
 
