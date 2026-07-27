@@ -1,7 +1,7 @@
 # CHANGE-110: 應用程式內排程器 — 自動執行殭屍處理回收（FIX-094 排程缺口）
 
 > **日期**: 2026-07-27
-> **狀態**: ✅ 已完成（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` 0 warning / 9 項單元測試；初版曾因 instrumentation 的 edge bundle 解析而 build 失敗，見「實作路上的一個錯誤判斷」；**Azure 部署 + 設定 `ENABLE_INTERNAL_SCHEDULER=true` 後才實際生效**）
+> **狀態**: ✅ 已完成（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` 0 warning / 9 項單元測試；初版曾因 instrumentation 的 edge bundle 解析而 build 失敗，見「實作路上的一個錯誤判斷」。**同日已部署 Azure DEV 並完成實機驗收** —— 映像 `dev-change110-20260727164500`，容器 log 證實註冊訊息、首跑相差 60.007 秒、週期間隔 299.998 秒精準 5 分鐘、`sweptCount: 0` 無誤標，見 [部署記錄](../../../docs/07-deployment/02-azure-deployment/deployment-records/2026-07-27-dev-change110.md)）
 > **優先級**: High
 > **類型**: Feature（新增基礎機制）
 > **影響範圍**: `src/instrumentation.ts`（新增）、`.env.example`、Azure app settings
