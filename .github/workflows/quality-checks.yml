@@ -85,7 +85,10 @@ jobs:
       AUTH_SECRET: 'ci-dummy-auth-secret-not-a-real-value'
       NEXTAUTH_SECRET: 'ci-dummy-auth-secret-not-a-real-value'
       JWT_SECRET: 'ci-dummy-jwt-secret-not-a-real-value'
-      ENCRYPTION_KEY: 'ci-dummy-encryption-key-not-a-real-value'
+      # 必須是 64 個十六進位字元（32 bytes）—— encryption.ts 會在模組載入期驗長度，
+      # 一般字串會讓 build 於 collect-page-data 階段失敗（got 0 bytes）。
+      # 此值為固定的假 key（全 0 尾接 CI 標記），不用於任何真實加密。
+      ENCRYPTION_KEY: '00000000000000000000000000000000000000000000000000000000c1c1c1c1'
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
     steps:
       - uses: actions/checkout@v6
