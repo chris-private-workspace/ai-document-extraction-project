@@ -45,6 +45,7 @@
  */
 
 import { AzureOpenAI } from 'openai'
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
@@ -335,12 +336,19 @@ const getExtractionPrompt = (version?: string): string => {
 // @see src/lib/prompts/optimized-extraction-prompt.ts
 
 /**
+ * 本服務的預設模型 key（FIX-137）。
+ * 原先硬編 `gpt-5.2`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
+ * 需 vision + json schema 能力，故對應到白名單的 mini。
+ */
+const DEFAULT_MODEL_KEY = 'gpt-5.4-mini'
+
+/**
  * 預設配置
  */
 const DEFAULT_CONFIG: GPTVisionConfig = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT,
   apiKey: process.env.AZURE_OPENAI_API_KEY,
-  deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.2',
+  deploymentName: resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
   apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2025-03-01-preview',
   maxTokens: 4096,
 }
@@ -746,7 +754,7 @@ async function processSingleImage(
 
   // 調用 API
   const response = await client.chat.completions.create({
-    model: config.deploymentName || 'gpt-5.2',
+    model: config.deploymentName || resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
     messages: [
       {
         role: 'user',
@@ -1096,7 +1104,7 @@ export async function classifyDocument(
 
     // 調用 API（使用分類專用提示詞）
     const response = await client.chat.completions.create({
-      model: mergedConfig.deploymentName || 'gpt-5.2',
+      model: mergedConfig.deploymentName || resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
       messages: [
         {
           role: 'user',

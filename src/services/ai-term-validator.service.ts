@@ -33,6 +33,7 @@
  */
 
 import { AzureOpenAI } from 'openai'
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models'
 import { prisma } from '@/lib/prisma'
 import { isAddressLikeTerm } from '@/services/term-aggregation.service'
 import {
@@ -57,7 +58,12 @@ import {
  */
 const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || ''
 const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || ''
-const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-5.2'
+/**
+ * FIX-137：原為 `process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-5.2'` —— 兩層都壞：
+ * 變數名少了 `_NAME`（其餘服務讀 `AZURE_OPENAI_DEPLOYMENT_NAME`，補設也讀不到），
+ * fallback 的 `gpt-5.2` deployment 又已於 CHANGE-102 移除。改走白名單解析。
+ */
+const AZURE_OPENAI_DEPLOYMENT = resolveDeploymentNameByKey('gpt-5.4-mini')
 const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-02-15-preview'
 
 /**

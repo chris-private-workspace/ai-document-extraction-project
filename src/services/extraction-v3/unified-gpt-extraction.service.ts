@@ -26,6 +26,7 @@
  *   - src/types/extraction-v3.types.ts - V3 類型定義
  */
 
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
 import type {
   AssembledPrompt,
   UnifiedExtractionResult,
@@ -146,12 +147,19 @@ interface GptApiResponse {
 // Constants
 // ============================================================================
 
+/**
+ * 本服務的預設模型 key（FIX-137）。
+ * 原先硬編 `gpt-5-2-vision`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
+ * 本服務為文字+圖片的單次提取，對應到白名單的 mini（具 vision 能力）。
+ */
+const DEFAULT_MODEL_KEY = 'gpt-5.4-mini';
+
 /** 預設配置 */
 const DEFAULT_CONFIG: Required<GptExtractionConfig> = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT || '',
   apiKey: process.env.AZURE_OPENAI_API_KEY || '',
-  deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5-2-vision',
-  modelName: 'gpt-5.2-vision',
+  deploymentName: resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
+  modelName: DEFAULT_MODEL_KEY,
   maxTokens: 4096,
   temperature: 0.1, // 低溫度以獲得更一致的輸出
   timeout: 300000, // 5 分鐘 - GPT Vision 處理多頁文件可能需要較長時間

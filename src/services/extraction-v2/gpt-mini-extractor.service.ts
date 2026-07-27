@@ -30,6 +30,7 @@
  */
 
 import { AzureOpenAI } from 'openai';
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
 import type { SelectedData } from './data-selector.service';
 
 // ============================================================
@@ -113,12 +114,17 @@ export interface GptMiniExtractorConfig {
 /**
  * 預設配置
  */
+/**
+ * 本服務的預設模型 key（FIX-137）。
+ * 原先硬編 `gpt-5-nano`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
+ * 本服務為輕量純文字提取，對應到白名單的 nano。
+ */
+const DEFAULT_MODEL_KEY = 'gpt-5.4-nano';
+
 const DEFAULT_CONFIG: Required<GptMiniExtractorConfig> = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT ?? '',
   apiKey: process.env.AZURE_OPENAI_API_KEY ?? '',
-  deploymentName: process.env.AZURE_OPENAI_MINI_DEPLOYMENT_NAME ??
-    process.env.AZURE_OPENAI_NANO_DEPLOYMENT_NAME ??
-    'gpt-5-nano',
+  deploymentName: resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
   apiVersion: process.env.AZURE_OPENAI_API_VERSION ?? '2024-12-01-preview',
   maxTokens: 1000,
   temperature: 0.1,
@@ -135,13 +141,18 @@ const DEFAULT_CONFIG: Required<GptMiniExtractorConfig> = {
  * - 必須使用 max_completion_tokens
  * - system message 會被當作 developer message
  */
-function isReasoningModel(deploymentName: string): boolean {
+export function isReasoningModel(deploymentName: string): boolean {
   const reasoningPatterns = [
     /^o1/i,        // o1, o1-mini, o1-preview
     /^o3/i,        // o3, o3-mini
     /^o4/i,        // o4-mini
-    /gpt-5-nano/i, // gpt-5-nano（可能是 o-series）
-    /gpt-5-mini/i, // gpt-5-mini（可能是 o-series）
+    // FIX-137：原為 /gpt-5-nano/i 與 /gpt-5-mini/i，對 5.4 系列（gpt-5.4-nano /
+    // gpt-5.4-mini）**不匹配**。而 5.4 確實是 reasoning 模型——2026-07-27 實跑時
+    // AI SDK 明確警告 "temperature is not supported for reasoning models"。
+    // 漏判會送錯參數格式（temperature + max_tokens），比 404 更難診斷。
+    // 非錨定比對，故容納 Azure 部署名後綴（如 gpt-5.4-mini-aidocprocessing）。
+    /gpt-5(\.\d+)?-nano/i,
+    /gpt-5(\.\d+)?-mini/i,
   ];
   return reasoningPatterns.some(pattern => pattern.test(deploymentName));
 }
@@ -513,10 +524,8 @@ export function validateConfig(): {
     missing.push('AZURE_OPENAI_API_KEY');
   }
 
-  const deploymentName =
-    process.env.AZURE_OPENAI_MINI_DEPLOYMENT_NAME ??
-    process.env.AZURE_OPENAI_NANO_DEPLOYMENT_NAME ??
-    'gpt-5-nano';
+  // FIX-137：與 DEFAULT_CONFIG 同源，避免兩處各自 fallback 到不同（且已移除的）部署名
+  const deploymentName = resolveDeploymentNameByKey(DEFAULT_MODEL_KEY);
 
   return {
     valid: missing.length === 0,

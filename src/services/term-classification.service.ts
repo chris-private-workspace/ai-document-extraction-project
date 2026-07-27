@@ -25,6 +25,15 @@
 import { AzureOpenAI } from 'openai';
 import type { StandardChargeCategory } from '@prisma/client';
 
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
+
+/**
+ * 本服務的預設模型 key（FIX-137）。
+ * 原先硬編 `gpt-5.2`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
+ * 改走白名單解析（env 覆蓋 → 白名單預設部署名）。
+ */
+const DEFAULT_MODEL_KEY = 'gpt-5.4-mini';
+
 // ============================================================================
 // Types & Interfaces
 // ============================================================================
@@ -91,7 +100,7 @@ export interface ClassificationConfig {
 const DEFAULT_CONFIG: ClassificationConfig = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT,
   apiKey: process.env.AZURE_OPENAI_API_KEY,
-  deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.2',
+  deploymentName: resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
   apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2025-03-01-preview',
   batchSize: 50,
   maxRetries: 3,
@@ -273,7 +282,8 @@ export async function classifyTerms(
   const maxRetries = mergedConfig.maxRetries || 3;
 
   const client = createClient(mergedConfig);
-  const deploymentName = mergedConfig.deploymentName || 'gpt-5.2';
+  const deploymentName =
+    mergedConfig.deploymentName || resolveDeploymentNameByKey(DEFAULT_MODEL_KEY);
 
   const allClassifications: TermClassification[] = [];
   const allErrors: Array<{ term: string; error: string }> = [];
