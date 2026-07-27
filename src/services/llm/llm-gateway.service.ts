@@ -95,6 +95,8 @@ interface ResolvedModel {
   apiKey: string;
   baseUrl: string;
   apiVersion: string;
+  /** D4 資料出境護欄：此 provider 是否經核准接收發票資料（CHANGE-110） */
+  allowSensitiveData: boolean;
 }
 
 /** 組裝完成、待送出的呼叫（供 call() 與 describeCall() 共用） */
@@ -657,6 +659,7 @@ export class LlmGatewayService {
   /** resolve + buildModel + 組裝訊息/參數（供 call/describeCall 共用） */
   private async prepare(input: LlmCallInput): Promise<PreparedCall> {
     const resolved = await this.resolveModel(input.modelId);
+    this.assertSensitiveDataAllowed(resolved);
     const model = this.buildModel(resolved);
     const { instructions, messages: aiMessages } = toAiMessages(input.messages, input.images);
     const output: LlmOutputSpec = input.output ?? { mode: 'text' };
@@ -678,6 +681,32 @@ export class LlmGatewayService {
       providerOptions,
       abortSignal,
     };
+  }
+
+  /**
+   * D4 資料出境護欄（CHANGE-110）：非 Azure provider 未經核准即拒絕送出。
+   *
+   * @description 置於 `prepare()` 而非 dispatch 層，有兩個理由：
+   *   - **不誤記熔斷**：`dispatchWithResilience` 把 dispatch 失敗計入熔斷器，
+   *     但政策拒絕不是 provider 健康問題；`prepare()` 的錯誤在 `call()` Phase 1
+   *     即被歸類為「設定／解析錯誤 → 不計入熔斷」。
+   *   - **同時覆蓋 failover**：`tryFailover` 亦經 `prepare()`，其既有的
+   *     「prepare 失敗 → 放棄切換、維持原結果」處理讓未核准的 failover 目標
+   *     自動被拒，不需額外程式碼。
+   *
+   *   範圍限定非 Azure：Azure 為 tech-spec §7 既定合規基準（播種即 `true`），
+   *   一併強制對既有 Azure 列有回歸風險而無收益。詳見 CHANGE-110 決策 2。
+   *
+   * @throws LlmGatewayError SENSITIVE_DATA_NOT_ALLOWED
+   */
+  private assertSensitiveDataAllowed(resolved: ResolvedModel): void {
+    if (resolved.providerType === 'AZURE_OPENAI') return;
+    if (resolved.allowSensitiveData) return;
+    throw new LlmGatewayError(
+      `Provider 未經核准接收發票資料: ${resolved.providerId}（providerType=${resolved.providerType}）。` +
+        '請於後台 LLM 供應商設定勾選「允許敏感資料」，並確認已取得組織核准。',
+      'SENSITIVE_DATA_NOT_ALLOWED',
+    );
   }
 
   /** 讀 LlmModel + LlmProvider，解出部署名與憑證（憑證解密 fail-closed） */
@@ -715,6 +744,7 @@ export class LlmGatewayService {
           ? (process.env.AZURE_OPENAI_ENDPOINT ?? '')
           : ''),
       apiVersion: provider.apiVersion ?? DEFAULT_AZURE_API_VERSION,
+      allowSensitiveData: provider.allowSensitiveData,
     };
   }
 
