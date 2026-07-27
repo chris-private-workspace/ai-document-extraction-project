@@ -27,6 +27,7 @@
  */
 
 import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
+import { callGatewayByModelKey } from '@/services/llm';
 import type {
   AssembledPrompt,
   UnifiedExtractionResult,
@@ -240,7 +241,11 @@ export class UnifiedGptExtractionService {
       let lastError: Error | null = null;
       for (let attempt = 0; attempt <= this.config.retryCount; attempt++) {
         try {
-          const response = await this.callGptApi(messages);
+          // Epic 23 Story 23.4 Phase 1（呼叫點 #6）：flag 開啟且 modelKey 已播種時經 gateway；
+          // 回 null 即落到既有直接 fetch，行為零變。下游 parse / 結果組裝完全不變。
+          const response =
+            (await this.callViaGateway(prompt, imageBase64Array)) ??
+            (await this.callGptApi(messages));
 
           // 解析響應
           const parseResult = this.parseResponse(
@@ -342,6 +347,63 @@ export class UnifiedGptExtractionService {
     });
 
     return messages;
+  }
+
+  /**
+   * Epic 23 Story 23.4 Phase 1：經 `LlmGatewayService` 呼叫（同一批 Azure 模型）。
+   *
+   * @description
+   *   回傳刻意組成既有的 `GptApiResponse` 形狀，讓 `parseResponse` 與結果組裝**完全不必改**
+   *   （`id` / `finish_reason` 為佔位值——`parseResponse` 只讀 `choices[0].message.content`
+   *   與 `usage`，兩者皆為真實值）。
+   *   `maxRetries: 0`：外層 `extract()` 的重試迴圈已是唯一重試權威，避免次數相乘。
+   *
+   * @returns 對齊既有形狀的回應；`null` 表示應回退既有直接 fetch
+   *   （flag 關 / 未播種 / deployment 被呼叫端覆蓋）
+   */
+  private async callViaGateway(
+    prompt: AssembledPrompt,
+    imageBase64Array: string[]
+  ): Promise<GptApiResponse | null> {
+    if (this.config.deploymentName !== resolveDeploymentNameByKey(DEFAULT_MODEL_KEY)) {
+      return null;
+    }
+
+    const viaGateway = await callGatewayByModelKey({
+      modelKey: DEFAULT_MODEL_KEY,
+      messages: [
+        { role: 'system', content: prompt.systemPrompt },
+        { role: 'user', content: prompt.userPrompt },
+      ],
+      images: imageBase64Array.map((data) => ({
+        data,
+        detail: this.config.imageDetailMode,
+      })),
+      output: { mode: 'json' }, // 對應既有 response_format: json_object
+      maxOutputTokens: this.config.maxTokens,
+      temperature: this.config.temperature,
+      maxRetries: 0,
+      abortTimeoutMs: this.config.timeout,
+    });
+
+    if (!viaGateway) {
+      return null;
+    }
+
+    return {
+      id: 'llm-gateway',
+      choices: [
+        {
+          message: { content: viaGateway.content },
+          finish_reason: 'stop',
+        },
+      ],
+      usage: {
+        prompt_tokens: viaGateway.usage.input,
+        completion_tokens: viaGateway.usage.output,
+        total_tokens: viaGateway.usage.total,
+      },
+    };
   }
 
   /**

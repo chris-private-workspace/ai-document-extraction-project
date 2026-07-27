@@ -12,7 +12,9 @@
 - **🔴🔴 三輪審視揪出兩顆炸彈（必讀 `senior-review-v0.3.1.md`）**：
   1. **信心度路由會靜默失準** — 路由分數 65% 來自模型自評 confidence + 硬編 90/70 閾值（`confidence-v3-1.service.ts:112-119`）→ 換 provider 即使提取一樣準，路由也會壞（漏審/人工爆量）、且不報錯。**必須 per-model 重新校準才能安全換模型。**
   2. **營運骨架缺失/斷裂** — 成本歸帳斷裂（`logUsage` 零呼叫端）、無 provider 韌性/failover、無出站限流。多 provider 核心賣點零地基。
-- **下一步（2026-07-27 改寫，上一版已過時）**：Story 23.1 / 23.2 已完成；23.3 的接線、韌性骨架、P1 閾值地基皆完成，**P2 已決議不執行**（OQ-E 降級，見 §6）。剩下的是 **Story 23.4**：其餘 5 處 LLM 呼叫遷移 + per-環節指派 UI + 出站限流 + 成本計價（低優先）+ 測試/觀測。
+- **下一步（2026-07-27 改寫，上一版已過時）**：Story 23.1 / 23.2 已完成；23.3 的接線、韌性骨架、P1 閾值地基皆完成，**P2 已決議不執行**（OQ-E 降級，見 §6）。進行中的是 **Story 23.4**：
+  - ✅ **Phase 1（其餘呼叫點遷移）已完成**（2026-07-27）——6 個生產呼叫點全部接上 gateway，各自 behind flag、行為零變。共用橋接見 `src/services/llm/gateway-bridge.ts`（回 `null` = 回退舊路徑；throw = 交呼叫端既有 retry / 業務降級）。**2 個健康檢查探測刻意不遷移**（它們探的就是直接 Azure 路徑的可用性，與 `gpt-caller` 的 `checkHealth` 處置一致）。
+  - ⏳ 剩餘子項：per-環節指派 UI｜出站限流｜成本計價（低優先，含 `DEFAULT_PRICING` 缺 5.4 條目 + 2 個測試 API 的 `|| 'gpt-5.2'`）｜測試/觀測。
   - 🔴 **兩道閘門仍關著，所以目前生產行為一行都沒變**：(a) `FEATURE_LLM_GATEWAY_ENABLED` 預設 OFF（`feature-flags.ts:422`）→ 管線仍走既有手寫 fetch；(b) `getStageModel` 硬性要求 `providerType === 'AZURE_OPENAI'`（`llm-model-config.service.ts:205`，`resolveStageModelId:308` 同）→ 核心提取只會拿到 Azure 模型。**(b) 依 OQ-E 決議刻意保留**；(a) 要開需先做 gateway 與現行手寫 fetch 的實跑等價驗證（影子 harness 已備：`scripts/epic-23-spike/stage3-shadow-comparison.ts`）。
   - 部署本分支前必看 §6「安全/合規/部署」的三條 🔴/⚠️（drift script 旗標、表建好但無資料、`isDefault` 缺 unique index）。
 - **權威文件**（同目錄，閱讀順序）：
@@ -71,7 +73,7 @@
 | **23.1** | Gateway + model(+`keyVersion`) + **抽共用加密模組** + `@ai-sdk/azure` 接 extraction + 播種 + **主管線用量持久化 + 結構化 logging + feature flag/shadow mode** | H1+H2 |
 | 23.2 | 憑證（gateway 解密硬錯誤）+ Provider 管理 API（回遮罩）+ **AuditLog + 遮罩歷史** + 後台 UI + i18n | H1+H4 |
 | 23.3 | 多 provider 接上〔✅ Anthropic 已接上 gateway + spike 實跑驗證 2026-07-27〕 + **per-model confidence 校準**〔✅ P1 地基完成；❌ **P2 已決議不執行**（2026-07-27 OQ-E 降級，見下）〕 + ~~準確率回歸框架~~〔隨 P2 一併不執行〕 + **circuit breaker/failover**〔✅ 骨架完成〕 | H1+H2 |
-| 23.4 | 其餘 5 處遷移 + per-環節指派 UI + 出站限流 + 成本計價（低優先）+ 測試/觀測 | H1 |
+| 23.4 | 其餘呼叫點遷移〔✅ **Phase 1 完成 2026-07-27**：6 個生產呼叫點經 `gateway-bridge.ts` 接上，behind flag 行為零變；健康檢查探測刻意留在直接路徑〕 + per-環節指派 UI + 出站限流 + 成本計價（低優先）+ 測試/觀測 | H1 |
 
 **現在該做**：Phase 0 spike（D8 已定），再照完整 scope（D10）做 Story 23.1；營運骨架納入本 Epic（D11）。
 
