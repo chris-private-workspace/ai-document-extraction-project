@@ -43,7 +43,7 @@
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | 🚧 待修復 |
 
-## 🚧 進行中 / 部分完成（21）
+## 🚧 進行中 / 部分完成（20）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -56,7 +56,6 @@
 | [CHANGE-079](4-changes/feature-changes/CHANGE-079-city-scope-idor-unified-fix.md) | city scope idor unified fix | ✅ 已實作（程式碼層面，2026-06-10）：6 套用點全部完成；單元測試 + 執行期待驗證 |
 | [CHANGE-091](4-changes/feature-changes/CHANGE-091-template-instance-flow-ux-async-progress.md) | template instance flow ux async progress | 🚧 Phase 1 已完成（2026-06-26）／Phase 2 待實作 |
 | [CHANGE-095](4-changes/feature-changes/CHANGE-095-allow-editing-company-code.md) | allow editing company code | 🔬 待 E2E 驗證（實作完成、type-check/lint 通過；使用者自行測試中） |
-| [CHANGE-109](4-changes/feature-changes/CHANGE-109-template-instance-newer-invoice-version-detection.md) | template instance newer invoice version detection | ✅ 已完成實作（2026-07-27，本地三閘 + 10 項單元測試通過；尚未部署 Azure，部署需帶 2 個旗標，見 §部署注意） |
 | [FIX-065](4-changes/bug-fixes/FIX-065-mapping-api-auth-and-city-scope.md) | mapping api auth and city scope | 🔧 認證已修復（2026-06-10）；城市範圍 IDOR 留 WP-4 |
 | [FIX-067](4-changes/bug-fixes/FIX-067-v1-confidence-prompts-classified-auth.md) | v1 confidence prompts classified auth | 🔧 部分修復（2026-06-10）：confidence/prompts/classified 已修；`/api/v1` 留 WP-2… |
 | [FIX-069](4-changes/bug-fixes/FIX-069-redos-safe-regex-execution.md) | redos safe regex execution | ✅ 核心已完成（2026-06-11，程式碼層面；執行期 staging 驗證待部署） |
@@ -87,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（192）
+## ✅ 已完成（193）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -167,6 +166,7 @@
 | [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | ✅ 已完成（2026-07-22 方案 A 唯讀標記；B 一鍵重跑視使用情況另立 CHANGE） |
 | [CHANGE-107](4-changes/feature-changes/CHANGE-107-template-field-mapping-copy-record.md) | template field mapping copy record | ✅ 已完成（2026-07-25 本地實機驗證 10/10 驗收項通過；2026-07-27 已部署 Azure DEV 並完成實機驗收 … |
 | [CHANGE-108](4-changes/feature-changes/CHANGE-108-azure-to-local-config-sync.md) | azure to local config sync | ✅ 已完成（2026-07-26，Phase 1-3 全部執行完畢；Blob 原始檔同步未做，見「後續項」） |
+| [CHANGE-109](4-changes/feature-changes/CHANGE-109-template-instance-newer-invoice-version-detection.md) | template instance newer invoice version detection | ✅ 已完成（2026-07-27 本地三閘 + 10 項單元測試通過；同日已部署 Azure DEV 並完成實機驗收 —— 映像 `dev… |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |
