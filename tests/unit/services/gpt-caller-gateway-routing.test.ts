@@ -35,7 +35,7 @@ function mockFetchOk() {
 }
 
 const BASE_INPUT = {
-  model: 'gpt-5.2',
+  model: 'gpt-5.4-mini',
   systemPrompt: 'sys',
   userPrompt: 'usr',
   imageBase64Array: ['data:image/png;base64,AAAA'],
@@ -77,7 +77,7 @@ describe('GptCallerService gateway 路由（step 4）', () => {
     expect(r.success).toBe(true);
     expect(r.response).toBe('GATEWAY_RESULT');
     expect(r.tokenUsage).toEqual({ input: 5, output: 5, total: 10 });
-    expect(r.model).toBe('gpt-5.2');
+    expect(r.model).toBe('gpt-5.4-mini');
     // 未打 fetch
     expect(fetch).not.toHaveBeenCalled();
     // GptCallInput → LlmCallInput 映射：有 jsonSchema → object 模式
