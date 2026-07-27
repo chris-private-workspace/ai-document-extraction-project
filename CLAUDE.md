@@ -452,7 +452,7 @@ npm run docs:status      # 重新生成 claudedocs/STATUS.md，需一併 commit
 | **Blocked** | STOP 對應 work item，ask user |
 
 > 📋 當前 OQ 列表：`docs/open-questions.md`
-> ⚠️ 當前主要 OQ：Auth 覆蓋率缺口（OQ-Q2）、RFC 7807 格式統一進度（OQ-Q3）、MappingRule 生態去留（OQ-Q4）
+> ⚠️ 當前主要 OQ：Auth 覆蓋率缺口（OQ-Q2）、RFC 7807 格式統一進度（OQ-Q3）、MappingRule 生態去留（OQ-Q4）、**信心度路由自評不可靠（OQ-Q5，影響現行 Azure 流程）**
 > ✅ OQ-Q1（信心度閾值文檔誤差）已於 2026-07-14 resolved — 文檔對齊代碼 90%/70%
 
 ---
