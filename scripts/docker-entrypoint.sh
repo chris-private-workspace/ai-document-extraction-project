@@ -85,5 +85,15 @@ if [ "$RUN_FIX111_DEACTIVATE_FIELD_EXTRACTION" = "true" ]; then
   node prisma/apply-fix111-deactivate-field-extraction.js || echo "[entrypoint] FIX-111 deactivate failed (non-fatal), continuing"
 fi
 
+# (選用)一次性 CHANGE-109 invoice_number 回填 —— 由 RUN_INVOICE_NUMBER_BACKFILL=true
+# 觸發,非致命。新欄位只在「之後的提取」被寫入,既有資料一律為 null;而「同一發票是否有
+# 更新的文件記錄」偵測的目標正是**存量**實例 → 不回填等於功能對存量靜默無效。
+# 前置:欄位需先由 apply-schema-drift.js 建立(RUN_SCHEMA_DRIFT_FIX=true)。
+# 未設旗標時本 script 為 dry-run(只印統計不寫入)。回填後把旗標設回 false。
+if [ "$RUN_INVOICE_NUMBER_BACKFILL" = "true" ]; then
+  echo "[entrypoint] (optional) applying CHANGE-109 invoice_number backfill"
+  node prisma/backfill-invoice-number.js || echo "[entrypoint] invoice_number backfill failed (non-fatal), continuing"
+fi
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js

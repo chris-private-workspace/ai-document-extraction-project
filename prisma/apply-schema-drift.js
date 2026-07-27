@@ -85,6 +85,19 @@ const MIGRATIONS = [
       nulls not distinct
       where "is_active" = true;`,
   },
+  // CHANGE-109：extraction_results.invoice_number（從 fieldMappings JSON 反正規化，供
+  // 「同一發票是否有更新的文件記錄」查詢走索引）。對應 migration 20260727060000。
+  // 加完欄位後**還要跑一次回填**（RUN_INVOICE_NUMBER_BACKFILL=true），否則既有資料的
+  // invoice_number 全為 null，功能對存量實例靜默無效 —— 而存量實例正是要偵測的對象。
+  {
+    id: 'CHANGE-109 column extraction_results.invoice_number',
+    sql: `alter table "extraction_results" add column if not exists "invoice_number" text;`,
+  },
+  {
+    id: 'CHANGE-109 index extraction_results (company_id, invoice_number)',
+    sql: `create index if not exists "extraction_results_company_id_invoice_number_idx"
+      on "extraction_results" ("company_id", "invoice_number");`,
+  },
   // ── Epic 23（Story 23.1 資料模型 + Story 23.3 P1 routing_thresholds）────────────
   // ⚠️ 這三張表是 Epic 23 全新建立的，而 init.sql 尚未含它們 —— 兩種情況 bootstrap 都不會建：
   //    既有 DB（Azure DEV）直接 skip init.sql；全新空庫套的 init.sql 裡也沒有這三張表。

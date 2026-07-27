@@ -115,7 +115,9 @@
       "title": "无匹配的行",
       "description": "当前筛选条件下没有匹配的行"
     },
-    "showing": "显示 {start} - {end}，共 {total} 行"
+    "showing": "显示 {start} - {end}，共 {total} 行",
+    "newerVersionBadge": "有更新版本",
+    "newerVersionTooltip": "同一发票有 {count} 份更新的文件，本行指向较旧的那一份"
   },
   "rowActions": {
     "view": "查看详情",
@@ -155,7 +157,12 @@
       "processedAt": "重新处理于 {date}"
     },
     "createdAt": "创建时间",
-    "updatedAt": "更新时间"
+    "updatedAt": "更新时间",
+    "newerVersions": {
+      "title": "同一发票有更新的文件",
+      "description": "以下文件与本行来源为同一张发票（同公司、同发票号），且处理时间较晚。本行数值来自较旧的那一份。",
+      "processedAt": "处理于 {date}"
+    }
   },
   "bulkActions": {
     "title": "批量操作",

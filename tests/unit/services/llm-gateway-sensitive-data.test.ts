@@ -1,14 +1,14 @@
 /**
- * @fileoverview LlmGatewayService × D4 資料出境護欄單元測試（CHANGE-110）
+ * @fileoverview LlmGatewayService × D4 資料出境護欄單元測試（CHANGE-111）
  * @description
  *   驗證 `LlmProvider.allowSensitiveData` 在 gateway 呼叫路徑上**確實生效**（全程 mock）：
  *   - 未核准的非 Azure provider → 拒絕，且**在送出前**攔截（SDK 完全未被呼叫）。
  *   - 政策拒絕**不計入熔斷器**（政策問題 ≠ provider 健康問題）。
  *   - 已核准的非 Azure provider → 正常送出（不誤擋）。
- *   - Azure 不受此護欄約束（§7 既定合規基準，見 CHANGE-110 決策 2）。
+ *   - Azure 不受此護欄約束（§7 既定合規基準，見 CHANGE-111 決策 2）。
  *
  * @module tests/unit/services/llm-gateway-sensitive-data.test
- * @since CHANGE-110
+ * @since CHANGE-111
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -88,7 +88,7 @@ function mockModel(providerOverrides: Record<string, unknown>) {
   };
 }
 
-describe('LlmGatewayService × allowSensitiveData 護欄（CHANGE-110）', () => {
+describe('LlmGatewayService × allowSensitiveData 護欄（CHANGE-111）', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     llmCircuitBreaker.reset();
@@ -164,7 +164,7 @@ describe('LlmGatewayService × allowSensitiveData 護欄（CHANGE-110）', () =>
   });
 
   it('should leave Azure unaffected even when the flag is false', async () => {
-    // §7 既定合規基準：Azure 不受此護欄約束（CHANGE-110 決策 2 的已知取捨）
+    // §7 既定合規基準：Azure 不受此護欄約束（CHANGE-111 決策 2 的已知取捨）
     vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(
       mockModel({
         id: 'provider-azure',

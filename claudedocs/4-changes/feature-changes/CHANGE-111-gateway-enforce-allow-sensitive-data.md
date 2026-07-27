@@ -1,5 +1,8 @@
-# CHANGE-110: LLM Gateway 執行期強制 `allowSensitiveData` 資料出境護欄
+# CHANGE-111: LLM Gateway 執行期強制 `allowSensitiveData` 資料出境護欄
 
+> ⚠️ **本文原編號 CHANGE-110，2026-07-27 改為 CHANGE-111**：取號當下 `origin/main` 最大為 CHANGE-109，但同日 main 另行合併了 PR #153/#154 的 **CHANGE-110（in-process scheduler for stuck-processing sweeper）**，兩邊並行撞號。依「main 已合併者不動」原則改本文編號。
+> 📌 已推送的 commit `2c936fd` 的 message 仍寫 CHANGE-110，無法追改；程式碼與測試中的註解引用已一併更新為 CHANGE-111。
+>
 > **建立日期**: 2026-07-27
 > **狀態**: ✅ 已完成（2026-07-27；`type-check` / `lint` / `test` 237/237 通過。⚠️ 純政策攔截、無真實非 Azure 流量可端到端驗證——實機驗證需等 Story 23.4 打通後補）
 > **優先級**: 中（今日零流量影響；但非 Azure 打通後它是唯一防線）

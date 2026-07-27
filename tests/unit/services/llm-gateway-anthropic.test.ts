@@ -85,7 +85,7 @@ function mockAnthropicModel(providerOverrides?: Record<string, unknown>) {
       isEncrypted: true,
       isEnabled: true,
       isDefault: false,
-      // CHANGE-110：本檔驗證的是接線正確性，非 D4 政策 → 一律以「已核准」為前提
+      // CHANGE-111：本檔驗證的是接線正確性，非 D4 政策 → 一律以「已核准」為前提
       allowSensitiveData: true,
       ...providerOverrides,
     },

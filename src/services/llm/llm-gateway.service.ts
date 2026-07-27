@@ -95,7 +95,7 @@ interface ResolvedModel {
   apiKey: string;
   baseUrl: string;
   apiVersion: string;
-  /** D4 資料出境護欄：此 provider 是否經核准接收發票資料（CHANGE-110） */
+  /** D4 資料出境護欄：此 provider 是否經核准接收發票資料（CHANGE-111） */
   allowSensitiveData: boolean;
 }
 
@@ -684,7 +684,7 @@ export class LlmGatewayService {
   }
 
   /**
-   * D4 資料出境護欄（CHANGE-110）：非 Azure provider 未經核准即拒絕送出。
+   * D4 資料出境護欄（CHANGE-111）：非 Azure provider 未經核准即拒絕送出。
    *
    * @description 置於 `prepare()` 而非 dispatch 層，有兩個理由：
    *   - **不誤記熔斷**：`dispatchWithResilience` 把 dispatch 失敗計入熔斷器，
@@ -695,7 +695,7 @@ export class LlmGatewayService {
    *     自動被拒，不需額外程式碼。
    *
    *   範圍限定非 Azure：Azure 為 tech-spec §7 既定合規基準（播種即 `true`），
-   *   一併強制對既有 Azure 列有回歸風險而無收益。詳見 CHANGE-110 決策 2。
+   *   一併強制對既有 Azure 列有回歸風險而無收益。詳見 CHANGE-111 決策 2。
    *
    * @throws LlmGatewayError SENSITIVE_DATA_NOT_ALLOWED
    */

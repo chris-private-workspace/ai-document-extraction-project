@@ -7,10 +7,10 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 107 | CHANGE-110 | **CHANGE-111** |
-| FIX | 137 | FIX-136 | **FIX-137** |
+| CHANGE | 109 | CHANGE-111 | **CHANGE-112** |
+| FIX | 138 | FIX-136 | **FIX-137** |
 
-## 📋 未開始（25）
+## 📋 未開始（26）
 
 > 完全未動工的規劃。
 
@@ -41,8 +41,9 @@
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
+| [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | 🚧 待修復 |
 
-## 🚧 進行中 / 部分完成（21）
+## 🚧 進行中 / 部分完成（20）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -59,9 +60,8 @@
 | [FIX-067](4-changes/bug-fixes/FIX-067-v1-confidence-prompts-classified-auth.md) | v1 confidence prompts classified auth | 🔧 部分修復（2026-06-10）：confidence/prompts/classified 已修；`/api/v1` 留 WP-2… |
 | [FIX-069](4-changes/bug-fixes/FIX-069-redos-safe-regex-execution.md) | redos safe regex execution | ✅ 核心已完成（2026-06-11，程式碼層面；執行期 staging 驗證待部署） |
 | [FIX-071](4-changes/bug-fixes/FIX-071-cost-dos-rate-limit-file-size.md) | cost dos rate limit file size | ✅ 核心已完成（2026-06-11，程式碼層面；BUG-3 dev-only 端點依範圍判斷略過；執行期 staging 驗證待部署） |
-| [FIX-082](4-changes/bug-fixes/FIX-082-pdfjs-worker-local-asset.md) | pdfjs worker local asset | ✅ 已實作（待部署後 E2E 驗證） |
 | [FIX-085](4-changes/bug-fixes/FIX-085-report-download-private-blob-stream.md) | report download private blob stream | ✅ 已實作（待部署後 Azure 驗證下載） |
-| [FIX-094](4-changes/bug-fixes/FIX-094-zombie-processing-stuck-unrecoverable.md) | zombie processing stuck unrecoverable | 🟡 方案 B 已實作（2026-06-28，`type-check` + 改動檔 `lint` 0 error 通過；待部署 Azure… |
+| [FIX-094](4-changes/bug-fixes/FIX-094-zombie-processing-stuck-unrecoverable.md) | zombie processing stuck unrecoverable | ✅ 已驗證（2026-07-27 於 Azure DEV 實測，`sweptCount=13`、三項驗收通過）。方案 A（閾值式手動重試）… |
 | [FIX-102](4-changes/bug-fixes/FIX-102-company-create-edit-formdata-contract-mismatch.md) | company create edit formdata contract mismatch | 🔬 待 E2E 驗證（實作完成、type-check/lint 通過；使用者自行測試中） |
 | [FIX-103](4-changes/bug-fixes/FIX-103-companies-i18n-forwarder-leftover-and-new-page.md) | companies i18n forwarder leftover and new page | 🔬 待 E2E 驗證（實作完成、type-check/i18n:check/lint 通過；使用者自行測試中） |
 | [FIX-106](4-changes/bug-fixes/FIX-106-ocr-processing-stuck-db-connection-timeout.md) | ocr processing stuck db connection timeout | ✅ 根因已確認（應用端事件迴圈飽和，非 DB 故障）；治本（§5.5）+ 臨時緩解（§5.1）+ 收斂 1（§5.3）已實作並於 2026… |
@@ -86,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（194）
+## ✅ 已完成（197）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -163,10 +163,12 @@
 | [CHANGE-101](4-changes/feature-changes/CHANGE-101-batch-template-field-mappings-from-excel.md) | batch template field mappings from excel | ✅ 已完成（2026-07-09 部署 Azure DEV，寫入 18 筆） |
 | [CHANGE-103](4-changes/feature-changes/CHANGE-103-stage1-company-matching-anti-duplication.md) | stage1 company matching anti duplication | ✅ 已完成（Phase 1 組件 3 學習迴路 ✅ / Phase 2a `orderBy` ✅ / Phase 2 組件 2+4 tok… |
 | [CHANGE-104](4-changes/feature-changes/CHANGE-104-docs-governance-status-index-ci-gate.md) | docs governance status index ci gate | ✅ 已完成（2026-07-14） |
-| [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | ✅ 已完成（2026-07-22，方案 A 唯讀標記；B 一鍵重跑視使用情況另立 CHANGE；Azure 實機驗證於下次部署批次執行） |
-| [CHANGE-107](4-changes/feature-changes/CHANGE-107-template-field-mapping-copy-record.md) | template field mapping copy record | ✅ 已完成（2026-07-25，本地實機驗證 10/10 驗收項通過；Azure 實機驗證於下次部署批次執行） |
+| [CHANGE-106](4-changes/feature-changes/CHANGE-106-template-instance-staleness-indicator.md) | template instance staleness indicator | ✅ 已完成（2026-07-22 方案 A 唯讀標記；B 一鍵重跑視使用情況另立 CHANGE） |
+| [CHANGE-107](4-changes/feature-changes/CHANGE-107-template-field-mapping-copy-record.md) | template field mapping copy record | ✅ 已完成（2026-07-25 本地實機驗證 10/10 驗收項通過；2026-07-27 已部署 Azure DEV 並完成實機驗收 … |
 | [CHANGE-108](4-changes/feature-changes/CHANGE-108-azure-to-local-config-sync.md) | azure to local config sync | ✅ 已完成（2026-07-26，Phase 1-3 全部執行完畢；Blob 原始檔同步未做，見「後續項」） |
-| [CHANGE-110](4-changes/feature-changes/CHANGE-110-gateway-enforce-allow-sensitive-data.md) | gateway enforce allow sensitive data | ✅ 已完成（2026-07-27；`type-check` / `lint` / `test` 237/237 通過。⚠️ 純政策攔截、無… |
+| [CHANGE-109](4-changes/feature-changes/CHANGE-109-template-instance-newer-invoice-version-detection.md) | template instance newer invoice version detection | ✅ 已完成（2026-07-27 本地三閘 + 10 項單元測試通過；同日已部署 Azure DEV 並完成實機驗收 —— 映像 `dev… |
+| [CHANGE-110](4-changes/feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) | internal scheduler stuck processing sweeper | ✅ 已完成（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` 0 … |
+| [CHANGE-111](4-changes/feature-changes/CHANGE-111-gateway-enforce-allow-sensitive-data.md) | gateway enforce allow sensitive data | ✅ 已完成（2026-07-27；`type-check` / `lint` / `test` 237/237 通過。⚠️ 純政策攔截、無… |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |
@@ -239,10 +241,11 @@
 | [FIX-075](4-changes/bug-fixes/FIX-075-package-lock-cross-platform-sync.md) | package lock cross platform sync | ✅ 已修復（2026-06-12） |
 | [FIX-076](4-changes/bug-fixes/FIX-076-codebase-ci-readiness.md) | codebase ci readiness | ✅ 已修復（2026-06-12） |
 | [FIX-077](4-changes/bug-fixes/FIX-077-stage1-company-drift-jit-duplicates.md) | stage1 company drift jit duplicates | ✅ 已修復（BUG-1 / BUG-2 程式碼已實作並通過驗證；BUG-3 既有重複公司已合併清理） |
-| [FIX-078](4-changes/bug-fixes/FIX-078-upload-blob-container-public-access-not-permitted.md) | upload blob container public access not permitted | ✅ 已修復（2026-06-17，程式碼）｜⏳ 待 Azure 重建映像部署後做執行期驗證 |
+| [FIX-078](4-changes/bug-fixes/FIX-078-upload-blob-container-public-access-not-permitted.md) | upload blob container public access not permitted | ✅ 已修復並完成 Azure 執行期驗證（2026-07-27：`/blob` 200 串流、詳情頁預覽正常、容器 log 近 30 天 … |
 | [FIX-079](4-changes/bug-fixes/FIX-079-re2-wasm-runtime-enoent-regression.md) | re2 wasm runtime enoent regression | ✅ 已解決（2026-06-17，映像 `dev-fix080d`，啟動段 re2.wasm ENOENT 歸零） |
 | [FIX-080](4-changes/bug-fixes/FIX-080-ocr-pdf-canvas-missing-azure.md) | ocr pdf canvas missing azure | ✅ 已修復並驗證（2026-06-17，映像 `dev-fix080d`，實測上傳→處理成功） |
 | [FIX-081](4-changes/bug-fixes/FIX-081-standalone-trace-runtime-deps-audit.md) | standalone trace runtime deps audit | ✅ 已實作（主要三項：pdfkit / openapi / CJK 字型 — Dockerfile + .dockerignore）；🚧… |
+| [FIX-082](4-changes/bug-fixes/FIX-082-pdfjs-worker-local-asset.md) | pdfjs worker local asset | ✅ 已完成（2026-07-27 Azure DEV E2E 驗證通過：worker 由本站載入、預覽正常、外部主機請求為零） |
 | [FIX-083](4-changes/bug-fixes/FIX-083-pdfkit-server-external-and-buffer-pages.md) | pdfkit server external and buffer pages | ✅ 已修復（本地實測：報表成功產生 + 可下載；DB `monthly_reports` status=COMPLETED） |
 | [FIX-084](4-changes/bug-fixes/FIX-084-monthly-report-month-timezone-offset.md) | monthly report month timezone offset | ✅ 已修復（程式碼修正；待產一次報表 runtime 驗證） |
 | [FIX-086](4-changes/bug-fixes/FIX-086-document-detail-extracted-fields-display.md) | document detail extracted fields display | ✅ 已修復（2026-06-20）— BUG-1/BUG-2/BUG-3 全數完成。BUG-2 版面區隔於 2026-06-20 確認設計… |

@@ -95,6 +95,15 @@
 - [ ] 中文 PDF OCR 品質（CJK 字型；待實測。⚠️ pdfkit 中文報表仍須 registerFont TTF，見上方技術債）
 - [~] 既有上傳→OCR 未回歸：容器健康 + `database: connected` 確認無啟動回歸；`pdf-to-img`/`canvas`/`re2.wasm` 為既有 COPY 未改動。完整上傳→OCR 待實測
 
+### 2026-07-27 後續項進度
+
+| 原「監控/後續」項 | 現況 |
+|---|---|
+| **pdfjs worker** | ✅ **已由 FIX-082 解決並完成 Azure 驗證** —— worker 改為隨映像提供（`public/pdfjs/`），實測由本站載入、預覽正常、頁面外部主機請求為零 |
+| openapi | 回歸確認仍正常（`/api/openapi` → 200, 22.6 KB） |
+| pdfkit / CJK 字型 | 仍待實測（需在 Azure 觸發一次 PDF 報表匯出；中文報表另有 `registerFont` TTF 技術債） |
+| pdf-parse | 仍列監控 |
+
 ---
 
 ## 關聯

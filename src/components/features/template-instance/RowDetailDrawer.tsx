@@ -11,13 +11,13 @@
  *
  * @module src/components/features/template-instance/RowDetailDrawer
  * @since Epic 19 - Story 19.5
- * @lastModified 2026-01-22
+ * @lastModified 2026-07-27
  */
 
 import * as React from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/routing';
-import { ExternalLink, AlertCircle, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { ExternalLink, AlertCircle, AlertTriangle, CheckCircle, RefreshCw, Files } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -108,6 +108,9 @@ export function RowDetailDrawer({
   // CHANGE-106: 來源文件在本行產生後被重新處理 → 本行是舊快照
   const staleSources = row.staleSources ?? [];
   const isStale = staleSources.length > 0;
+  // CHANGE-109: 同一發票另有更新的文件記錄 → 本行指向舊的那一份
+  const newerVersions = row.newerVersions ?? [];
+  const hasNewerVersions = newerVersions.length > 0;
 
   // Sorted fields
   const sortedFields = React.useMemo(() => {
@@ -138,6 +141,28 @@ export function RowDetailDrawer({
                       <li key={doc.id}>
                         {doc.fileName} —{' '}
                         {t('rowDetail.staleSources.processedAt', {
+                          date: formatDateTime(new Date(doc.processedAt), locale as Locale),
+                        })}
+                      </li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* CHANGE-109: 同一發票有更新文件的警示（本行指向舊的那一份）。
+                與上方 CHANGE-106 的琥珀警示並存 —— 兩者補救動作不同。 */}
+            {hasNewerVersions && (
+              <Alert className="border-sky-500/50 text-sky-700 dark:text-sky-400 [&>svg]:text-sky-600">
+                <Files className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="text-sm mb-2 font-medium">{t('rowDetail.newerVersions.title')}</p>
+                  <p className="text-sm mb-2">{t('rowDetail.newerVersions.description')}</p>
+                  <ul className="list-disc pl-4 space-y-1 text-sm">
+                    {newerVersions.map((doc) => (
+                      <li key={doc.id}>
+                        {doc.fileName} —{' '}
+                        {t('rowDetail.newerVersions.processedAt', {
                           date: formatDateTime(new Date(doc.processedAt), locale as Locale),
                         })}
                       </li>
