@@ -1,32 +1,25 @@
 /**
- * @fileoverview LLM 模型選擇配置驗證 Schema（CHANGE-099）
+ * @fileoverview LLM 模型選擇配置驗證 Schema（CHANGE-099 → Epic 23 Story 23.2 step 3b）
  * @description
- *   驗證後台更新 Stage 1-3 模型選擇的請求。model key 限定於白名單
- *   AVAILABLE_LLM_MODELS，非白名單值一律拒絕。
+ *   驗證後台更新 Stage 1-3 模型選擇的請求。
+ *   **step 3b（id-based）**：value 改為 `LlmModel.id`（非白名單 key）；模型是否存在 / 已啟用
+ *   由服務層 `setStageModelSelection` 查庫驗證，本 schema 只驗非空字串。
  *
  * @module src/lib/validations/llm-model-config.schema
  * @since CHANGE-099 - LLM 模型選擇管理
- * @lastModified 2026-07-09
+ * @lastModified 2026-07-10
  */
 
 import { z } from 'zod';
-import { AVAILABLE_LLM_MODELS } from '@/lib/constants/llm-models';
 
-/** 白名單模型 key 的動態 enum（隨白名單自動反映） */
-const modelKeys = AVAILABLE_LLM_MODELS.map((m) => m.key) as [
-  string,
-  ...string[],
-];
+/** 單一 Stage 的模型 id（非空；存在性 / 啟用狀態由服務層查庫驗證） */
+const modelIdSchema = z.string().min(1, { message: '請選擇模型' });
 
-const modelKeyEnum = z.enum(modelKeys, {
-  message: '模型不在允許清單內',
-});
-
-/** 更新三個 Stage 模型選擇的請求 body */
+/** 更新三個 Stage 模型選擇的請求 body（value = LlmModel.id） */
 export const updateStageModelsSchema = z.object({
-  stage1: modelKeyEnum,
-  stage2: modelKeyEnum,
-  stage3: modelKeyEnum,
+  stage1: modelIdSchema,
+  stage2: modelIdSchema,
+  stage3: modelIdSchema,
 });
 
 export type UpdateStageModelsInput = z.infer<typeof updateStageModelsSchema>;

@@ -5,6 +5,12 @@
  */
 
 export { LlmGatewayService, LlmGatewayError, llmGatewayService } from './llm-gateway.service';
+export { LlmCircuitBreaker, llmCircuitBreaker } from './llm-circuit-breaker';
+export type {
+  CircuitState,
+  CircuitSnapshotEntry,
+  LlmCircuitBreakerOptions,
+} from './llm-circuit-breaker';
 export type {
   LlmCallInput,
   LlmCallResult,

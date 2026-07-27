@@ -83,6 +83,8 @@ export interface Stage2Input {
   fileName?: string;
   /** 格式 ID（用於載入 FORMAT 範圍配置） */
   formatId?: string;
+  /** 文件識別（Epic 23 step 4b）：gateway 一致性百分比灰度雜湊鍵（三階段同路徑） */
+  fileId?: string;
 }
 
 /**
@@ -174,7 +176,7 @@ export class Stage2FormatService {
       }
 
       // 3. 調用 GPT-5-nano
-      const gptResult = await this.callGptNano(prompt, input.imageBase64Array);
+      const gptResult = await this.callGptNano(prompt, input.imageBase64Array, input.fileId);
 
       // 4. 解析結果
       const parsed = this.parseFormatResult(gptResult.response);
@@ -375,7 +377,8 @@ Focus on the visual layout, table structure, and distinctive formatting elements
    */
   private async callGptNano(
     prompt: { system: string; user: string },
-    images: string[]
+    images: string[],
+    fileId?: string
   ): Promise<{
     response: string;
     tokenUsage: { input: number; output: number; total: number };
@@ -386,7 +389,9 @@ Focus on the visual layout, table structure, and distinctive formatting elements
       modelKey,
       prompt.system,
       prompt.user,
-      images
+      images,
+      // Epic 23 step 4b：一致性灰度雜湊鍵（三階段同路徑）
+      { fileId }
     );
 
     if (!result.success) {

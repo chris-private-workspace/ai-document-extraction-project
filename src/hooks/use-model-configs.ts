@@ -32,18 +32,26 @@ export interface LlmModelCapability {
   maxTokens: number
   supportsTemperature: boolean
   temperature?: number
-  defaultImageDetail: 'auto' | 'low' | 'high'
+  defaultImageDetail?: 'auto' | 'low' | 'high'
   supportsJsonSchema: boolean
+  supportsVision?: boolean
 }
 
-/** 可選模型（白名單項目） */
+/**
+ * 可選模型（Epic 23 step 3b：來自已啟用 provider 的已啟用模型）。
+ * `id` = `LlmModel.id`（選擇值）；`providerType` 供核心環節非 Azure 警示判斷。
+ */
 export interface LlmModel {
-  key: string
+  id: string
+  modelKey: string
   label: string
   capability: LlmModelCapability
+  providerId: string
+  providerName: string
+  providerType: string
 }
 
-/** Stage 1-3 的模型選擇（各為 models[].key） */
+/** Stage 1-3 的模型選擇（Epic 23 step 3b：各為 models[].id） */
 export interface StageModelSelection {
   stage1: string
   stage2: string

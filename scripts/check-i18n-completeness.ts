@@ -100,6 +100,8 @@ const LOCALE_SYNC_CHECKS: LocaleSyncCheck[] = [
   { i18nFile: 'navigation.json', keyPrefix: '', description: 'CHANGE-089 Batch F navigation/layout 模組（整檔）' },
   { i18nFile: 'systemSettings.json', keyPrefix: '', description: 'CHANGE-089 Batch E systemSettings 模組（整檔）' },
   { i18nFile: 'cityAccess.json', keyPrefix: '', description: 'CHANGE-089 Batch F 跨城市存取模組（新增，整檔）' },
+  // Epic 23 - Story 23.2：LLM Provider 管理後台（新增，整檔三語言同步）
+  { i18nFile: 'llmProviders.json', keyPrefix: '', description: 'Epic 23 Story 23.2 LLM Provider 管理模組（整檔）' },
 ];
 
 // ============================================================

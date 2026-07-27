@@ -1,10 +1,11 @@
 /**
- * @fileoverview GptCallerService × LlmGateway 路由單元測試（Epic 23 - Story 23.1 step 4）
+ * @fileoverview GptCallerService × LlmGateway 路由單元測試（Epic 23 - Story 23.1 step 4/4b）
  * @description
- *   驗證 flag-gated 硬切換與回退（不觸網路）：
- *   - flag on + modelId 解析成功 → 走 gateway，回傳映射後的 GptCallResult，不打 fetch。
- *   - flag on + modelId 解析不到（播種缺失） → 回退既有直接 fetch 路徑。
- *   - flag off → 完全不碰 gateway，走既有 fetch 路徑（行為零變）。
+ *   驗證 flag-gated 灰度切換與回退（不觸網路）：
+ *   - gate on + modelId 解析成功 → 走 gateway，回傳映射後的 GptCallResult，不打 fetch。
+ *   - gate on + modelId 解析不到（播種缺失） → 回退既有直接 fetch 路徑。
+ *   - gate off → 完全不碰 gateway，走既有 fetch 路徑（行為零變）。
+ *   - step 4b：`input.fileId` 透傳給 `shouldUseLlmGateway`（一致性灰度雜湊鍵）。
  *   並驗證 GptCallInput → LlmCallInput 的映射（modelId / output 模式 / 訊息）。
  *
  * @module tests/unit/services/gpt-caller-gateway-routing.test
@@ -13,13 +14,13 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-vi.mock('@/config/feature-flags', () => ({ isLlmGatewayEnabled: vi.fn() }));
+vi.mock('@/config/feature-flags', () => ({ shouldUseLlmGateway: vi.fn() }));
 vi.mock('@/services/llm', () => ({
   llmGatewayService: { resolveModelIdByKey: vi.fn(), call: vi.fn() },
 }));
 
 import { GptCallerService } from '@/services/extraction-v3/stages/gpt-caller.service';
-import { isLlmGatewayEnabled } from '@/config/feature-flags';
+import { shouldUseLlmGateway } from '@/config/feature-flags';
 import { llmGatewayService } from '@/services/llm';
 
 /** 模擬 Azure chat/completions 成功回應（fetch 路徑用） */
@@ -34,7 +35,7 @@ function mockFetchOk() {
 }
 
 const BASE_INPUT = {
-  model: 'gpt-5.2',
+  model: 'gpt-5.4-mini',
   systemPrompt: 'sys',
   userPrompt: 'usr',
   imageBase64Array: ['data:image/png;base64,AAAA'],
@@ -59,7 +60,7 @@ describe('GptCallerService gateway 路由（step 4）', () => {
   });
 
   it('should route through gateway and map result when flag on and modelId resolves', async () => {
-    vi.mocked(isLlmGatewayEnabled).mockReturnValue(true);
+    vi.mocked(shouldUseLlmGateway).mockReturnValue(true);
     vi.mocked(llmGatewayService.resolveModelIdByKey).mockResolvedValue('model-1');
     vi.mocked(llmGatewayService.call).mockResolvedValue({
       success: true,
@@ -76,7 +77,7 @@ describe('GptCallerService gateway 路由（step 4）', () => {
     expect(r.success).toBe(true);
     expect(r.response).toBe('GATEWAY_RESULT');
     expect(r.tokenUsage).toEqual({ input: 5, output: 5, total: 10 });
-    expect(r.model).toBe('gpt-5.2');
+    expect(r.model).toBe('gpt-5.4-mini');
     // 未打 fetch
     expect(fetch).not.toHaveBeenCalled();
     // GptCallInput → LlmCallInput 映射：有 jsonSchema → object 模式
@@ -95,7 +96,7 @@ describe('GptCallerService gateway 路由（step 4）', () => {
   });
 
   it('should map to json mode when no jsonSchema is provided', async () => {
-    vi.mocked(isLlmGatewayEnabled).mockReturnValue(true);
+    vi.mocked(shouldUseLlmGateway).mockReturnValue(true);
     vi.mocked(llmGatewayService.resolveModelIdByKey).mockResolvedValue('model-1');
     vi.mocked(llmGatewayService.call).mockResolvedValue({
       success: true,
@@ -113,7 +114,7 @@ describe('GptCallerService gateway 路由（step 4）', () => {
   });
 
   it('should fall back to fetch when flag on but modelId does not resolve (unseeded)', async () => {
-    vi.mocked(isLlmGatewayEnabled).mockReturnValue(true);
+    vi.mocked(shouldUseLlmGateway).mockReturnValue(true);
     vi.mocked(llmGatewayService.resolveModelIdByKey).mockResolvedValue(null);
 
     const r = await service.call(BASE_INPUT);
@@ -124,7 +125,7 @@ describe('GptCallerService gateway 路由（step 4）', () => {
   });
 
   it('should never touch gateway when flag is off', async () => {
-    vi.mocked(isLlmGatewayEnabled).mockReturnValue(false);
+    vi.mocked(shouldUseLlmGateway).mockReturnValue(false);
 
     const r = await service.call(BASE_INPUT);
 
@@ -132,5 +133,13 @@ describe('GptCallerService gateway 路由（step 4）', () => {
     expect(llmGatewayService.resolveModelIdByKey).not.toHaveBeenCalled();
     expect(llmGatewayService.call).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('should pass input.fileId to shouldUseLlmGateway as the consistency key (step 4b)', async () => {
+    vi.mocked(shouldUseLlmGateway).mockReturnValue(false);
+
+    await service.call({ ...BASE_INPUT, fileId: 'doc-abc' });
+
+    expect(shouldUseLlmGateway).toHaveBeenCalledWith('doc-abc');
   });
 });

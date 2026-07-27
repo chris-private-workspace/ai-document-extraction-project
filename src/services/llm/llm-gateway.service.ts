@@ -25,9 +25,10 @@
  */
 
 import { generateText, generateObject, jsonSchema } from 'ai';
-import type { ModelMessage } from 'ai';
+import type { FilePart, LanguageModel, ModelMessage } from 'ai';
 import type { ProviderOptions } from '@ai-sdk/provider-utils';
 import { createAzure } from '@ai-sdk/azure';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import type { LlmProviderType } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
@@ -35,14 +36,21 @@ import { decryptConfigValue } from '@/lib/config-encryption';
 import { aiLogger } from '@/services/logging/logger.service';
 import { aiCostService } from '@/services/ai-cost.service';
 import type { ApiProviderType } from '@/types/ai-cost';
+import { getLlmResilienceConfig } from '@/config/feature-flags';
+import type { LlmResilienceConfig } from '@/config/feature-flags';
+import { llmCircuitBreaker } from './llm-circuit-breaker';
 
 import type {
+  LlmAssembledMessage,
+  LlmAssembledPart,
   LlmCallInput,
   LlmCallPlan,
   LlmCallResult,
   LlmCallUsage,
+  LlmImageDetail,
   LlmImagePart,
   LlmMessage,
+  LlmMessageRole,
   LlmOutputSpec,
 } from './llm-gateway.types';
 
@@ -79,6 +87,7 @@ interface StoredCapability {
 
 /** 解析後的 provider + 模型（含解密憑證，僅存活於單次呼叫記憶體） */
 interface ResolvedModel {
+  providerId: string;
   providerType: LlmProviderType;
   modelKey: string;
   deploymentName: string;
@@ -86,12 +95,20 @@ interface ResolvedModel {
   apiKey: string;
   baseUrl: string;
   apiVersion: string;
+  /** D4 資料出境護欄：此 provider 是否經核准接收發票資料（CHANGE-111） */
+  allowSensitiveData: boolean;
 }
 
 /** 組裝完成、待送出的呼叫（供 call() 與 describeCall() 共用） */
 interface PreparedCall {
   resolved: ResolvedModel;
-  model: ReturnType<ReturnType<typeof createAzure>['chat']>;
+  /**
+   * provider 無關的 AI SDK 模型控制代碼（Story 23.3 起不再綁 Azure）。
+   * 由 {@link LlmGatewayService.buildModel} 依 `providerType` 建出。
+   */
+  model: LanguageModel;
+  /** system 指示（AI SDK v7 起不得混在 `messages`，須以獨立參數送出） */
+  instructions?: string;
   aiMessages: ModelMessage[];
   output: LlmOutputSpec;
   maxOutputTokens: number;
@@ -158,26 +175,75 @@ function resolveTemperature(
 
 /**
  * 圖片 → AI SDK FilePart（§3.5）。
- * ⚠️ `img.detail`（low/high/auto）目前**未**轉發至 provider option——AI SDK 各 provider 的 image
- *    detail 傳法未經查證，盲設風險高（§3.8 wire 非零風險）。`detail` 保留在資料層、由呼叫端忠實傳入，
- *    實際 wire 轉發（影響 nano 階段成本）列為 **step 4b 等價調校項**，於 shadow 比對時定案。
+ * step 4b：忠實轉發 `img.detail`。經查證 `@ai-sdk/azure@4.0.9`（內部沿用 `OpenAIChatLanguageModel`）
+ * 的訊息轉換讀 `part.providerOptions.openai.imageDetail` → wire `image_url.detail`
+ * （`node_modules/@ai-sdk/openai/dist/index.js:308`），與舊手寫 fetch 的 `image_url.detail` 等價。
+ * `detail` 未提供時省略 providerOptions（provider 採預設，與舊路徑 `?? defaultImageDetail` 由呼叫端補齊一致）。
  */
-function toFilePart(img: LlmImagePart): { type: 'file'; mediaType: string; data: string } {
-  return { type: 'file', mediaType: img.mediaType ?? DEFAULT_IMAGE_MEDIA_TYPE, data: img.data };
+function toFilePart(img: LlmImagePart): FilePart {
+  const part: FilePart = {
+    type: 'file',
+    mediaType: img.mediaType ?? DEFAULT_IMAGE_MEDIA_TYPE,
+    data: img.data,
+  };
+  if (img.detail) {
+    part.providerOptions = { openai: { imageDetail: img.detail } };
+  }
+  return part;
 }
 
 /**
- * 映射 provider-agnostic 訊息 → AI SDK `ModelMessage[]`。
- * 圖片附加到**最後一則 user 訊息**，且**圖片在前、文字在後**（對齊現行 gpt-caller 擺法）。
+ * 組裝訊息 → 去敏快照（§3.8）：角色 + 內容部位種類，圖片附帶實際轉發的 `imageDetail`。
+ *
+ * @param instructions 已抽離 `messages` 的 system 指示；快照仍需呈現它確實被送出，
+ *   否則診斷畫面會看似「prompt 少了 system 段」。
  */
-function toAiMessages(messages: LlmMessage[], images?: LlmImagePart[]): ModelMessage[] {
+function summarizeAssembledMessages(
+  messages: ModelMessage[],
+  instructions?: string,
+): LlmAssembledMessage[] {
+  const summarized = messages.map((m): LlmAssembledMessage => {
+    const role = m.role as LlmMessageRole;
+    if (typeof m.content === 'string') {
+      return { role, parts: [{ kind: 'text' }] };
+    }
+    const parts = (m.content as Array<{ type: string; mediaType?: string; providerOptions?: ProviderOptions }>).map(
+      (p): LlmAssembledPart => {
+        if (p.type === 'file') {
+          const imageDetail = p.providerOptions?.openai?.imageDetail as LlmImageDetail | undefined;
+          return { kind: 'image', mediaType: p.mediaType ?? DEFAULT_IMAGE_MEDIA_TYPE, imageDetail };
+        }
+        return { kind: 'text' };
+      },
+    );
+    return { role, parts };
+  });
+  return instructions ? [{ role: 'system', parts: [{ kind: 'text' }] }, ...summarized] : summarized;
+}
+
+/**
+ * 映射 provider-agnostic 訊息 → AI SDK 的 `instructions` + `ModelMessage[]`。
+ *
+ * @description 圖片附加到**最後一則 user 訊息**，且**圖片在前、文字在後**（對齊現行 gpt-caller 擺法）。
+ *
+ *   ⚠️ **system 必須抽離 `messages`**：AI SDK v7 的 `standardizePrompt` 見到 `role: 'system'`
+ *   即丟 `InvalidPromptError`（"Use the instructions option instead"），且**與 provider 無關**
+ *   ——Azure 與 Anthropic 一樣會炸。多則 system 依原順序以空行合併。
+ */
+function toAiMessages(
+  messages: LlmMessage[],
+  images?: LlmImagePart[],
+): { instructions?: string; messages: ModelMessage[] } {
+  const instructionTexts = messages.filter((m) => m.role === 'system').map((m) => m.content);
+  const conversation = messages.filter((m) => m.role !== 'system');
+
   const hasImages = !!images && images.length > 0;
   let lastUserIdx = -1;
-  for (let i = 0; i < messages.length; i++) {
-    if (messages[i].role === 'user') lastUserIdx = i;
+  for (let i = 0; i < conversation.length; i++) {
+    if (conversation[i].role === 'user') lastUserIdx = i;
   }
 
-  const result: ModelMessage[] = messages.map((m, i) => {
+  const result: ModelMessage[] = conversation.map((m, i) => {
     if (hasImages && m.role === 'user' && i === lastUserIdx) {
       return {
         role: 'user',
@@ -191,7 +257,10 @@ function toAiMessages(messages: LlmMessage[], images?: LlmImagePart[]): ModelMes
   if (hasImages && lastUserIdx === -1) {
     result.push({ role: 'user', content: images!.map(toFilePart) });
   }
-  return result;
+  return {
+    ...(instructionTexts.length ? { instructions: instructionTexts.join('\n\n') } : {}),
+    messages: result,
+  };
 }
 
 /** AI SDK usage（inputTokens/outputTokens/totalTokens，皆可能 undefined）→ LlmCallUsage */
@@ -257,27 +326,163 @@ export class LlmGatewayService {
    */
   async call(input: LlmCallInput): Promise<LlmCallResult> {
     const start = Date.now();
-    let resolved: ResolvedModel | undefined;
-    let result: LlmCallResult;
+    const resilience = getLlmResilienceConfig();
 
+    // Phase 1：解析 + 組裝（config / 解析錯誤 → **不**計入熔斷）
+    let prepared: PreparedCall;
     try {
-      const prepared = await this.prepare(input);
-      resolved = prepared.resolved;
-      result = await this.dispatch(prepared, input, start);
+      prepared = await this.prepare(input);
     } catch (error) {
-      result = {
-        success: false,
-        text: '',
-        usage: { input: 0, output: 0, total: 0 },
-        modelId: input.modelId,
-        providerType: resolved?.providerType,
-        durationMs: Date.now() - start,
-        error: error instanceof Error ? error.message : String(error),
-      };
+      const result = this.buildErrorResult(input.modelId, undefined, start, error);
+      await this.recordObservability(input, result, undefined);
+      return result;
     }
 
+    // Phase 2：熔斷閘 + dispatch + failover（Story 23.3 §11.5）
+    const { result, resolved } = await this.dispatchWithResilience(
+      prepared,
+      input,
+      start,
+      resilience,
+    );
     await this.recordObservability(input, result, resolved);
     return result;
+  }
+
+  /**
+   * 熔斷閘 → dispatch → 記錄成敗 → 失敗時 failover（tech-spec §11.5「provider 韌性」）。
+   * 熔斷開路即 **fail-fast**（不空燒 retry，直擊「provider 掛掉整批空燒 retry」）。
+   */
+  private async dispatchWithResilience(
+    prepared: PreparedCall,
+    input: LlmCallInput,
+    start: number,
+    resilience: LlmResilienceConfig,
+  ): Promise<{ result: LlmCallResult; resolved: ResolvedModel }> {
+    const providerId = prepared.resolved.providerId;
+
+    // 熔斷開路 → fail-fast → 嘗試 failover
+    if (resilience.circuitBreakerEnabled && !llmCircuitBreaker.canRequest(providerId)) {
+      const fo = await this.tryFailover(input, prepared.resolved, start, resilience, 'CIRCUIT_OPEN');
+      if (fo) return fo;
+      const result = this.buildErrorResult(
+        input.modelId,
+        prepared.resolved,
+        start,
+        new LlmGatewayError(`Provider 熔斷開路: ${providerId}`, 'CIRCUIT_OPEN'),
+      );
+      return { result, resolved: prepared.resolved };
+    }
+
+    // dispatch（API 失敗＝provider 健康問題，計入熔斷）
+    const result = await this.safeDispatch(prepared, input, start);
+    if (resilience.circuitBreakerEnabled) {
+      if (result.success) llmCircuitBreaker.recordSuccess(providerId);
+      else llmCircuitBreaker.recordFailure(providerId);
+    }
+
+    // 主要失敗 → failover
+    if (!result.success) {
+      const fo = await this.tryFailover(input, prepared.resolved, start, resilience, 'PRIMARY_FAILED');
+      if (fo) return fo;
+    }
+    return { result, resolved: prepared.resolved };
+  }
+
+  /** dispatch 包成不拋（API 例外 → success:false），供熔斷記錄與 failover 判斷 */
+  private async safeDispatch(
+    prepared: PreparedCall,
+    input: LlmCallInput,
+    start: number,
+  ): Promise<LlmCallResult> {
+    try {
+      return await this.dispatch(prepared, input, start);
+    } catch (error) {
+      return this.buildErrorResult(input.modelId, prepared.resolved, start, error);
+    }
+  }
+
+  /**
+   * failover 骨架（§11.5「可選 failover 切 isDefault」；opt-in `FEATURE_LLM_FAILOVER`）。
+   * 僅在能於 isDefault provider 找到對應模型（**跨 provider**）時觸發；
+   * ⚠️ 目前僅 Azure（isDefault）wired → 同 provider 不 failover（回 null，維持原結果）。
+   * 非 Azure provider wired 後（Story 23.3 核心）全面生效。
+   */
+  private async tryFailover(
+    input: LlmCallInput,
+    original: ResolvedModel,
+    start: number,
+    resilience: LlmResilienceConfig,
+    reason: string,
+  ): Promise<{ result: LlmCallResult; resolved: ResolvedModel } | null> {
+    if (!resilience.failoverEnabled) return null;
+
+    const targetModelId = await this.resolveFailoverTarget(original);
+    if (!targetModelId) return null;
+
+    const foInput = { ...input, modelId: targetModelId };
+    let foPrepared: PreparedCall;
+    try {
+      foPrepared = await this.prepare(foInput);
+    } catch {
+      return null; // failover 目標解析不到 → 放棄，維持原結果
+    }
+
+    const foProviderId = foPrepared.resolved.providerId;
+    if (resilience.circuitBreakerEnabled && !llmCircuitBreaker.canRequest(foProviderId)) {
+      return null; // failover 目標也熔斷 → 放棄
+    }
+
+    const foResult = await this.safeDispatch(foPrepared, foInput, start);
+    if (resilience.circuitBreakerEnabled) {
+      if (foResult.success) llmCircuitBreaker.recordSuccess(foProviderId);
+      else llmCircuitBreaker.recordFailure(foProviderId);
+    }
+    foResult.failover = { fromProviderId: original.providerId, reason };
+    return { result: foResult, resolved: foPrepared.resolved };
+  }
+
+  /**
+   * 解析 failover 目標 modelId：isDefault 且已啟用 provider 下、同 `modelKey` 的模型
+   * （無同 key 則取該 provider 任一已啟用模型）；與原 provider 相同即回 `null`（無跨 provider 可切）。
+   */
+  private async resolveFailoverTarget(original: ResolvedModel): Promise<string | null> {
+    const def = await prisma.llmProvider.findFirst({
+      where: { isDefault: true, isEnabled: true },
+      select: { id: true },
+    });
+    if (!def || def.id === original.providerId) return null;
+
+    const sameKey = await prisma.llmModel.findFirst({
+      where: { providerId: def.id, isEnabled: true, modelKey: original.modelKey },
+      select: { id: true },
+    });
+    if (sameKey) return sameKey.id;
+
+    const anyModel = await prisma.llmModel.findFirst({
+      where: { providerId: def.id, isEnabled: true },
+      orderBy: { label: 'asc' },
+      select: { id: true },
+    });
+    return anyModel?.id ?? null;
+  }
+
+  /** 組成失敗結果（統一，供解析錯誤 / 熔斷開路 / dispatch 例外共用） */
+  private buildErrorResult(
+    modelId: string,
+    resolved: ResolvedModel | undefined,
+    start: number,
+    error: unknown,
+  ): LlmCallResult {
+    return {
+      success: false,
+      text: '',
+      usage: { input: 0, output: 0, total: 0 },
+      modelId,
+      providerType: resolved?.providerType,
+      durationMs: Date.now() - start,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 
   /** 依 output 模式派送 generateText / generateObject（含 G10 降級） */
@@ -426,6 +631,7 @@ export class LlmGatewayService {
       maxOutputTokens: prepared.maxOutputTokens,
       temperature: prepared.temperature,
       maxRetries: prepared.maxRetries,
+      assembledMessages: summarizeAssembledMessages(prepared.aiMessages, prepared.instructions),
     };
   }
 
@@ -453,8 +659,9 @@ export class LlmGatewayService {
   /** resolve + buildModel + 組裝訊息/參數（供 call/describeCall 共用） */
   private async prepare(input: LlmCallInput): Promise<PreparedCall> {
     const resolved = await this.resolveModel(input.modelId);
+    this.assertSensitiveDataAllowed(resolved);
     const model = this.buildModel(resolved);
-    const aiMessages = toAiMessages(input.messages, input.images);
+    const { instructions, messages: aiMessages } = toAiMessages(input.messages, input.images);
     const output: LlmOutputSpec = input.output ?? { mode: 'text' };
     const temperature = resolveTemperature(input.temperature, resolved.capability);
     const maxOutputTokens = input.maxOutputTokens ?? resolved.capability.maxTokens;
@@ -465,6 +672,7 @@ export class LlmGatewayService {
     return {
       resolved,
       model,
+      instructions,
       aiMessages,
       output,
       maxOutputTokens,
@@ -473,6 +681,32 @@ export class LlmGatewayService {
       providerOptions,
       abortSignal,
     };
+  }
+
+  /**
+   * D4 資料出境護欄（CHANGE-111）：非 Azure provider 未經核准即拒絕送出。
+   *
+   * @description 置於 `prepare()` 而非 dispatch 層，有兩個理由：
+   *   - **不誤記熔斷**：`dispatchWithResilience` 把 dispatch 失敗計入熔斷器，
+   *     但政策拒絕不是 provider 健康問題；`prepare()` 的錯誤在 `call()` Phase 1
+   *     即被歸類為「設定／解析錯誤 → 不計入熔斷」。
+   *   - **同時覆蓋 failover**：`tryFailover` 亦經 `prepare()`，其既有的
+   *     「prepare 失敗 → 放棄切換、維持原結果」處理讓未核准的 failover 目標
+   *     自動被拒，不需額外程式碼。
+   *
+   *   範圍限定非 Azure：Azure 為 tech-spec §7 既定合規基準（播種即 `true`），
+   *   一併強制對既有 Azure 列有回歸風險而無收益。詳見 CHANGE-111 決策 2。
+   *
+   * @throws LlmGatewayError SENSITIVE_DATA_NOT_ALLOWED
+   */
+  private assertSensitiveDataAllowed(resolved: ResolvedModel): void {
+    if (resolved.providerType === 'AZURE_OPENAI') return;
+    if (resolved.allowSensitiveData) return;
+    throw new LlmGatewayError(
+      `Provider 未經核准接收發票資料: ${resolved.providerId}（providerType=${resolved.providerType}）。` +
+        '請於後台 LLM 供應商設定勾選「允許敏感資料」，並確認已取得組織核准。',
+      'SENSITIVE_DATA_NOT_ALLOWED',
+    );
   }
 
   /** 讀 LlmModel + LlmProvider，解出部署名與憑證（憑證解密 fail-closed） */
@@ -497,13 +731,20 @@ export class LlmGatewayService {
     const apiKey = this.resolveApiKey(provider);
 
     return {
+      providerId: provider.id,
       providerType: provider.providerType,
       modelKey: model.modelKey,
       deploymentName,
       capability,
       apiKey,
-      baseUrl: provider.baseUrl ?? process.env.AZURE_OPENAI_ENDPOINT ?? '',
+      // env fallback 僅限 Azure：否則未填 baseUrl 的非 Azure provider 會被導向 Azure 端點
+      baseUrl:
+        provider.baseUrl ??
+        (provider.providerType === 'AZURE_OPENAI'
+          ? (process.env.AZURE_OPENAI_ENDPOINT ?? '')
+          : ''),
       apiVersion: provider.apiVersion ?? DEFAULT_AZURE_API_VERSION,
+      allowSensitiveData: provider.allowSensitiveData,
     };
   }
 
@@ -527,11 +768,13 @@ export class LlmGatewayService {
     throw new LlmGatewayError(`Provider 缺少憑證: ${provider.name}`, 'MISSING_CREDENTIAL');
   }
 
-  /** 依 provider 型別建 AI SDK model（本 step 僅 Azure） */
+  /** 依 provider 型別建 AI SDK model（Azure + Anthropic；其餘待 Story 23.4） */
   private buildModel(resolved: ResolvedModel): PreparedCall['model'] {
     switch (resolved.providerType) {
       case 'AZURE_OPENAI':
         return this.buildAzureModel(resolved);
+      case 'ANTHROPIC':
+        return this.buildAnthropicModel(resolved);
       default:
         throw new LlmGatewayError(
           `Provider 型別尚未支援（Story 23.3 擴充）: ${resolved.providerType}`,
@@ -557,10 +800,31 @@ export class LlmGatewayService {
     return provider.chat(resolved.deploymentName);
   }
 
+  /**
+   * 建 Anthropic (Claude) model（Story 23.3）。
+   *
+   * @description
+   *   與 Azure 的差異：
+   *   - **模型識別用 `modelKey`**（如 `claude-opus-5`），非 Azure 的 deployment 名。
+   *   - **無 api-version**：Anthropic 版本走 `anthropic-version` header，由 SDK 內部帶。
+   *   - `baseUrl` 留空即用官方預設 `https://api.anthropic.com/v1`（僅自架 proxy 才需填）。
+   *   - structured output 由 native provider 自動走 tool-mode（OpenAI-compat 端點在此會失效，
+   *     故用 `@ai-sdk/anthropic` 而非 compat 層）。
+   */
+  private buildAnthropicModel(resolved: ResolvedModel): PreparedCall['model'] {
+    const trimmed = resolved.baseUrl.replace(/\/+$/, '');
+    const provider = createAnthropic({
+      apiKey: resolved.apiKey,
+      ...(trimmed ? { baseURL: trimmed } : {}),
+    });
+    return provider.languageModel(resolved.modelKey);
+  }
+
   /** 組裝 generateText/generateObject 共用參數（conditional 併入 temperature/providerOptions） */
   private buildSettings(prepared: PreparedCall) {
     return {
       model: prepared.model,
+      ...(prepared.instructions ? { instructions: prepared.instructions } : {}),
       messages: prepared.aiMessages,
       maxOutputTokens: prepared.maxOutputTokens,
       maxRetries: prepared.maxRetries,

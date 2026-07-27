@@ -30,6 +30,7 @@ vi.mock('@ai-sdk/azure', () => {
 // Mock Prisma（gateway 用 llmModel.findUnique / findFirst；step 5 用 document.findUnique 反查 cityCode）
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    llmProvider: { findFirst: vi.fn() },
     llmModel: { findUnique: vi.fn(), findFirst: vi.fn() },
     document: { findUnique: vi.fn() },
   },
@@ -47,7 +48,7 @@ import { generateText, generateObject } from 'ai';
 import { prisma } from '@/lib/prisma';
 import { aiLogger } from '@/services/logging/logger.service';
 import { aiCostService } from '@/services/ai-cost.service';
-import { llmGatewayService } from '@/services/llm';
+import { llmGatewayService, llmCircuitBreaker } from '@/services/llm';
 import type { LlmMessage } from '@/services/llm';
 
 /** 預設 Azure LlmModel（含 provider include），模擬 step 1 播種 */
@@ -66,6 +67,7 @@ function mockLlmModel(overrides?: Record<string, unknown>) {
       defaultDeploymentName: 'gpt-5-2-vision',
     },
     provider: {
+      id: 'provider-1',
       name: 'Azure OpenAI (default)',
       providerType: 'AZURE_OPENAI',
       baseUrl: 'https://test.openai.azure.com',
@@ -84,11 +86,15 @@ const USER_MSG: LlmMessage[] = [{ role: 'user', content: 'x' }];
 describe('LlmGatewayService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    llmCircuitBreaker.reset(); // 單例熔斷器狀態跨測試隔離
     process.env.AZURE_OPENAI_API_KEY = 'test-key';
     process.env.AZURE_OPENAI_ENDPOINT = 'https://test.openai.azure.com';
     // 確保部署名走 capability.defaultDeploymentName（不被 env 覆蓋）
     delete process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
     delete process.env.AZURE_OPENAI_NANO_DEPLOYMENT_NAME;
+    // 韌性設定回預設（breaker on / failover off）
+    delete process.env.FEATURE_LLM_CIRCUIT_BREAKER;
+    delete process.env.FEATURE_LLM_FAILOVER;
   });
 
   afterEach(() => {
@@ -155,6 +161,44 @@ describe('LlmGatewayService', () => {
 
       expect(plan.deploymentName).toBe('gpt-5-4-mini-aidocprocessing');
     });
+
+    it('should forward image detail to the assembled file part (step 4b wire equivalence)', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+
+      const plan = await llmGatewayService.describeCall({
+        modelId: 'model-1',
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'usr' },
+        ],
+        images: [{ data: 'data:image/png;base64,AAAA', detail: 'high' }],
+        output: { mode: 'object', jsonSchema: { type: 'object' } },
+      });
+
+      // 圖片附加到最後一則 user 訊息、且圖片在前文字在後（對齊舊 gpt-caller 擺法）
+      const userMsg = plan.assembledMessages.find((m) => m.role === 'user');
+      expect(userMsg?.parts).toEqual([
+        { kind: 'image', mediaType: 'image/png', imageDetail: 'high' },
+        { kind: 'text' },
+      ]);
+      // system 訊息維持純文字
+      expect(plan.assembledMessages[0]).toEqual({ role: 'system', parts: [{ kind: 'text' }] });
+    });
+
+    it('should omit imageDetail in the snapshot when detail is not provided', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+
+      const plan = await llmGatewayService.describeCall({
+        modelId: 'model-1',
+        messages: USER_MSG,
+        images: [{ data: 'data:image/png;base64,AAAA' }],
+      });
+
+      const imagePart = plan.assembledMessages
+        .flatMap((m) => m.parts)
+        .find((p) => p.kind === 'image');
+      expect(imagePart).toEqual({ kind: 'image', mediaType: 'image/png', imageDetail: undefined });
+    });
   });
 
   describe('call()（三態 output + usage 映射）', () => {
@@ -217,6 +261,102 @@ describe('LlmGatewayService', () => {
       });
 
       expect(r.usage).toEqual({ input: 7, output: 8, total: 15 });
+    });
+  });
+
+  /**
+   * 回歸：AI SDK v7 的 `standardizePrompt` 見到 `role: 'system'` 混在 `messages` 即丟
+   * `InvalidPromptError`（"Use the instructions option instead"），且**與 provider 無關**。
+   * Stage 3 的 prompt 一定帶 system 段 → 若未抽離，gateway 每次呼叫都會失敗。
+   */
+  describe('system 指示抽離（AI SDK v7 契約）', () => {
+    const SYS_AND_USER: LlmMessage[] = [
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'usr' },
+    ];
+
+    it('should send system content via instructions and keep messages free of the system role', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: SYS_AND_USER,
+        output: { mode: 'text' },
+      });
+
+      const settings = vi.mocked(generateText).mock.calls[0][0] as {
+        instructions?: string;
+        messages: Array<{ role: string }>;
+      };
+      expect(settings.instructions).toBe('sys');
+      expect(settings.messages.map((m) => m.role)).toEqual(['user']);
+    });
+
+    it('should merge multiple system messages in order', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: [
+          { role: 'system', content: 'first' },
+          { role: 'user', content: 'usr' },
+          { role: 'system', content: 'second' },
+        ],
+        output: { mode: 'text' },
+      });
+
+      const settings = vi.mocked(generateText).mock.calls[0][0] as { instructions?: string };
+      expect(settings.instructions).toBe('first\n\nsecond');
+    });
+
+    it('should omit instructions entirely when no system message is present', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockResolvedValue({
+        text: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: USER_MSG,
+        output: { mode: 'text' },
+      });
+
+      expect(vi.mocked(generateText).mock.calls[0][0]).not.toHaveProperty('instructions');
+    });
+
+    it('should preserve instructions through the G10 text fallback', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateObject).mockRejectedValue(new Error('schema unsupported'));
+      vi.mocked(generateText).mockResolvedValue({
+        text: '{"a":1}',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+      } as never);
+
+      await llmGatewayService.call({
+        modelId: 'model-1',
+        messages: SYS_AND_USER,
+        output: { mode: 'object', jsonSchema: { type: 'object' } },
+      });
+
+      const settings = vi.mocked(generateText).mock.calls[0][0] as {
+        instructions?: string;
+        messages: Array<{ role: string }>;
+      };
+      expect(settings.instructions).toBe('sys');
+      expect(settings.messages.some((m) => m.role === 'system')).toBe(false);
     });
   });
 
@@ -380,6 +520,49 @@ describe('LlmGatewayService', () => {
 
       expect(r.success).toBe(true);
       expect(r.text).toBe('ok');
+    });
+  });
+
+  describe('韌性（circuit breaker + failover, §11.5）', () => {
+    it('should fail-fast with CIRCUIT_OPEN when the provider circuit is open (no dispatch)', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      // 強制開路 singleton（key = providerId）
+      for (let i = 0; i < 10; i++) llmCircuitBreaker.recordFailure('provider-1');
+      expect(llmCircuitBreaker.getState('provider-1')).toBe('OPEN');
+
+      const r = await llmGatewayService.call({ modelId: 'model-1', messages: USER_MSG });
+
+      expect(r.success).toBe(false);
+      expect(r.error).toContain('熔斷開路');
+      // fail-fast：不進 dispatch、不空燒 retry
+      expect(generateText).not.toHaveBeenCalled();
+      expect(generateObject).not.toHaveBeenCalled();
+    });
+
+    it('should record a provider failure and not failover when failover is disabled (default)', async () => {
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockRejectedValue(new Error('boom'));
+
+      const r = await llmGatewayService.call({ modelId: 'model-1', messages: USER_MSG });
+
+      expect(r.success).toBe(false);
+      expect(r.failover).toBeUndefined();
+      expect(prisma.llmProvider.findFirst).not.toHaveBeenCalled();
+      // 單次失敗 < 閾值 → 維持 CLOSED
+      expect(llmCircuitBreaker.getState('provider-1')).toBe('CLOSED');
+    });
+
+    it('should not failover when the isDefault provider equals the primary (only Azure wired)', async () => {
+      process.env.FEATURE_LLM_FAILOVER = 'true';
+      vi.mocked(prisma.llmModel.findUnique).mockResolvedValue(mockLlmModel() as never);
+      vi.mocked(generateText).mockRejectedValue(new Error('boom'));
+      vi.mocked(prisma.llmProvider.findFirst).mockResolvedValue({ id: 'provider-1' } as never);
+
+      const r = await llmGatewayService.call({ modelId: 'model-1', messages: USER_MSG });
+
+      expect(r.success).toBe(false);
+      expect(r.failover).toBeUndefined(); // 同 provider → 無跨 provider 可切
+      expect(prisma.llmProvider.findFirst).toHaveBeenCalledTimes(1);
     });
   });
 });

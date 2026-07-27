@@ -60,6 +60,7 @@ import {
   Wrench,
   Settings2,
   Cpu,
+  Boxes,
   CopyCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -154,6 +155,7 @@ const navigation: NavSection[] = [
     items: [
       { nameKey: 'sidebar.systemSettings', href: '/admin/settings', icon: Wrench },
       { nameKey: 'sidebar.modelSettings', href: '/admin/model-settings', icon: Cpu },
+      { nameKey: 'sidebar.llmProviders', href: '/admin/llm-providers', icon: Boxes },
       { nameKey: 'sidebar.users', href: '/admin/users', icon: Users },
       { nameKey: 'sidebar.historicalData', href: '/admin/historical-data', icon: Database },
     ],

@@ -7,8 +7,8 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 108 | CHANGE-110 | **CHANGE-111** |
-| FIX | 136 | FIX-134 | **FIX-135** |
+| CHANGE | 109 | CHANGE-111 | **CHANGE-112** |
+| FIX | 138 | FIX-136 | **FIX-137** |
 
 ## 📋 未開始（26）
 
@@ -86,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（194）
+## ✅ 已完成（197）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -168,6 +168,7 @@
 | [CHANGE-108](4-changes/feature-changes/CHANGE-108-azure-to-local-config-sync.md) | azure to local config sync | ✅ 已完成（2026-07-26，Phase 1-3 全部執行完畢；Blob 原始檔同步未做，見「後續項」） |
 | [CHANGE-109](4-changes/feature-changes/CHANGE-109-template-instance-newer-invoice-version-detection.md) | template instance newer invoice version detection | ✅ 已完成（2026-07-27 本地三閘 + 10 項單元測試通過；同日已部署 Azure DEV 並完成實機驗收 —— 映像 `dev… |
 | [CHANGE-110](4-changes/feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) | internal scheduler stuck processing sweeper | ✅ 已完成（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` 0 … |
+| [CHANGE-111](4-changes/feature-changes/CHANGE-111-gateway-enforce-allow-sensitive-data.md) | gateway enforce allow sensitive data | ✅ 已完成（2026-07-27；`type-check` / `lint` / `test` 237/237 通過。⚠️ 純政策攔截、無… |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |
@@ -284,4 +285,6 @@
 | [FIX-131](4-changes/bug-fixes/FIX-131-company-detail-merge-entry-active-companies.md) | company detail merge entry active companies | ✅ 已完成（2026-07-23 Azure DEV 部署上線，映像 `dev-fix131-132-20260723111721`，PR… |
 | [FIX-132](4-changes/bug-fixes/FIX-132-db-pool-exhaustion-transaction-p2028.md) | db pool exhaustion transaction p2028 | ✅ 已完成（2026-07-23 Azure DEV 部署上線，映像 `dev-fix131-132-20260723111721`，PR… |
 | [FIX-133](4-changes/bug-fixes/FIX-133-template-mapping-unique-constraint-never-enforced.md) | template mapping unique constraint never enforced | ✅ 已完成（2026-07-25）—— BUG-1（約束不生效）以部分唯一索引 `NULLS NOT DISTINCT WHERE is_… |
+| [FIX-135](4-changes/bug-fixes/FIX-135-llm-gateway-system-message-invalid-prompt.md) | llm gateway system message invalid prompt | ✅ 已完成（2026-07-27）—— `toAiMessages` 抽出 system → `instructions`，補 4 個回歸… |
+| [FIX-136](4-changes/bug-fixes/FIX-136-epic-23-llm-tables-never-created-on-azure.md) | epic 23 llm tables never created on azure | ✅ 已完成（2026-07-27）—— `apply-schema-drift.js` 補上完整 10 條冪等 DDL，臨時空庫實跑驗證；… |
 

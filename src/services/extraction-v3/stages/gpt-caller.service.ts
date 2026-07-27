@@ -30,7 +30,7 @@ import {
   getLlmModelOption,
   resolveDeploymentName,
 } from '@/lib/constants/llm-models';
-import { isLlmGatewayEnabled } from '@/config/feature-flags';
+import { shouldUseLlmGateway } from '@/config/feature-flags';
 import { llmGatewayService } from '@/services/llm';
 import type { LlmOutputSpec } from '@/services/llm';
 
@@ -90,6 +90,12 @@ export interface GptCallInput {
   jsonSchema?: Record<string, unknown>;
   /** 用量記帳 / 日誌歸屬（Epic 23 step 5）：經 gateway 時透傳給 LlmGatewayService */
   usageContext?: { documentId?: string; operation?: string };
+  /**
+   * 文件識別（Epic 23 step 4b）：gateway 一致性百分比灰度的雜湊鍵，確保同一文件的
+   * 三階段恆走同一路徑（gateway 或舊 fetch）。缺省則隨機分流。與計費用的 `usageContext.documentId`
+   * 分離（關注點不同），值通常相同。
+   */
+  fileId?: string;
 }
 
 /**
@@ -238,9 +244,10 @@ export class GptCallerService {
           durationMs: Date.now() - startTime,
         };
       }
-      // Epic 23 Story 23.1 step 4：flag 開啟時經 LlmGatewayService（硬切換，同一批 Azure 模型）。
+      // Epic 23 Story 23.1 step 4/4b：flag 開啟且命中灰度時經 LlmGatewayService（同一批 Azure 模型）。
+      // step 4b：以 fileId 一致性百分比路由（同一文件三階段不混路徑）。
       // gateway 資料未播種（modelId 解析不到）→ 回退既有直接 fetch 路徑，零風險。
-      if (isLlmGatewayEnabled()) {
+      if (shouldUseLlmGateway(input.fileId)) {
         const viaGateway = await this.callViaGateway(input, modelOption, startTime);
         if (viaGateway) return viaGateway;
       }
@@ -556,6 +563,8 @@ export class GptCallerService {
       config?: GptCallerConfig;
       /** 用量記帳 / 日誌歸屬（Epic 23 step 5）：經 gateway 時透傳 */
       usageContext?: { documentId?: string; operation?: string };
+      /** 文件識別（Epic 23 step 4b）：gateway 一致性百分比灰度雜湊鍵 */
+      fileId?: string;
     }
   ): Promise<GptCallResult> {
     const service = new GptCallerService(options?.config);
@@ -567,6 +576,7 @@ export class GptCallerService {
       imageDetailMode: options?.imageDetailMode,
       jsonSchema: options?.jsonSchema,
       usageContext: options?.usageContext,
+      fileId: options?.fileId,
     });
   }
 

@@ -409,17 +409,106 @@ export function getExtractionV3_1FlagStatus(): string {
 // ============================================================================
 
 /**
- * 是否經 `LlmGatewayService`（Vercel AI SDK）路由 extraction 的 LLM 呼叫。
+ * gateway 路由主開關（master toggle）。
  *
  * @description
- *   step 4 採**全域硬切換**（無百分比灰度）：
- *   - `FEATURE_LLM_GATEWAY_ENABLED='true'` → gpt-caller 走 gateway（同一批 Azure 模型）。
+ *   - `FEATURE_LLM_GATEWAY_ENABLED='true'` → 啟用 gateway 路由（同一批 Azure 模型）。
  *   - 預設 / 其他值 → 走既有直接 Azure `fetch`，**行為零變**（opt-in 安全模型）。
- *   百分比灰度 + shadow mode（新舊並行比對 confidence 分佈）留 **step 4b**——
- *   需先把 `fileId` 串到呼叫點才能做一致性灰度路由（`simpleHash(fileId)`）。
+ *   實際是否對某次呼叫走 gateway，請用 {@link shouldUseLlmGateway}（含百分比灰度）。
  *
- * @returns 是否啟用 gateway 路由
+ * @returns master toggle 是否開啟
  */
 export function isLlmGatewayEnabled(): boolean {
   return process.env.FEATURE_LLM_GATEWAY_ENABLED === 'true';
+}
+
+/**
+ * step 4b：判斷單次 extraction LLM 呼叫是否經 `LlmGatewayService`（一致性百分比灰度）。
+ *
+ * @description
+ *   - master `FEATURE_LLM_GATEWAY_ENABLED` 關 → false（行為零變）。
+ *   - `FEATURE_LLM_GATEWAY_PERCENTAGE`（0-100，**預設 100**，維持 step 4 硬切換語意）：
+ *     ≥100 全開、≤0 全關。
+ *   - 中間值：有 `fileId` 用 `simpleHash(fileId) % 100 < pct` 一致性路由（同一文件恆走同一路徑，
+ *     確保三階段不混路徑）；無 `fileId` 時退回隨機（對齊 {@link shouldUseExtractionV3}）。
+ *
+ * @param fileId 文件識別（一致性灰度雜湊鍵；缺省則隨機分流）
+ * @returns 本次呼叫是否走 gateway
+ */
+export function shouldUseLlmGateway(fileId?: string): boolean {
+  if (!isLlmGatewayEnabled()) {
+    return false;
+  }
+
+  const percentage = parseInt(
+    process.env.FEATURE_LLM_GATEWAY_PERCENTAGE ?? '100',
+    10
+  );
+  if (percentage >= 100) {
+    return true;
+  }
+  if (percentage <= 0) {
+    return false;
+  }
+
+  // 一致性路由：同一 fileId 恆走同一路徑
+  if (fileId) {
+    return simpleHash(fileId) % 100 < percentage;
+  }
+
+  // 無 fileId 時退回隨機分流
+  return Math.random() * 100 < percentage;
+}
+
+// ============================================================================
+// LLM Gateway Resilience (Epic 23 - Story 23.3 韌性骨架)
+// ============================================================================
+
+/**
+ * LLM Gateway 韌性設定（circuit breaker + failover）。
+ * @description
+ *   對應 tech-spec §11.5「provider 韌性（D7 備援）」。整體僅在 gateway 路徑內生效
+ *   （gateway 本身受 `FEATURE_LLM_GATEWAY_ENABLED` 控制）。
+ */
+export interface LlmResilienceConfig {
+  /** circuit breaker 開關（預設 on / opt-out；`FEATURE_LLM_CIRCUIT_BREAKER='false'` 關閉） */
+  circuitBreakerEnabled: boolean;
+  /** 連續失敗達此數即開路 */
+  failureThreshold: number;
+  /** OPEN → HALF_OPEN 冷卻（毫秒） */
+  cooldownMs: number;
+  /** HALF_OPEN 期間允許的試探數 */
+  halfOpenMax: number;
+  /**
+   * failover 開關（預設 off / opt-in；`FEATURE_LLM_FAILOVER='true'` 啟用）。
+   * 保守預設：failover 會改切到 isDefault provider，影響路由（§11.5「可選 failover」）。
+   * ⚠️ 目前僅 Azure（isDefault）wired，跨 provider failover 實際生效需非 Azure wired（Story 23.3 核心）。
+   */
+  failoverEnabled: boolean;
+}
+
+/**
+ * 從環境變數取得 LLM Gateway 韌性設定。
+ *
+ * @description
+ *   環境變數：
+ *   - FEATURE_LLM_CIRCUIT_BREAKER: circuit breaker 開關（預設 on，'false' 關閉）
+ *   - LLM_CIRCUIT_FAILURE_THRESHOLD: 開路的連續失敗數（預設 5）
+ *   - LLM_CIRCUIT_COOLDOWN_MS: OPEN → HALF_OPEN 冷卻毫秒（預設 30000）
+ *   - LLM_CIRCUIT_HALF_OPEN_MAX: HALF_OPEN 試探數（預設 1）
+ *   - FEATURE_LLM_FAILOVER: failover 開關（預設 off，'true' 啟用）
+ *
+ * @returns {LlmResilienceConfig} 韌性設定
+ */
+export function getLlmResilienceConfig(): LlmResilienceConfig {
+  return {
+    circuitBreakerEnabled: process.env.FEATURE_LLM_CIRCUIT_BREAKER !== 'false',
+    failureThreshold: parseInt(
+      process.env.LLM_CIRCUIT_FAILURE_THRESHOLD ?? '5',
+      10
+    ),
+    cooldownMs: parseInt(process.env.LLM_CIRCUIT_COOLDOWN_MS ?? '30000', 10),
+    halfOpenMax: parseInt(process.env.LLM_CIRCUIT_HALF_OPEN_MAX ?? '1', 10),
+    failoverEnabled: process.env.FEATURE_LLM_FAILOVER === 'true',
+  };
 }

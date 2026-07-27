@@ -11,22 +11,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { AVAILABLE_LLM_MODELS } from '@/lib/constants/llm-models';
 import { LlmModelConfigService } from '@/services/llm-model-config.service';
 import { updateStageModelsSchema } from '@/lib/validations/llm-model-config.schema';
 
-/** 對外只暴露前端需要的模型欄位（key / label / capability） */
-function publicModels() {
-  return AVAILABLE_LLM_MODELS.map((m) => ({
-    key: m.key,
-    label: m.label,
-    capability: m.capability,
-  }));
-}
-
 /**
  * GET /api/v1/model-configs
- * 回傳可選模型白名單與目前各 Stage 的模型選擇。
+ * 回傳可選模型（已啟用 provider 的已啟用模型）與目前各 Stage 的模型選擇（value = LlmModel.id）。
  */
 export async function GET() {
   try {
@@ -43,12 +33,15 @@ export async function GET() {
       );
     }
 
-    const selection = await LlmModelConfigService.getStageModels();
+    const [models, selection] = await Promise.all([
+      LlmModelConfigService.listSelectableModels(),
+      LlmModelConfigService.getStageModelSelection(),
+    ]);
 
     return NextResponse.json({
       success: true,
       data: {
-        models: publicModels(),
+        models,
         selection,
       },
     });
@@ -112,7 +105,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    await LlmModelConfigService.setStageModels(parsed.data, session.user.id);
+    await LlmModelConfigService.setStageModelSelection(parsed.data, session.user.id);
 
     return NextResponse.json({
       success: true,

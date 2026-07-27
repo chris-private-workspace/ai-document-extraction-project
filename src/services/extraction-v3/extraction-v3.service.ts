@@ -90,6 +90,10 @@ import type {
 import { ReferenceNumberMatcherService } from './stages/reference-number-matcher.service';
 import { ExchangeRateConverterService } from './stages/exchange-rate-converter.service';
 import { resolveEffectiveConfig } from '@/services/pipeline-config.service';
+import {
+  LlmModelConfigService,
+  type RoutingThresholdsOverride,
+} from '@/services/llm-model-config.service';
 
 // ============================================================================
 // Types
@@ -562,13 +566,28 @@ export class ExtractionV3Service {
       const confidenceStart = Date.now();
       this.log('V3.1 Step 6: 信心度計算（5 維度）');
 
-      const confidenceServiceResult = ConfidenceV3_1Service.calculate({
-        stage1Result: threeStageResult.stage1!,
-        stage2Result: threeStageResult.stage2!,
-        stage3Result: threeStageResult.stage3!,
-        refMatchResult,
-        refMatchEnabled: pipelineConfig?.refMatchEnabled ?? false,
-      });
+      // Epic 23 Story 23.3 P1：取 stage3 實際模型的 per-model 路由閾值
+      // （null = 未校準 → 沿用全域 90/70）。讀取失敗不阻斷提取，僅記警告。
+      let routingThresholds: RoutingThresholdsOverride | null = null;
+      try {
+        routingThresholds =
+          await LlmModelConfigService.getRoutingThresholds('stage3');
+      } catch (error) {
+        warnings.push(
+          `路由閾值讀取失敗，改用全域預設: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+
+      const confidenceServiceResult = ConfidenceV3_1Service.calculate(
+        {
+          stage1Result: threeStageResult.stage1!,
+          stage2Result: threeStageResult.stage2!,
+          stage3Result: threeStageResult.stage3!,
+          refMatchResult,
+          refMatchEnabled: pipelineConfig?.refMatchEnabled ?? false,
+        },
+        routingThresholds ? { thresholds: routingThresholds } : undefined
+      );
 
       if (!confidenceServiceResult.success || !confidenceServiceResult.result) {
         return {

@@ -23,14 +23,20 @@ export interface LlmMessage {
   content: string;
 }
 
+/** 圖片解析度提示（對齊 OpenAI/Azure `image_url.detail`） */
+export type LlmImageDetail = 'auto' | 'low' | 'high';
+
 /** 圖片內容（§3.5：映射 AI SDK v6 FilePart） */
 export interface LlmImagePart {
   /** 圖片資料：data URI（`data:image/png;base64,...`）或純 base64 */
   data: string;
   /** MIME 類型，預設 `image/png` */
   mediaType?: string;
-  /** 解析度提示（保留欄位；AI SDK 目前由 provider 預設處理） */
-  detail?: 'auto' | 'low' | 'high';
+  /**
+   * 解析度提示。step 4b 起經 `providerOptions.openai.imageDetail` 忠實轉發至 wire
+   * （對齊舊手寫 fetch 的 `image_url.detail`，影響 nano 階段 token 成本）。
+   */
+  detail?: LlmImageDetail;
 }
 
 /** 三態結構化輸出（§3.6） */
@@ -95,6 +101,22 @@ export interface LlmCallResult {
   finishReason?: string;
   durationMs: number;
   error?: string;
+  /**
+   * Story 23.3 韌性：本次結果由 failover 提供時填入（原 provider 熔斷/失敗 → 切 isDefault provider）。
+   * 未觸發 failover 時為 undefined。
+   */
+  failover?: { fromProviderId: string; reason: string };
+}
+
+/** 組裝後單一內容部位的去敏快照（§3.8 wire 等價比對用） */
+export type LlmAssembledPart =
+  | { kind: 'text' }
+  | { kind: 'image'; mediaType: string; imageDetail?: LlmImageDetail };
+
+/** 組裝後單則訊息的去敏快照（角色 + 內容部位；不含文字/圖片實體內容） */
+export interface LlmAssembledMessage {
+  role: LlmMessageRole;
+  parts: LlmAssembledPart[];
 }
 
 /**
@@ -115,4 +137,10 @@ export interface LlmCallPlan {
   maxOutputTokens: number;
   temperature?: number;
   maxRetries: number;
+  /**
+   * 去敏的組裝訊息快照（§3.8）：忠實反映送進 AI SDK 的 `ModelMessage[]` 結構
+   * ——每則訊息的角色與內容部位種類，圖片附帶實際轉發的 `imageDetail`（step 4b 起）。
+   * **不含**文字內容 / 圖片位元組，供遷移 wire 等價比對與單元測試。
+   */
+  assembledMessages: LlmAssembledMessage[];
 }

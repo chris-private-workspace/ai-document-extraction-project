@@ -84,8 +84,31 @@ export interface RoutingDecisionV3_1 {
 export interface ConfidenceCalculationOptionsV3_1 {
   /** 自定義權重 */
   weights?: Partial<ConfidenceWeightsV3_1>;
+  /**
+   * per-model 路由閾值覆蓋（Epic 23 Story 23.3 P1 / D9-c）。
+   *
+   * @description 未傳（或個別欄位未傳）即沿用全域 {@link ROUTING_THRESHOLDS_V3_1}（90/70），
+   *   行為與校準前完全一致。呼叫端經 `LlmModelConfigService.getRoutingThresholds(stage)`
+   *   取得（per-model → per-provider → null），本服務**維持不查 DB 的純函數**。
+   */
+  thresholds?: {
+    /** AUTO_APPROVE 下界 */
+    autoApprove?: number;
+    /** QUICK_REVIEW 下界 */
+    quickReview?: number;
+  };
   /** 是否包含維度詳情 */
   includeDetails?: boolean;
+}
+
+/**
+ * 生效的路由閾值（全域預設經 per-model 覆蓋後的實際值）
+ * @since Epic 23 - Story 23.3 P1
+ */
+export interface EffectiveRoutingThresholdsV3_1 {
+  AUTO_APPROVE: number;
+  QUICK_REVIEW: number;
+  FULL_REVIEW: number;
 }
 
 /**
@@ -177,11 +200,18 @@ export class ConfidenceV3_1Service {
         0
       );
 
+      // Story 23.3 P1：per-model 閾值覆蓋（未傳即全域 90/70，行為零變）
+      const thresholds = this.resolveThresholds(options.thresholds);
+
       // 確定信心度等級
-      const level = this.determineLevel(overallScore);
+      const level = this.determineLevel(overallScore, thresholds);
 
       // 生成路由決策
-      const routingDecision = this.generateRoutingDecision(input, overallScore);
+      const routingDecision = this.generateRoutingDecision(
+        input,
+        overallScore,
+        thresholds
+      );
 
       const result: ConfidenceResultV3_1 = {
         overallScore: Math.round(overallScore * 100) / 100,
@@ -355,12 +385,31 @@ export class ConfidenceV3_1Service {
   }
 
   /**
+   * 解析生效閾值（Story 23.3 P1 / D9-c）
+   *
+   * @description 逐欄位覆蓋全域預設；未傳的欄位沿用 {@link ROUTING_THRESHOLDS_V3_1}。
+   *   `FULL_REVIEW` 恆為 0（最低級別無下界，不開放覆蓋）。
+   */
+  private static resolveThresholds(
+    override?: ConfidenceCalculationOptionsV3_1['thresholds']
+  ): EffectiveRoutingThresholdsV3_1 {
+    return {
+      AUTO_APPROVE: override?.autoApprove ?? ROUTING_THRESHOLDS_V3_1.AUTO_APPROVE,
+      QUICK_REVIEW: override?.quickReview ?? ROUTING_THRESHOLDS_V3_1.QUICK_REVIEW,
+      FULL_REVIEW: ROUTING_THRESHOLDS_V3_1.FULL_REVIEW,
+    };
+  }
+
+  /**
    * 確定信心度等級
    */
-  private static determineLevel(score: number): ConfidenceLevelEnum {
-    if (score >= ROUTING_THRESHOLDS_V3_1.AUTO_APPROVE) {
+  private static determineLevel(
+    score: number,
+    thresholds: EffectiveRoutingThresholdsV3_1 = ROUTING_THRESHOLDS_V3_1
+  ): ConfidenceLevelEnum {
+    if (score >= thresholds.AUTO_APPROVE) {
       return ConfidenceLevelEnum.HIGH;
-    } else if (score >= ROUTING_THRESHOLDS_V3_1.QUICK_REVIEW) {
+    } else if (score >= thresholds.QUICK_REVIEW) {
       return ConfidenceLevelEnum.MEDIUM;
     } else {
       return ConfidenceLevelEnum.LOW;
@@ -378,7 +427,8 @@ export class ConfidenceV3_1Service {
    */
   private static generateRoutingDecision(
     input: ConfidenceInputV3_1,
-    score: number
+    score: number,
+    thresholds: EffectiveRoutingThresholdsV3_1 = ROUTING_THRESHOLDS_V3_1
   ): RoutingDecisionV3_1 {
     const { stage1Result, stage2Result, stage3Result } = input;
 
@@ -393,16 +443,20 @@ export class ConfidenceV3_1Service {
       stage2Result.configSource === 'LLM_INFERRED';
     const configDowngradeReason = '格式由 LLM 推斷（無預設配置）';
 
-    return this.applyRoutingStrategy(score, {
-      isNewCompany: stage1Result.isNewCompany,
-      isNewFormat: stage2Result.isNewFormat,
-      shouldDowngradeByConfig,
-      configDowngradeReason,
-      itemsNeedingClassification,
-      stage1Success: stage1Result.success,
-      stage2Success: stage2Result.success,
-      stage3Success: stage3Result.success,
-    });
+    return this.applyRoutingStrategy(
+      score,
+      {
+        isNewCompany: stage1Result.isNewCompany,
+        isNewFormat: stage2Result.isNewFormat,
+        shouldDowngradeByConfig,
+        configDowngradeReason,
+        itemsNeedingClassification,
+        stage1Success: stage1Result.success,
+        stage2Success: stage2Result.success,
+        stage3Success: stage3Result.success,
+      },
+      thresholds
+    );
   }
 
   /**
@@ -433,16 +487,17 @@ export class ConfidenceV3_1Service {
       stage1Success: boolean;
       stage2Success: boolean;
       stage3Success: boolean;
-    }
+    },
+    thresholds: EffectiveRoutingThresholdsV3_1 = ROUTING_THRESHOLDS_V3_1
   ): RoutingDecisionV3_1 {
     let decision: 'AUTO_APPROVE' | 'QUICK_REVIEW' | 'FULL_REVIEW';
     const reasons: string[] = [];
 
     // 基本決策（基於 score）
-    if (score >= ROUTING_THRESHOLDS_V3_1.AUTO_APPROVE) {
+    if (score >= thresholds.AUTO_APPROVE) {
       decision = 'AUTO_APPROVE';
       reasons.push('整體信心度達到自動批准閾值');
-    } else if (score >= ROUTING_THRESHOLDS_V3_1.QUICK_REVIEW) {
+    } else if (score >= thresholds.QUICK_REVIEW) {
       decision = 'QUICK_REVIEW';
       reasons.push('整體信心度達到快速審核閾值');
     } else {
@@ -493,7 +548,7 @@ export class ConfidenceV3_1Service {
     return {
       decision,
       score: Math.round(score * 100) / 100,
-      threshold: ROUTING_THRESHOLDS_V3_1[decision],
+      threshold: thresholds[decision],
       reasons,
     };
   }

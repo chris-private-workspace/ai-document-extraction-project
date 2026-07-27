@@ -112,6 +112,8 @@ export interface Stage1Input {
   companyId?: string;
   /** 格式 ID（用於載入 FORMAT 範圍配置） */
   formatId?: string;
+  /** 文件識別（Epic 23 step 4b）：gateway 一致性百分比灰度雜湊鍵（三階段同路徑） */
+  fileId?: string;
 }
 
 /**
@@ -199,7 +201,7 @@ export class Stage1CompanyService {
       }
 
       // 調用 GPT-5-nano
-      const gptResult = await this.callGptNano(prompt, input.imageBase64Array);
+      const gptResult = await this.callGptNano(prompt, input.imageBase64Array, input.fileId);
 
       // 解析結果
       const parsed = this.parseCompanyResult(gptResult.response);
@@ -327,7 +329,8 @@ Response format (JSON):
    */
   private async callGptNano(
     prompt: { system: string; user: string },
-    images: string[]
+    images: string[],
+    fileId?: string
   ): Promise<{
     response: string;
     tokenUsage: { input: number; output: number; total: number };
@@ -338,7 +341,9 @@ Response format (JSON):
       modelKey,
       prompt.system,
       prompt.user,
-      images
+      images,
+      // Epic 23 step 4b：一致性灰度雜湊鍵（三階段同路徑）
+      { fileId }
     );
 
     if (!result.success) {

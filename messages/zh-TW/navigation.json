@@ -80,6 +80,7 @@
     "pipelineSettings": "管線設定",
     "systemSettings": "系統設定",
     "modelSettings": "模型設定",
+    "llmProviders": "LLM 供應商",
     "settings": "設定"
   },
   "user": {
