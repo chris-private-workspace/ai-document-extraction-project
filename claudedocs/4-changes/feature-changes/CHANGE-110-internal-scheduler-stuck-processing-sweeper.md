@@ -1,7 +1,7 @@
 # CHANGE-110: 應用程式內排程器 — 自動執行殭屍處理回收（FIX-094 排程缺口）
 
 > **日期**: 2026-07-27
-> **狀態**: ✅ 已完成（2026-07-27 本地實作完成 —— `type-check` / `lint` 0 warning / 8 項單元測試全過；**Azure 部署 + 設定 `ENABLE_INTERNAL_SCHEDULER=true` 後才實際生效**）
+> **狀態**: ✅ 已完成（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` 0 warning / 9 項單元測試；初版曾因 instrumentation 的 edge bundle 解析而 build 失敗，見「實作路上的一個錯誤判斷」；**Azure 部署 + 設定 `ENABLE_INTERNAL_SCHEDULER=true` 後才實際生效**）
 > **優先級**: High
 > **類型**: Feature（新增基礎機制）
 > **影響範圍**: `src/instrumentation.ts`（新增）、`.env.example`、Azure app settings
@@ -54,9 +54,10 @@ FIX-094 的 `@note` 寫「可配合 n8n / Vercel Cron」—— 那是**規劃建
 
 | 文件 | 變更內容 |
 |------|----------|
-| `src/instrumentation.ts` | 🆕 新增。`register()` 於 nodejs runtime 且開關開啟時，註冊 sweeper 週期執行 |
+| `src/instrumentation.ts` | 🆕 新增。**極簡**：`register()` 僅在 `NEXT_RUNTIME === 'nodejs'` 且開關開啟的條件區塊內動態 import 排程模組。所有 node-only 依賴都不得出現在此檔的其他位置（原因見下方「實作路上的一個錯誤判斷」）|
+| `src/jobs/internal-scheduler.ts` | 🆕 新增。`startInternalScheduler()` —— 實際的 timer、防重入與 log。靜態 import sweeper job |
 | `.env.example` | 🔧 新增 `ENABLE_INTERNAL_SCHEDULER` 與 `STUCK_PROCESSING_THRESHOLD_MINUTES` 說明 |
-| `tests/unit/jobs/internal-scheduler.test.ts` | 🆕 新增。驗證守衛條件與防重入行為 |
+| `tests/unit/jobs/internal-scheduler.test.ts` | 🆕 新增。9 項：`register()` 守衛 4 項 + 排程行為 5 項 |
 
 ### 關鍵實作決策
 
@@ -65,8 +66,12 @@ FIX-094 的 `@note` 寫「可配合 n8n / Vercel Cron」—— 那是**規劃建
    - `ENABLE_INTERNAL_SCHEDULER !== 'true'` → 直接 return（本地開發、CI build 不受影響）
    - 兩者皆通過才動態載入 job 模組
 
-2. **動態 `import()` 而非頂層 import**
-   `instrumentation.ts` 會被 Next.js 在多種 runtime 下解析。頂層 import job → 牽出 `document.service` → `prisma`，會把整條依賴鏈拉進 instrumentation 的 bundle。本專案已有兩次同類教訓（FIX-069 re2-wasm、FIX-083 pdfkit 的 bundle/trace 問題）。動態 import 讓依賴只在真正啟用時載入。
+2. **條件區塊內動態 `import()`，且邏輯拆到獨立模組**
+   Next.js 為 instrumentation 同時編譯 **nodejs 與 edge 兩份 bundle**，而 edge runtime 沒有 `fs` / `path` / `stream` / `child_process`。排程要呼叫的 job 會牽出 `document.service` → `prisma`（`pg`）與 `extraction-v3`（`sharp`），全是 node-only。
+
+   關鍵認知：**`await import()` 不會讓 webpack 略過打包** —— 它只延遲執行，模組仍會被靜態分析。唯一能讓 edge bundle 不去解析的方式，是把 import 放進以 `process.env.NEXT_RUNTIME`（build 時被替換為字面值）為條件的區塊，讓 webpack 的 dead-code elimination 整段消除。這也是 Next.js 官方 OpenTelemetry 範例的寫法。
+
+   因此 `instrumentation.ts` 只保留條件判斷，實際邏輯放 `src/jobs/internal-scheduler.ts`。
 
 3. **防重入旗標**
    sweep 實測僅 120ms，5 分鐘間隔重疊機率極低。但 DB 連線池才因耗盡出過事（FIX-132），加 3 行 `running` 旗標避免病態情況下堆疊。
@@ -98,6 +103,41 @@ FIX-094 的 `@note` 寫「可配合 n8n / Vercel Cron」—— 那是**規劃建
 2. **觸發 H1（架構）已獲核可** — 本變更為專案引入「應用程式內常駐排程」這個先前不存在的架構模式。使用者於方案選擇時明示採用，等同 H1 approval，記錄於此。
 
 3. **不改 FIX-094 的 API 路由** — `x-cron-secret` 途徑與手動觸發保留不動，作為排程失效時的後備。`CRON_SECRET` app setting 維持現狀。
+
+## 實作路上的一個錯誤判斷
+
+初版把守衛寫成**早期返回**，import 落在條件區塊之外：
+
+```ts
+// ❌ 初版：DCE 消不掉，edge bundle 仍會解析 pg / sharp
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  if (process.env.ENABLE_INTERNAL_SCHEDULER !== 'true') return;
+  const { triggerStuckProcessingSweep } = await import('@/jobs/stuck-processing-sweeper-job');
+  // ...
+}
+```
+
+並在本文件寫下「動態 import 讓依賴只在真正啟用時載入」—— **這個理由是錯的**。`await import()` 只延遲執行，webpack 仍會靜態分析並打包。
+
+後果是 `next build` 直接失敗：
+
+```
+./node_modules/detect-libc/lib/detect-libc.js  Can't resolve 'child_process'   ← sharp
+./node_modules/pg-connection-string/index.js   Can't resolve 'fs'              ← pg
+./node_modules/pgpass/lib/helper.js            Can't resolve 'path' / 'stream' ← pg
+Import trace: ./src/instrumentation.ts → stuck-processing-sweeper-job → document.service → ...
+```
+
+修正方式見上方「關鍵實作決策」第 2 點：把 import 移進 `NEXT_RUNTIME === 'nodejs'` 的條件區塊內，邏輯拆到 `src/jobs/internal-scheduler.ts`。
+
+### 更值得記的教訓：`npm run build` 是部署前必跑的閘
+
+`type-check`、`lint`、單元測試**全部通過**，但 `next build` 失敗 —— 這類 bundle／runtime 解析問題只有 build 抓得到。
+
+初次嘗試部署時我沒跑 build，直接送 `az acr build`，結果連續兩次失敗（run `ck1c`、`ck1d`），白花約 10 分鐘。診斷過程還一度誤判：`az acr task logs` 對成功與失敗的 run **都**只回 230 行、都停在 `Step 10/56`、都回 exit 1，我因此誤認失敗點在 COPY node_modules 而排除了自己的改動。拿上午成功的 `ck1b` 當對照組才發現 230 行是 log 抓取的邊界，不是失敗點。
+
+本專案已有 FIX-069（re2-wasm）、FIX-083（pdfkit）兩次「只有 build／部署才爆」的先例，這是第三次。
 
 ## 影響範圍評估
 
