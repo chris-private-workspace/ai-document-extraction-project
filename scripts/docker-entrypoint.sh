@@ -66,5 +66,13 @@ if [ -n "$RUN_TEMPLATE_MAPPING_SEED" ]; then
   node prisma/seed-template-field-mappings.js || echo "[entrypoint] template mapping seed failed (non-fatal), continuing"
 fi
 
+# (選用)一次性 CHANGE-102 + FIX-105 Azure DB 同步 —— 由 RUN_AZURE_SYNC=inspect|write
+# 觸發(非空即執行),非致命。inspect=唯讀診斷(stage 配置 + CEVA 記錄 + 關聯,不寫入);
+# write=交易(stage 正名 gpt-5.4 + CEVA 主檔正名 + 刪 0 關聯孤兒鏈)。完成後把旗標清空。
+if [ -n "$RUN_AZURE_SYNC" ]; then
+  echo "[entrypoint] (optional) Azure DB sync (CHANGE-102 + FIX-105): mode=$RUN_AZURE_SYNC"
+  node prisma/sync-azure-change102-fix105.js || echo "[entrypoint] azure sync failed (non-fatal), continuing"
+fi
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js
