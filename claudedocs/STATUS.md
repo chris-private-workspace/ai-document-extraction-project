@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 107 | CHANGE-110 | **CHANGE-111** |
-| FIX | 136 | FIX-135 | **FIX-136** |
+| FIX | 137 | FIX-136 | **FIX-137** |
 
 ## 📋 未開始（25）
 
@@ -86,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（193）
+## ✅ 已完成（194）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -283,4 +283,5 @@
 | [FIX-132](4-changes/bug-fixes/FIX-132-db-pool-exhaustion-transaction-p2028.md) | db pool exhaustion transaction p2028 | ✅ 已完成（2026-07-23 Azure DEV 部署上線，映像 `dev-fix131-132-20260723111721`，PR… |
 | [FIX-133](4-changes/bug-fixes/FIX-133-template-mapping-unique-constraint-never-enforced.md) | template mapping unique constraint never enforced | ✅ 已完成（2026-07-25）—— BUG-1（約束不生效）以部分唯一索引 `NULLS NOT DISTINCT WHERE is_… |
 | [FIX-135](4-changes/bug-fixes/FIX-135-llm-gateway-system-message-invalid-prompt.md) | llm gateway system message invalid prompt | ✅ 已完成（2026-07-27）—— `toAiMessages` 抽出 system → `instructions`，補 4 個回歸… |
+| [FIX-136](4-changes/bug-fixes/FIX-136-epic-23-llm-tables-never-created-on-azure.md) | epic 23 llm tables never created on azure | ✅ 已完成（2026-07-27）—— `apply-schema-drift.js` 補上完整 10 條冪等 DDL，臨時空庫實跑驗證；… |
 

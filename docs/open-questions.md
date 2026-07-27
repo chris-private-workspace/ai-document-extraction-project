@@ -1,7 +1,7 @@
 # Open Questions（OQ）追蹤
 
 > **本文件追蹤項目中**未解決的設計決策、文檔誤差、規格與代碼不一致**等狀況。AI 助手按 OQ 狀態決定 default behavior（詳見 CLAUDE.md §Open Questions 機制）。
-> **最後更新**：2026-07-27（新增 **OQ-Q5** 信心度路由自評不可靠——自 Epic 23 Story 23.3 提升為獨立議題；OQ-Q2/Q3/Q4 仍 Open）
+> **最後更新**：2026-07-27（新增 **OQ-Q5** 信心度路由自評不可靠——自 Epic 23 Story 23.3 提升為獨立議題，且同日確認**不隨 Epic 23 的 OQ-E 降級而消失**；OQ-Q2/Q3/Q4 仍 Open）
 
 ---
 
@@ -74,7 +74,8 @@
   - 方向 1：降低自評權重，改倚重確定性訊號（金額加總對帳、幣別一致性、日期合法性、參考編號匹配、`FIELD_COMPLETENESS`）
   - 方向 2：引入不依賴自評的外部訊號（雙模型比對——不一致即不自動放行；此類閘門**天生只會更保守**，不需 ground truth 即可安全上線）
   - 方向 3：先量化再決定 —— 需要人工標註的 gold set，或改用審核工作流累積的修正記錄（`corrections` / `field_correction_history` / `review_records`；**本地皆為 0 筆**，Azure DEV 尚未查）
-- **相關**：`docs/04-implementation/tech-specs/epic-23-multi-llm-provider/story-23-3-confidence-calibration-design.md` §7.1（OQ-E，Epic 23 側的對應處置）；OQ-A（gold set 來源）
+- **相關**：`docs/04-implementation/tech-specs/epic-23-multi-llm-provider/story-23-3-confidence-calibration-design.md` §7.0（OQ-E 已於 2026-07-27 決議降級）
+- 🔴 **不因 Epic 23 收線而消失**：2026-07-27 使用者決議「核心提取不換 Azure，非 Azure 僅為可選備援」→ Epic 23 側的 OQ-E 降級、per-model 校準（P2）不執行、gold set 前提（OQ-A）解除。**本 OQ-Q5 不受該決議影響**——它處理的是現行 Azure 流程每天在跑的路由品質，與換不換 provider 無關。換句話說，Epic 23 那條線收掉後，**這是唯一仍然開著的實質議題**。
 - **待用戶決策日期**：—
 
 ---
