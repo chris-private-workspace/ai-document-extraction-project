@@ -1,5 +1,39 @@
+# ============================================================================
+# 行尾規範
+# ----------------------------------------------------------------------------
+# 全專案統一 LF —— repo 內存 LF，Windows checkout 也是 LF（不靠 core.autocrlf）。
+#
+# 為何需要（2026-07-27 CHANGE-110 後補）：
+#   本機 core.autocrlf=true 加上編輯工具的行尾處理，多次把原本 LF 的檔案整檔翻成
+#   CRLF。CHANGE-109 開發期間有 7 個檔案中招，template-instance.service.ts 的 diff
+#   一度膨脹到 1160/1021 行（實際改動約 160 行），大 diff 掩蓋真實變更使 review 失效；
+#   更麻煩的是 git 曾因此把該檔判為 binary，導致 grep 完全搜不到內容。
+#
+# eol=lf 而非 eol=native：native 在 Windows 仍會產生 CRLF 工作樹，問題照樣發生。
+# 專案無 .bat / .cmd（那類檔案才真的需要 CRLF）；.ps1 對 LF 無影響。
+# ============================================================================
+* text=auto eol=lf
+
 # Shell scripts MUST use LF line endings.
 # On Windows checkouts (core.autocrlf=true) git would otherwise convert *.sh to
 # CRLF; a CRLF shebang (#!/bin/sh\r) makes the Linux container exec fail with
 # "not found" (exit 127). This bit the Azure DEV container build — keep LF.
+# （已被上方通則涵蓋，但保留顯式宣告：這條的代價是整個 Azure 容器起不來。）
 *.sh text eol=lf
+
+# ============================================================================
+# 二進位檔 —— 明確標記，不讓 text=auto 的偵測有機會誤判
+# 誤判的後果是內容被行尾轉換破壞，且通常要到執行期才發現。
+# ============================================================================
+*.xlsx binary
+*.xls binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.wasm binary
+*.node binary
