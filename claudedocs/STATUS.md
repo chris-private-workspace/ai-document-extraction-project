@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 110 | CHANGE-112 | **CHANGE-113** |
-| FIX | 141 | FIX-139 | **FIX-140** |
+| FIX | 142 | FIX-140 | **FIX-141** |
 
-## 📋 未開始（25）
+## 📋 未開始（26）
 
 > 完全未動工的規劃。
 
@@ -41,6 +41,7 @@
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
+| [FIX-140](4-changes/bug-fixes/FIX-140-entrypoint-nonempty-flag-check-false-still-runs.md) | entrypoint nonempty flag check false still runs | 🚧 待修復 |
 
 ## 🚧 進行中 / 部分完成（21）
 
