@@ -2,7 +2,7 @@
  * @fileoverview Production Essential Seed — 系統基礎資料 idempotent seed
  * @module prisma/seed-prod-essential
  * @since CHANGE-055 Phase 2 - 2026-04-27
- * @lastModified 2026-06-08
+ * @lastModified 2026-07-28
  *
  * 用途：每次部署時自動執行，建立系統運作必要的基礎資料：
  * - Roles（7 個系統角色，含 SYSTEM 內部角色）
@@ -43,6 +43,9 @@ import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
+// FIX-139: 角色權限定義抽為純資料檔（同在 prisma/ 下以維持 tsc 輸出路徑，
+// 並讓防漂移測試能在無副作用的前提下 import）。詳見該檔頭部說明。
+import { ROLES } from './seed-prod-essential.roles'
 
 // ============================================================
 // Constants
@@ -71,64 +74,7 @@ const prisma = new PrismaClient({ adapter })
 // Seed Data Definitions
 // ============================================================
 
-/**
- * 系統角色定義
- *
- * 7 個系統角色，覆蓋 CLAUDE.md 中提及的職責分工：
- * - System Admin: 最高權限（與現有 codebase ROLE_NAMES 對齊）
- * - Super User: 規則 / Forwarder 配置管理
- * - Regional Manager: 跨城市管理
- * - City Manager: 單城市管理
- * - Data Processor: 預設角色（基礎發票處理）
- * - Auditor: 只讀審計
- * - System: 系統內部自動操作（給 system-user-prod 使用）
- *
- * permissions 為佔位字串陣列（系統角色實際權限由 ROLE_PERMISSIONS 在 dev seed 中
- * 完整定義；essential seed 只保證角色存在，避免引入 src/ 依賴使 prod 部署可獨立執行）。
- */
-interface RoleSeed {
-  name: string
-  description: string
-  permissions: string[]
-}
-
-const ROLES: RoleSeed[] = [
-  {
-    name: 'System Admin',
-    description: 'System administrator with full access to all features',
-    permissions: ['*'], // 萬用權限佔位；reference seed 會補完整權限
-  },
-  {
-    name: 'Super User',
-    description: 'Power user with rule management and Forwarder configuration access',
-    permissions: ['rule.manage', 'company.manage', 'document.review'],
-  },
-  {
-    name: 'Regional Manager',
-    description: 'Manager with multi-city access within a region',
-    permissions: ['region.view', 'city.manage', 'user.view', 'report.view'],
-  },
-  {
-    name: 'City Manager',
-    description: 'Manager with single-city scope (users + documents)',
-    permissions: ['city.view', 'user.view', 'document.review', 'report.view'],
-  },
-  {
-    name: 'Data Processor',
-    description: 'Default role for new users — basic invoice processing and review',
-    permissions: ['invoice.view', 'invoice.create', 'invoice.review'],
-  },
-  {
-    name: 'Auditor',
-    description: 'Read-only auditor with audit log and report access',
-    permissions: ['audit.view', 'report.view'],
-  },
-  {
-    name: 'System',
-    description: 'System-internal role for automated operations (system-user-prod)',
-    permissions: ['system.internal'],
-  },
-]
+// 系統角色定義（7 個角色 + RoleSeed 型別）已移至 ./seed-prod-essential.roles（FIX-139）。
 
 /**
  * 區域定義
