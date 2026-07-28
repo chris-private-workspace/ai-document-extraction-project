@@ -160,6 +160,8 @@ UnicodeEncodeError: 'charmap' codec can't encode character '✔'
 - `docs/04-implementation/tech-specs/epic-23-multi-llm-provider/AI-HANDOFF.md` §6 —— Epic 23 部署紅旗
 - `docs/07-deployment/02-azure-deployment/dev-deployment-runbook.md` §14 —— schema drift 機制與期待值
 - FIX-134 —— Auditor 角色驗證同樣待 Azure 環境
+- FIX-139 —— 本次部署的驗收清單第 6 項挖出的缺陷（Azure 角色權限點號 vs 冒號）
+- [部署記錄](../../../docs/07-deployment/02-azure-deployment/deployment-records/2026-07-28-dev-fix138-140.md) —— 2026-07-28 三次部署合併記錄
 
 ---
 

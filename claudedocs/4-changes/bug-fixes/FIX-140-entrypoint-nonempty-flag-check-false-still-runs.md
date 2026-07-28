@@ -189,7 +189,8 @@ az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV \
 - FIX-139 —— 本問題於該次部署驗收的 log 掃描中發現
 - CHANGE-101 —— `RUN_TEMPLATE_MAPPING_SEED` 三模式設計來源
 - `prisma/seed-template-field-mappings.js:336` —— unknown mode 保護（目前唯一擋住實際動作的機制）
-- runbook §A.5 —— 「一次性旗標用完即設回 false」，對這 2 個旗標不成立
+- runbook §A.5 —— 「一次性旗標用完即設回 false」，對這 2 個旗標不成立（本 FIX 已改寫該節）
+- [部署記錄](../../../docs/07-deployment/02-azure-deployment/deployment-records/2026-07-28-dev-fix138-140.md) —— 2026-07-28 三次部署合併記錄，含本 FIX 的三段對照驗證
 
 ---
 
