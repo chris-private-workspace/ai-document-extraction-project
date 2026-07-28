@@ -4,7 +4,7 @@
 > **發現方式**: 代碼審查（2026-07-28 session 檢討，補 runbook §14 時追出）
 > **影響頁面/功能**: 文件提取主線（Stage 1–3）＋ `admin/llm-providers`、`admin/model-settings`
 > **優先級**: 高
-> **狀態**: 🚧 待修復
+> **狀態**: ✅ 已修復（2026-07-28 部署 `dev-fix138-20260728115434`，21/21 套用成功）
 
 ---
 
@@ -106,16 +106,52 @@ if (m?.isEnabled && ...) return m.modelKey
 
 ---
 
-## 測試驗證
+## 部署結果（2026-07-28）
 
-部署後需驗證：
+| 項目 | 值 |
+|------|----|
+| 映像 | `dev-fix138-20260728115434`（ACR run `ck1f`，Succeeded）|
+| 切換 + 重啟 | 12:06:29（UTC 04:06:29）|
+| 容器就緒 | UTC 04:07:54，**85 秒** |
+| 帶上線的變更 | **8 個 PR** —— Epic 23 兩批（#155 / #161）、FIX-134（#159）、`.gitattributes`（#160）、CI 兩閘（#158）+ 3 份文檔/工具 |
 
-- [ ] 容器 log 出現 21 筆 `[schema-drift] OK ...` + `done — 21 applied, 0 failed`，且無任何 `ERR`
-- [ ] 上傳一份文件，提取跑完不出現 P2021（Stage 1–3 全過）
-- [ ] `admin/llm-providers` 頁面可開啟，列出至少 1 個 provider
-- [ ] `admin/model-settings` 頁面可開啟，9 個環節皆渲染
-- [ ] 確認 `RUN_SCHEMA_DRIFT_FIX` 已設回 `false`
-- [ ] 唯讀查 Azure 的 `roles` 表，確認 `Auditor` 角色存在且權限含 `audit:view` / `audit:export`（順帶驗 FIX-134 BUG-3 的前提，本地因 dev bypass 驗不到）
+### 部署前檢查（runbook §A.0）
+
+| 檢查項 | 結果 |
+|--------|------|
+| `.env.example` 差異（權威清單）| **零變更** —— 無新的必要 env |
+| Epic 23 feature flags | 全部 `=== 'true'` 模式，不設 = 關閉 = 行為零變（`feature-flags.ts:422`、`:512`）|
+| entrypoint 有無 Epic 23 播種 | **沒有** —— 三張表建好即為空表，由 `getStageModel` 的 fallback 鏈接手 |
+| `docker-entrypoint.sh` 行尾 | CR=0、無 BOM（避免 §12 的 exit 127）|
+
+### 驗收結果
+
+| # | 驗收項 | 結果 |
+|---|--------|------|
+| 1 | 21 筆 `[schema-drift] OK` + `done — 21 applied, 0 failed`，無 `ERR` | ✅ **完全符合**，Epic 23 的 10 條全數套用 |
+| 2 | 提取管線不出現 P2021 | ✅ 日誌掃描 20 分鐘區間，無 P2021/P2022/P2028/PrismaClient 錯誤 |
+| 3 | `admin/llm-providers` 可開啟 | ✅ 正常渲染，顯示 “No providers configured yet.” |
+| 4 | `admin/model-settings` 可開啟，9 環節渲染 | ✅ 全部渲染，「Not in effect yet」警示正確只出現在 6 個經 gateway 的環節 |
+| 5 | `RUN_SCHEMA_DRIFT_FIX` 設回 `false` | ✅ 已設回；7 個 `RUN_*` 與 `FORCE_SCHEMA_RESET` 全為 `false` |
+| 6 | Azure `roles` 的 `Auditor` 權限 | ⚠️ 角色存在，但**權限格式與程式碼常量不符** → 另立 **FIX-139** |
+| — | `/api/health` | ✅ 200 `{"status":"healthy","services":{"database":"connected"}}` |
+
+### 🔴 修正本文件原先的錯誤預期
+
+驗收項 3 原寫「**列出至少 1 個 provider**」——**這個預期是錯的**。entrypoint 沒有 Epic 23 的播種步驟，Azure 上 `llm_providers` / `llm_models` 建好後就是空的，**空表才是正確狀態**。撰寫本文件時誤把本地（dev seed 有播種）當成 Azure 的預期。
+
+空表不影響提取：`getStageModel` 查無指派 → 回退舊 `SystemConfig` → 再回退 `DEFAULT_STAGE_MODELS`，這正是該 fallback 鏈的設計目的。副作用是 Epic 23 的後台 UI 在 Azure 上「可看不可用」——模型下拉全為 “Select a model”，要有人先建 provider + models 才有內容。而建 provider 需要 `CONFIG_ENCRYPTION_KEY`（Azure 仍未設，見 runbook:217），屬既有缺口。
+
+### 一個對後續部署有用的記錄
+
+`az acr build` 在本機以 **exit 1** 結束，但那是 az CLI 的顯示層崩潰，不是建置失敗：
+
+```
+UnicodeEncodeError: 'charmap' codec can't encode character '✔'
+  ... colorama/ansitowin32.py -> encodings\cp1252.py
+```
+
+`✔` 是 `prisma generate` 輸出的 `✔`。控制面同時顯示 `ck1f` = `Running` → 之後 `Succeeded`。**判斷建置成敗一律看 `az acr task show-run`，不看本機串流**（runbook §A.1 已載明；CHANGE-110 部署時曾因誤判此訊號多繞十分鐘）。
 
 ---
 
