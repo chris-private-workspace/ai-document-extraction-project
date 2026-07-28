@@ -4,7 +4,7 @@
 > **發現方式**: FIX-139 Azure DEV 部署驗收（容器 log 掃描）
 > **影響頁面/功能**: 容器啟動流程（`scripts/docker-entrypoint.sh`）
 > **優先級**: 低（目前無資料變更風險，但關閉語意違反直覺、每次啟動浪費一次 node 程序）
-> **狀態**: ✅ 已修復（2026-07-28，採用選項 A；Azure 生效需下次部署）
+> **狀態**: ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix140-20260728151614`；以保留 `false` 設定取得前後對照驗證）
 
 ---
 
@@ -156,13 +156,31 @@ az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV \
 - [x] 確認真實 email 形狀仍可觸發
 - [x] 其餘 7 個 `= "true"` 旗標未被碰觸（本次只改第 39 / 64 行兩個區塊）
 
-### Azure（下次部署後驗）
+### Azure DEV（2026-07-28 已部署驗收）
 
-- [ ] 容器 log **不再**出現 `[entrypoint] (optional) template field mapping seed: mode=false`
-- [ ] 若該設定仍為 `false`，改為出現 `... skipped: mode=false not recognised`（**這仍表示設定未清乾淨**，應照 runbook §A.5 的 `delete` 清掉）
-- [ ] 容器正常啟動（`Step 3/3` + `Ready`，**無** `exec: ... not found`）—— 本次動的是啟動關鍵路徑，此項為必驗
+| 項目 | 值 |
+|------|-----|
+| 映像 | `dev-fix140-20260728151614`（ACR run `ck1h` Succeeded，8m27s）|
+| 前一映像 | `dev-fix139-20260728142008` |
+| 變更範圍 | 2 個 commit，其中 `d1faa40` 純文檔 → **實質變更只有本 FIX 的 entrypoint 改動** |
+| 前置檢查 | `.env.example` 零變更；entrypoint CR=0；`RUN_TEMPLATE_MAPPING_SEED` **刻意保留為 `false`**（見下）|
+| 健康 | ✅ 200 `{"status":"healthy","services":{"database":"connected"}}`，uptime 16.7s |
 
-> 亦可**不必等部署**：直接 `az webapp config appsettings delete --setting-names RUN_TEMPLATE_MAPPING_SEED` 即讓該步驟停止執行（即時緩解，見上方）。
+#### 驗證設計：刻意不先清設定
+
+部署前 `RUN_TEMPLATE_MAPPING_SEED` 仍是 `false`，**刻意保留**。若先清空，部署後只會得到 off-silent（無輸出），無法區分「修法生效」與「設定被清掉」。保留它才能取得前後對照：
+
+| | log 輸出 |
+|---|---|
+| 部署前（`dev-fix139`）| `[entrypoint] (optional) template field mapping seed: mode=false` ← **執行了腳本** |
+| 部署後（`dev-fix140`）| `[entrypoint] (optional) template field mapping seed skipped: mode=false not recognised (expected inspect\|dryrun\|write; clear the app setting to disable)` ← **跳過 + 說明原因** |
+
+- [x] 容器 log **不再**出現舊的 `template field mapping seed: mode=false`
+- [x] 改為出現 `... skipped: mode=false not recognised`，且訊息含關閉指引
+- [x] 腳本確實**未被執行**（log 無 `[template-mapping] MODE=...` 輸出）
+- [x] **容器正常啟動**（`Step 3/3: starting Next.js server` + `Ready in 1110ms`，**無** `exec: ... not found`）—— 本次動啟動關鍵路徑，此項為必驗，同時證明 `case` 語法在實機 dash 下無誤
+- [x] essential seed 未受影響（`Upserted: Auditor` 仍正常）
+- [ ] 收尾：清空 `RUN_TEMPLATE_MAPPING_SEED`（照 runbook §A.5；**待授權** —— 變更 app setting 會觸發一次額外重啟，且該值現已無實際作用、不緊急）
 
 ---
 
