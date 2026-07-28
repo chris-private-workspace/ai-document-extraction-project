@@ -68,6 +68,12 @@ npm run init-env
 | 8 | `npx prisma db push --accept-data-loss` | **偵測到非空 DB 會詢問**是否繼續 |
 | 9 | `npx prisma db seed` | — |
 | 10 | `npm run verify-environment` 環境自檢 | 列出所有 critical / warning |
+| 11 | 安裝 git hooks（pre-push → `docs:check`） | 非致命；可隨時補跑 `.\scripts\install-git-hooks.ps1` |
+
+> **既有環境要補裝 hook**（不必重跑整個初始化）：直接執行 `.\scripts\install-git-hooks.ps1`。
+> hook 會在 `git push` 前跑 `npm run docs:check`（約 11 秒），攔截「改了 CHANGE/FIX 狀態卻忘記
+> `npm run docs:status`」——那是 CI 的 required gate，本地先擋可省一輪往返。
+> 需要略過時用 `git push --no-verify`。詳見 CHANGE-112。
 
 ### 執行後
 

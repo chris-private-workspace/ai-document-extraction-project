@@ -10,7 +10,7 @@
 | CHANGE | 110 | CHANGE-112 | **CHANGE-113** |
 | FIX | 140 | FIX-138 | **FIX-139** |
 
-## 📋 未開始（27）
+## 📋 未開始（26）
 
 > 完全未動工的規劃。
 
@@ -38,7 +38,6 @@
 | [CHANGE-074](4-changes/feature-changes/CHANGE-074-source-field-dynamic-load-company-global-scope-ux.md) | source field dynamic load company global scope ux | ⏳ 待實作 |
 | [CHANGE-080](4-changes/feature-changes/CHANGE-080-python-services-auth-rate-limit.md) | python services auth rate limit | ⏳ 待實作（H1 架構，用戶暫未 approve，需先確認部署網路拓撲） |
 | [CHANGE-102](4-changes/feature-changes/CHANGE-102-cleanup-legacy-llm-models-stage-config-rename.md) | cleanup legacy llm models stage config rename | ⏳ 待實作 |
-| [CHANGE-112](4-changes/feature-changes/CHANGE-112-pre-push-hook-docs-check.md) | pre push hook docs check | ⏳ 待實作 |
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
@@ -88,7 +87,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（198）
+## ✅ 已完成（199）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -171,6 +170,7 @@
 | [CHANGE-109](4-changes/feature-changes/CHANGE-109-template-instance-newer-invoice-version-detection.md) | template instance newer invoice version detection | ✅ 已完成（2026-07-27 本地三閘 + 10 項單元測試通過；同日已部署 Azure DEV 並完成實機驗收 —— 映像 `dev… |
 | [CHANGE-110](4-changes/feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) | internal scheduler stuck processing sweeper | ✅ 已完成（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` 0 … |
 | [CHANGE-111](4-changes/feature-changes/CHANGE-111-gateway-enforce-allow-sensitive-data.md) | gateway enforce allow sensitive data | ✅ 已完成（2026-07-27；`type-check` / `lint` / `test` 237/237 通過。⚠️ 純政策攔截、無… |
+| [CHANGE-112](4-changes/feature-changes/CHANGE-112-pre-push-hook-docs-check.md) | pre push hook docs check | ✅ 已完成（2026-07-28） |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |
