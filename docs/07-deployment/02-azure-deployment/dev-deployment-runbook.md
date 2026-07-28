@@ -348,6 +348,34 @@ failed to compile wasm module: RuntimeError: abort(...re2.wasm)
 ### 首例:CHANGE-086(`reference_numbers.document_sub_type`)
 2026-06-22 加 `documentSubType` nullable 欄位 + `ReferenceNumberSubType` enum + 索引;Azure DB(2026-06-16 `dev-datasync` 映像建)落後 → 以本機制補。部署時設 `RUN_SCHEMA_DRIFT_FIX=true`,log 應見三筆 `[schema-drift] OK ...` + `done — 3 applied, 0 failed`,驗證後設回 false。
 
+### 🔴 期待值看「陣列總條目數」,不是「本次新增幾條」(2026-07-28 更新)
+
+`MIGRATIONS` **每次執行都全跑**——DDL 全部冪等(`IF NOT EXISTS` / `DO ... EXCEPTION`),已存在的條目照樣回報 `OK` 並計入 `applied`(`apply-schema-drift.js:223-233` 無 skip 分支)。所以**期待數字 = 陣列總條目數**。上方 CHANGE-086 小節的「三筆 / `3 applied`」是 2026-06-22 當時的總數,**現已過時**,照它驗會誤判。
+
+目前共 **21 條**:
+
+| 來源 | 條數 | 內容 |
+|------|------|------|
+| CHANGE-086 | 3 | enum + `reference_numbers.document_sub_type` + 索引 |
+| CHANGE-103 P2 | 3 | `companies.suspected_duplicate_of_id` + 索引 + 外鍵 |
+| FIX-128 | 1 | `template_instance_rows.transform_diagnostics` |
+| FIX-133 | 2 | 移除無效全表唯一索引 + 建 partial `NULLS NOT DISTINCT` 索引 |
+| CHANGE-109 | 2 | `extraction_results.invoice_number` + 複合索引 |
+| **Epic 23** | **10** | enum `LlmProviderType` + **三張新表** + `llm_models.routing_thresholds` + 3 組索引 + 2 外鍵 |
+
+**期待 log**:21 筆 `[schema-drift] OK ...` + `[schema-drift] done — 21 applied, 0 failed`。**總數對但 `failed > 0` 一樣是問題**——單筆失敗不中斷其餘,必須逐筆看 `ERR`。
+
+> 加新條目時記得同步更新這裡的總數,否則下一個部署者又會拿過時數字去驗。
+
+### 🔴 Epic 23 三張表:Azure 完全沒有,只能靠本機制建
+
+`llm_providers` / `llm_models` / `stage_model_assignments` 在 Azure DEV **根本不存在**,而且兩條既有路徑都不會建它們:
+
+- `bootstrap-db.js:57-59` 對**非空 DB 直接 skip**
+- 空庫才套的 `init.sql` 裡**也沒有這三張表**
+
+因此凡觸及這三張表的查詢一律 **P2021**(表不存在)/ **P2022**。**部署帶 Epic 23 程式碼的映像時必須設 `RUN_SCHEMA_DRIFT_FIX=true`**,驗證後設回 false。DDL 以 `prisma migrate diff --from-empty --to-schema` 生成後逐字對齊,已在臨時空庫實跑驗證(10/10 OK、重跑冪等)。背景見 `docs/04-implementation/tech-specs/epic-23-multi-llm-provider/AI-HANDOFF.md` §6。
+
 > **vs FORCE_SCHEMA_RESET**:後者 `DROP SCHEMA CASCADE` 會清空全部資料(含交易資料),僅在 schema 大改無法增量時才用;additive 變更(加欄位/enum/index)一律優先用本機制。
 
 ---
