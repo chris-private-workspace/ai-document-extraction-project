@@ -4,7 +4,7 @@
 > **發現方式**: FIX-139 Azure DEV 部署驗收（容器 log 掃描）
 > **影響頁面/功能**: 容器啟動流程（`scripts/docker-entrypoint.sh`）
 > **優先級**: 低（目前無資料變更風險，但關閉語意違反直覺、每次啟動浪費一次 node 程序）
-> **狀態**: 🚧 待修復
+> **狀態**: ✅ 已修復（2026-07-28，採用選項 A；Azure 生效需下次部署）
 
 ---
 
@@ -73,15 +73,41 @@ const MODE = (process.env.RUN_TEMPLATE_MAPPING_SEED || 'inspect').trim().toLower
 
 ## 解決方案
 
-三個方向，**需決定後才實作**：
+### 採用：選項 A（明確列舉有效值，2026-07-28 實作）
 
-| 選項 | 做法 | 優點 | 代價 |
-|------|------|------|------|
-| **A（建議）** | 改為**明確列舉有效值**：`case "$RUN_TEMPLATE_MAPPING_SEED" in inspect\|dryrun\|write) ... esac` | 同時擋掉 `false` 與打錯字（如 `writte`）；有效值收斂到與腳本一致，上下游同源 | 新增模式時要改兩處（entrypoint + 腳本）|
-| B | 保留 `-n` 但顯式排除假值：`[ -n "$X" ] && [ "$X" != "false" ]` | 改動最小 | 只擋 `false`，打錯字仍會觸發；`0` / `off` 等仍漏 |
-| C | 不改程式碼，只在 runbook §A.5 與 entrypoint 註解寫明「這 2 個要清空、不是設 false」 | 零風險 | 依賴人記得例外，違反「一致的關閉語意」直覺 |
+| 選項 | 做法 | 結果 |
+|------|------|------|
+| **A ✅ 採用** | 改為 `case` **明確列舉有效值** | 同時擋掉 `false` 與打錯字；有效值與下游腳本同源 |
+| B | 保留 `-n` 但顯式排除假值 | 未採用：只擋 `false`，打錯字仍觸發，`0` / `off` 仍漏 |
+| C | 只改文件不改程式碼 | 未採用：依賴人記得例外，關閉語意仍不一致 |
 
-> `GRANT_GLOBAL_ADMIN_EMAIL` 建議一併處理：至少加 email 形狀檢查（含 `@`），避免把 `false` 當 email 送進腳本。
+兩個旗標都改，且**保留各自的非布林語意**（沒有硬改成布林）：
+
+```sh
+# RUN_TEMPLATE_MAPPING_SEED —— 三模式
+case "$RUN_TEMPLATE_MAPPING_SEED" in
+  inspect|dryrun|write) …執行… ;;
+  "")                   : ;;   # 未設定 = 關閉（不輸出）
+  *)                    echo "… skipped: mode=$X not recognised (expected inspect|dryrun|write; clear the app setting to disable)" ;;
+esac
+
+# GRANT_GLOBAL_ADMIN_EMAIL —— email 形狀檢查
+case "$GRANT_GLOBAL_ADMIN_EMAIL" in
+  *?@?*.?*) …執行… ;;
+  "")       : ;;
+  *)        echo "… skipped: value is not an email address (clear the app setting to disable)" ;;
+esac
+```
+
+**關鍵設計選擇：無法辨識的值會印 skip 訊息而非靜默跳過。** 若有人把 `write` 打成 `writte`，舊行為是照樣觸發（靠下游 unknown mode 保護才沒事），新行為是明確告知值被忽略 —— 否則「我設了卻沒作用」會變成沉默的謎。
+
+#### H4 注意：skip 訊息不回印 email
+
+`GRANT_GLOBAL_ADMIN_EMAIL` 的 skip 分支**刻意不輸出該值**。它可能是真實 email，印進容器 log 就是 PII 落地（H4 禁止）。`RUN_TEMPLATE_MAPPING_SEED` 的值是 mode 字串、非 PII，故照印以便診斷。
+
+#### 已知限制
+
+email 形狀檢查要求 `@` 後含 `.`，所以無 TLD 的位址（如 `admin@localhost`）會被擋。Azure DEV 實際使用的帳號為 `@rci-t.com` 形式，不受影響。
 
 ### 即時緩解（不需部署）
 
@@ -98,8 +124,10 @@ az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV \
 
 | 檔案 | 修改內容 |
 |------|----------|
-| `scripts/docker-entrypoint.sh` | 第 64 行（+ 第 39 行）改為明確列舉／排除假值；註解補「關閉方式」 |
-| `docs/07-deployment/02-azure-deployment/dev-deployment-runbook.md` | §A.5 收尾說明區分「布林旗標設 false」與「非布林旗標需清空」 |
+| `scripts/docker-entrypoint.sh` | 🔧 第 39 行 `GRANT_GLOBAL_ADMIN_EMAIL` → email 形狀檢查 `case`；第 64 行 `RUN_TEMPLATE_MAPPING_SEED` → 三模式明確列舉 `case`；兩處註解補「關閉方式是清空、設 false 無效」與 H4 說明（+35/−11）|
+| `docs/07-deployment/02-azure-deployment/dev-deployment-runbook.md` | 🔧 §A.5 拆為「布林旗標(7 個 + `FORCE_SCHEMA_RESET`)設 `false`」與「非布林旗標(2 個)**必須 `delete` 清空**」兩類，各附命令；記錄 FIX-139 部署 log 的實例 |
+
+**未修改**（刻意）：其餘 7 個 `= "true"` 旗標、`prisma/seed-template-field-mappings.js`（其 unknown mode 保護仍是有價值的第二道防線，保留）。
 
 > ⚠️ 改動 `docker-entrypoint.sh` 屬**容器啟動關鍵路徑**（`set -e`）。必須確認工作樹為 LF（`.gitattributes` 已強制 `*.sh eol=lf`，見 runbook §12 的 CRLF → exit 127 事故）。
 
@@ -107,12 +135,34 @@ az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV \
 
 ## 測試驗證
 
-- [ ] 決定採用哪個選項
-- [ ] 本機以 `sh` 驗證判斷式：`false` / 空 / `inspect` / `write` / 打錯字 各自的觸發結果符合預期
-- [ ] `docker-entrypoint.sh` CR count = 0
-- [ ] 部署後容器 log **不再**出現 `template field mapping seed: mode=false`
-- [ ] 確認 `inspect` / `dryrun` / `write` 三個正常模式仍可觸發（不可因修正而誤擋）
-- [ ] 其餘 7 個 `= "true"` 旗標行為未受影響
+### 本地（已完成）
+
+- [x] 決定採用哪個選項 —— A（明確列舉有效值）
+- [x] `sh -n scripts/docker-entrypoint.sh` 語法通過
+- [x] **`docker-entrypoint.sh` CR count = 0**（改動後重驗；`core.autocrlf=true` 但 `.gitattributes` 對 `*.sh` 強制 `eol: lf`）+ shebang `#!/bin/sh` 完好 → 不會重演 runbook §12 的 exit 127
+- [x] 行為矩陣實測（`sh` 執行，模式字串與 entrypoint 逐字相同）：
+
+| 值 | 新行為 | 舊行為 |
+|-----|--------|--------|
+| `''`（未設）| off-silent | off |
+| **`false`** | **skip-warn** | **RUN** ← 本 FIX 的缺陷 |
+| `inspect` / `dryrun` / `write` | RUN | RUN |
+| `writte`（打錯字）| skip-warn | RUN ← 額外收益 |
+| `FALSE` / `0` / `true` | skip-warn | RUN |
+| `a@b.co` / `user.name@corp.example.com` | RUN | RUN |
+| `notanemail` / `@b.co` / `a@b` / `a@.co` | skip-warn | RUN |
+
+- [x] 確認 `inspect` / `dryrun` / `write` 三個正常模式仍可觸發（未因修正而誤擋）
+- [x] 確認真實 email 形狀仍可觸發
+- [x] 其餘 7 個 `= "true"` 旗標未被碰觸（本次只改第 39 / 64 行兩個區塊）
+
+### Azure（下次部署後驗）
+
+- [ ] 容器 log **不再**出現 `[entrypoint] (optional) template field mapping seed: mode=false`
+- [ ] 若該設定仍為 `false`，改為出現 `... skipped: mode=false not recognised`（**這仍表示設定未清乾淨**，應照 runbook §A.5 的 `delete` 清掉）
+- [ ] 容器正常啟動（`Step 3/3` + `Ready`，**無** `exec: ... not found`）—— 本次動的是啟動關鍵路徑，此項為必驗
+
+> 亦可**不必等部署**：直接 `az webapp config appsettings delete --setting-names RUN_TEMPLATE_MAPPING_SEED` 即讓該步驟停止執行（即時緩解，見上方）。
 
 ---
 

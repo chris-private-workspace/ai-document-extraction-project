@@ -10,7 +10,7 @@
 | CHANGE | 110 | CHANGE-112 | **CHANGE-113** |
 | FIX | 142 | FIX-140 | **FIX-141** |
 
-## 📋 未開始（26）
+## 📋 未開始（25）
 
 > 完全未動工的規劃。
 
@@ -41,7 +41,6 @@
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
-| [FIX-140](4-changes/bug-fixes/FIX-140-entrypoint-nonempty-flag-check-false-still-runs.md) | entrypoint nonempty flag check false still runs | 🚧 待修復 |
 
 ## 🚧 進行中 / 部分完成（21）
 
@@ -87,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（201）
+## ✅ 已完成（202）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -292,4 +291,5 @@
 | [FIX-137](4-changes/bug-fixes/FIX-137-stale-deployment-fallbacks-across-llm-callers.md) | stale deployment fallbacks across llm callers | ✅ 已完成（2026-07-27）—— 6 個服務檔改走白名單解析 + `isReasoningModel` 補 5.4 系列 + 8 個… |
 | [FIX-138](4-changes/bug-fixes/FIX-138-azure-missing-epic23-llm-tables.md) | azure missing epic23 llm tables | ✅ 已修復（2026-07-28 部署 `dev-fix138-20260728115434`，21/21 套用成功） |
 | [FIX-139](4-changes/bug-fixes/FIX-139-essential-seed-placeholder-permissions.md) | essential seed placeholder permissions | ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix139-20260728142008`；7 個角色權限… |
+| [FIX-140](4-changes/bug-fixes/FIX-140-entrypoint-nonempty-flag-check-false-still-runs.md) | entrypoint nonempty flag check false still runs | ✅ 已修復（2026-07-28，採用選項 A；Azure 生效需下次部署） |
 

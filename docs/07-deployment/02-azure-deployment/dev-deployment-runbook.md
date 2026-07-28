@@ -80,12 +80,24 @@ az webapp restart -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProce
 - 容器 log(AAD bearer + Kudu,見 §8):確認 `[entrypoint] Step 3/3: starting Next.js server` + `✓ Ready`,且**無** `exec: ... not found`(§12)、**無** `re2.wasm` ENOENT(§13)。
 - 若有跑匯入:log 應見各表 `✓ N/N inserted` + `[import] business data import done`(§11)。
 
-### A.5 收尾(🔴 一次性旗標設回 false)
+### A.5 收尾(🔴 一次性旗標關閉 —— 兩類旗標關法不同)
+
+**布林旗標(7 個)** —— 設回 `false` 即關閉:`RUN_SCHEMA_DRIFT_FIX`、`RUN_EMAIL_VERIFIED_BACKFILL`、`RUN_DEV_DATA_IMPORT`、`RUN_STAGE3_PROMPT_FIX`、`RUN_FIX110_ALIAS_BACKFILL`、`RUN_FIX111_DEACTIVATE_FIELD_EXTRACTION`、`RUN_INVOICE_NUMBER_BACKFILL`(+ `FORCE_SCHEMA_RESET`)。
 ```bash
 az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
   --settings RUN_DEV_DATA_IMPORT=false FORCE_SCHEMA_RESET=false
 ```
-確認:`az webapp config appsettings list ... --query "[?name=='RUN_DEV_DATA_IMPORT'||name=='FORCE_SCHEMA_RESET']" -o table`。
+
+**非布林旗標(2 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
+- `RUN_TEMPLATE_MAPPING_SEED`(三模式 `inspect|dryrun|write`)
+- `GRANT_GLOBAL_ADMIN_EMAIL`(值是 email)
+```bash
+az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
+  --setting-names RUN_TEMPLATE_MAPPING_SEED GRANT_GLOBAL_ADMIN_EMAIL
+```
+> FIX-140 前這 2 個用 `[ -n "$X" ]`(非空即執行),`"false"` 非空故仍觸發 —— 2026-07-28 FIX-139 部署的 log 就出現 `template field mapping seed: mode=false`(當時該設定確實是 `false`)。FIX-140 已改為明確列舉/形狀檢查:值無法辨識時**印出 skip 訊息並跳過**,不再靜默執行。設成 `false` 現在會看到 `... skipped: mode=false not recognised`,**但那仍代表設定沒清乾淨**,請照上方 `delete` 清掉。
+
+確認:`az webapp config appsettings list ... -o table`,兩類都檢查(布林為 `false`、非布林**不存在**)。
 
 ### A.6 回滾(部署壞掉時)
 切回上一個可用 tag + 重啟即可(image tag 是回滾單位):
