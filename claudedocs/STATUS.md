@@ -7,10 +7,10 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 109 | CHANGE-111 | **CHANGE-112** |
-| FIX | 139 | FIX-137 | **FIX-138** |
+| CHANGE | 110 | CHANGE-112 | **CHANGE-113** |
+| FIX | 140 | FIX-138 | **FIX-139** |
 
-## 📋 未開始（25）
+## 📋 未開始（27）
 
 > 完全未動工的規劃。
 
@@ -38,9 +38,11 @@
 | [CHANGE-074](4-changes/feature-changes/CHANGE-074-source-field-dynamic-load-company-global-scope-ux.md) | source field dynamic load company global scope ux | ⏳ 待實作 |
 | [CHANGE-080](4-changes/feature-changes/CHANGE-080-python-services-auth-rate-limit.md) | python services auth rate limit | ⏳ 待實作（H1 架構，用戶暫未 approve，需先確認部署網路拓撲） |
 | [CHANGE-102](4-changes/feature-changes/CHANGE-102-cleanup-legacy-llm-models-stage-config-rename.md) | cleanup legacy llm models stage config rename | ⏳ 待實作 |
+| [CHANGE-112](4-changes/feature-changes/CHANGE-112-pre-push-hook-docs-check.md) | pre push hook docs check | ⏳ 待實作 |
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
+| [FIX-138](4-changes/bug-fixes/FIX-138-azure-missing-epic23-llm-tables.md) | azure missing epic23 llm tables | 🚧 待修復 |
 
 ## 🚧 進行中 / 部分完成（21）
 
