@@ -4,7 +4,7 @@
 # 用法：
 #   .\scripts\init-new-environment.ps1
 #
-# 本腳本會執行 10 步：
+# 本腳本會執行 11 步：
 #   1. 檢查必要軟體（node / npm / docker / git）
 #   2. 複製 .env.example → .env（若不存在）
 #   3. 啟動 docker-compose 服務
@@ -15,6 +15,7 @@
 #   8. 同步 Schema（prisma db push）
 #   9. 執行 Seed
 #  10. 執行環境自檢
+#  11. 安裝 git hooks（pre-push → docs:check，CHANGE-112）
 #
 # 安全性：
 #   - 不覆寫既有 .env
@@ -198,6 +199,24 @@ if ($LASTEXITCODE -eq 0) {
     Write-OK "自檢通過"
 } else {
     Write-Warn "自檢發現問題，請查看上方訊息"
+}
+
+# =================================================================
+# Step 11: 安裝 git hooks（CHANGE-112）
+# =================================================================
+Write-Step 11 "安裝 git hooks"
+
+# 非致命：hook 只是本地提醒機制，裝不起來不該擋住整個環境初始化。
+# （install-git-hooks.ps1 自身 ErrorActionPreference='Stop'，故需 try/catch 隔離）
+try {
+    & (Join-Path $PSScriptRoot 'install-git-hooks.ps1')
+    if ($LASTEXITCODE -eq 0) {
+        Write-OK "pre-push hook 已安裝（push 前自動跑 docs:check）"
+    } else {
+        Write-Warn "git hooks 安裝失敗，可稍後手動執行：.\scripts\install-git-hooks.ps1"
+    }
+} catch {
+    Write-Warn "git hooks 安裝失敗（非致命）：$($_.Exception.Message)"
 }
 
 # =================================================================

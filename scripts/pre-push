@@ -1,0 +1,45 @@
+#!/bin/sh
+# =================================================================
+# AI Document Extraction — pre-push hook
+# =================================================================
+# 用途：
+#   push 前執行 `npm run docs:check`，攔截「改了 CHANGE/FIX 狀態但忘記
+#   重新生成 claudedocs/STATUS.md」的情況。docs:check 是 CI 的 required
+#   gate，本地先擋可省一輪「push → 等 CI → 補跑 → 再 push」的往返。
+#
+# 為何只跑 docs:check（2026-07-28 實測耗時）：
+#   docs:check  11 秒   ← 只跑這個
+#   type-check  1m46s
+#   lint        1m09s
+#   test        8.6 秒
+#   四閘全跑會讓每次 push 等 3 分鐘以上，實務上必然被 --no-verify 繞過，
+#   等於沒有。其餘四閘由 CI 負責（見 .github/workflows/quality-checks.yml）。
+#
+# 安裝（.git/ 不受版控，故需要安裝步驟）：
+#   .\scripts\install-git-hooks.ps1
+#
+# 略過（保留逃生門 —— 這是提醒機制，不是安全邊界；真正的 gate 在 CI）：
+#   git push --no-verify
+#
+# @since CHANGE-112 (2026-07-28)
+# =================================================================
+
+echo "[pre-push] npm run docs:check ..."
+
+if npm run --silent docs:check; then
+  exit 0
+fi
+
+echo ""
+echo "[pre-push] docs:check 未通過，push 已中止。"
+echo ""
+echo "  最常見原因：新增或改動 CHANGE/FIX 的狀態後，沒有重新生成 STATUS.md。"
+echo ""
+echo "  補救："
+echo "    npm run docs:status"
+echo "    git add claudedocs/STATUS.md"
+echo "    git commit --amend --no-edit     # 或另開一個 commit"
+echo ""
+echo "  確定要略過：git push --no-verify"
+echo ""
+exit 1
