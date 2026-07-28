@@ -1,13 +1,16 @@
 'use client'
 
 /**
- * @fileoverview LLM 模型選擇配置 Hooks
+ * @fileoverview LLM 模型指派 Hooks
  * @description
- *   提供客戶端 LLM 模型選擇管理功能，使用 React Query 進行資料緩存和狀態管理。
+ *   提供客戶端 LLM 模型指派管理功能，使用 React Query 進行資料緩存和狀態管理。
  *
  *   主要功能：
- *   - useModelConfigs: 讀取可選模型白名單 + 目前 Stage 1-3 模型選擇
- *   - useUpdateModelConfigs: 更新 Stage 1-3 模型選擇（限 globalAdmin）
+ *   - useModelConfigs: 讀取可選模型 + 各處理環節目前的模型指派
+ *   - useUpdateModelConfigs: 更新環節模型指派（限 globalAdmin，支援部分更新）
+ *
+ *   Story 23.4 起指派範圍由 extraction Stage 1-3 擴大到全部 9 個 LLM 呼叫環節；
+ *   環節目錄見 `@/lib/constants/llm-stages`。
  *
  *   對應後端 API：
  *   - GET  /api/v1/model-configs
@@ -15,7 +18,7 @@
  *
  * @module src/hooks/use-model-configs
  * @since CHANGE-099 - LLM 模型選擇管理
- * @lastModified 2026-07-09
+ * @lastModified 2026-07-27
  *
  * @dependencies
  *   - @tanstack/react-query - 資料查詢和緩存
@@ -51,17 +54,21 @@ export interface LlmModel {
   providerType: string
 }
 
-/** Stage 1-3 的模型選擇（Epic 23 step 3b：各為 models[].id） */
-export interface StageModelSelection {
-  stage1: string
-  stage2: string
-  stage3: string
-}
+/**
+ * 各處理環節的模型指派（Story 23.4）：`stageKey` → `models[].id`。
+ * 環節目錄（顯示順序 / i18n key / 是否核心提取）見 `@/lib/constants/llm-stages`。
+ */
+export type StageAssignments = Record<string, string>
 
 /** GET /api/v1/model-configs 回傳的 data 內容 */
 export interface ModelConfigsData {
   models: LlmModel[]
-  selection: StageModelSelection
+  assignments: StageAssignments
+  /**
+   * gateway 主開關（`FEATURE_LLM_GATEWAY_ENABLED`）目前是否開啟。
+   * 關閉時 `requiresGateway` 的環節指派**不會生效**，UI 需顯示提示。
+   */
+  gatewayEnabled: boolean
 }
 
 // ============================================================
@@ -81,9 +88,9 @@ export const modelConfigsQueryKeys = {
  * LLM 模型配置查詢 Hook
  *
  * @description
- *   讀取可選模型白名單與目前各 Stage 的模型選擇。
+ *   讀取可選模型與各處理環節目前的模型指派。
  *
- * @returns React Query 查詢結果（data: { models, selection }）
+ * @returns React Query 查詢結果（data: { models, assignments }）
  */
 export function useModelConfigs() {
   return useQuery({
@@ -106,10 +113,10 @@ export function useModelConfigs() {
 // ============================================================
 
 /**
- * 更新 LLM 模型選擇 Mutation Hook
+ * 更新 LLM 模型指派 Mutation Hook
  *
  * @description
- *   更新 Stage 1-3 的模型選擇（限 globalAdmin）。
+ *   更新各處理環節的模型指派（限 globalAdmin），只需帶有異動的環節。
  *   成功後自動刷新模型配置查詢。
  *
  * @returns React Query Mutation 結果
@@ -118,13 +125,11 @@ export function useUpdateModelConfigs() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (
-      input: StageModelSelection
-    ): Promise<StageModelSelection> => {
+    mutationFn: async (input: StageAssignments): Promise<StageAssignments> => {
       const res = await fetch('/api/v1/model-configs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
+        body: JSON.stringify({ assignments: input }),
       })
 
       if (!res.ok) {
@@ -133,7 +138,7 @@ export function useUpdateModelConfigs() {
       }
 
       const json = await res.json()
-      return json.data
+      return json.data.assignments
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: modelConfigsQueryKeys.all })

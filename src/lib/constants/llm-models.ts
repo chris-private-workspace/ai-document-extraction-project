@@ -105,3 +105,19 @@ export function isValidLlmModel(key: string): boolean {
 export function resolveDeploymentName(option: LlmModelOption): string {
   return process.env[option.deploymentEnvVar] || option.defaultDeploymentName;
 }
+
+/**
+ * 依模型 key 解析實際 Azure 部署名稱（FIX-137）。
+ *
+ * @description
+ *   供白名單**之外**的直接呼叫端（gpt-vision / term-classification / ai-term-validator /
+ *   gpt-mini-extractor / unified-gpt-extraction）取得預設部署名，取代各自硬編的舊模型名。
+ *   這些服務原本各自讀散落的 `AZURE_OPENAI_DEPLOYMENT*` 並 fallback 到 CHANGE-102 已移除的
+ *   `gpt-5.2` / `gpt-5-nano`，env 未設即 404 DeploymentNotFound。
+ *
+ *   白名單外的 key 原樣回傳——呼叫端顯式指定的部署名不受此函數干擾。
+ */
+export function resolveDeploymentNameByKey(key: string): string {
+  const option = getLlmModelOption(key);
+  return option ? resolveDeploymentName(option) : key;
+}

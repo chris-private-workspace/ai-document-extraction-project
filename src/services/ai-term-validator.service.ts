@@ -33,7 +33,10 @@
  */
 
 import { AzureOpenAI } from 'openai'
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models'
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages'
 import { prisma } from '@/lib/prisma'
+import { callGatewayByModelKey } from '@/services/llm'
 import { isAddressLikeTerm } from '@/services/term-aggregation.service'
 import {
   TermCategory,
@@ -57,7 +60,13 @@ import {
  */
 const AZURE_OPENAI_ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT || ''
 const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || ''
-const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-5.2'
+/**
+ * FIX-137：原為 `process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-5.2'` —— 兩層都壞：
+ * 變數名少了 `_NAME`（其餘服務讀 `AZURE_OPENAI_DEPLOYMENT_NAME`，補設也讀不到），
+ * fallback 的 `gpt-5.2` deployment 又已於 CHANGE-102 移除。改走白名單解析。
+ */
+const DEFAULT_MODEL_KEY = 'gpt-5.4-mini'
+const AZURE_OPENAI_DEPLOYMENT = resolveDeploymentNameByKey(DEFAULT_MODEL_KEY)
 const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-02-15-preview'
 
 /**
@@ -345,33 +354,65 @@ export class AiTermValidatorService {
       const termsText = terms.map((t, i) => `${i + 1}. "${t}"`).join('\n')
       const prompt = TERM_VALIDATION_PROMPT.replace('{TERMS}', termsText)
 
-      // 呼叫 GPT-5.2
-      const response = await this.client!.chat.completions.create({
-        model: AZURE_OPENAI_DEPLOYMENT,
+      const systemInstruction =
+        'You are an expert freight invoice analyst. Respond only with valid JSON.'
+
+      // Epic 23 Story 23.4 Phase 1（呼叫點 #4）：flag 開啟且 modelKey 已播種時經 gateway；
+      // 回 null 即落到下方既有直接 Azure 呼叫，行為零變。失敗時橋接拋出 →
+      // 由 validateTerms 的 catch 退回 rule-based 判斷（tech-spec §3.7 明列須保留的業務降級）。
+      const viaGateway = await callGatewayByModelKey({
+        modelKey: DEFAULT_MODEL_KEY,
+        stageKey: LLM_STAGE_KEYS.TERM_VALIDATION,
         messages: [
-          {
-            role: 'system',
-            content: 'You are an expert freight invoice analyst. Respond only with valid JSON.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: prompt },
         ],
+        output: { mode: 'json' }, // 對應既有 response_format: json_object
         temperature: 0.1,
-        max_tokens: 4096,
-        response_format: { type: 'json_object' },
+        maxOutputTokens: 4096,
       })
 
+      let content: string | null | undefined
+      let usage = { input: 0, output: 0 }
+
+      if (viaGateway) {
+        content = viaGateway.content
+        usage = { input: viaGateway.usage.input, output: viaGateway.usage.output }
+      } else {
+        // 呼叫 GPT-5.2
+        const response = await this.client!.chat.completions.create({
+          model: AZURE_OPENAI_DEPLOYMENT,
+          messages: [
+            {
+              role: 'system',
+              content: systemInstruction,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          temperature: 0.1,
+          max_tokens: 4096,
+          response_format: { type: 'json_object' },
+        })
+
+        content = response.choices[0]?.message?.content
+        usage = {
+          input: response.usage?.prompt_tokens || 0,
+          output: response.usage?.completion_tokens || 0,
+        }
+      }
+
       // 解析回應
-      const content = response.choices[0]?.message?.content
       if (!content) {
         throw new Error('Empty response from GPT-5.2')
       }
 
       const parsed = JSON.parse(content) as GPTValidationResponse
-      inputTokens = response.usage?.prompt_tokens || 0
-      outputTokens = response.usage?.completion_tokens || 0
+      // 保持原順序：token 計數在「空回應檢查」之後才寫入，失敗成本記錄維持記 0
+      inputTokens = usage.input
+      outputTokens = usage.output
 
       // 轉換結果
       const results = this.convertGPTResponse(terms, parsed)

@@ -45,6 +45,8 @@
  */
 
 import { AzureOpenAI } from 'openai'
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models'
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
@@ -72,6 +74,7 @@ import {
 } from './hybrid-prompt-provider.service'
 import type { PromptResult, PromptSource } from './prompt-provider.interface'
 import { shouldUseDynamicPrompt, getFeatureFlags } from '@/config/feature-flags'
+import { callGatewayByModelKey } from '@/services/llm'
 import { getGlobalPromptMetricsCollector } from '@/lib/metrics'
 
 // PDF 轉圖片依賴 - 使用動態導入避免 webpack 問題
@@ -335,12 +338,19 @@ const getExtractionPrompt = (version?: string): string => {
 // @see src/lib/prompts/optimized-extraction-prompt.ts
 
 /**
+ * 本服務的預設模型 key（FIX-137）。
+ * 原先硬編 `gpt-5.2`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
+ * 需 vision + json schema 能力，故對應到白名單的 mini。
+ */
+const DEFAULT_MODEL_KEY = 'gpt-5.4-mini'
+
+/**
  * 預設配置
  */
 const DEFAULT_CONFIG: GPTVisionConfig = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT,
   apiKey: process.env.AZURE_OPENAI_API_KEY,
-  deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.2',
+  deploymentName: resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
   apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2025-03-01-preview',
   maxTokens: 4096,
 }
@@ -744,29 +754,60 @@ async function processSingleImage(
   const { prompt: extractionPrompt, source: promptSource } = await getExtractionPromptWithSource(options)
   console.log(`[GPT Vision] processSingleImage using ${promptSource} prompt`)
 
-  // 調用 API
-  const response = await client.chat.completions.create({
-    model: config.deploymentName || 'gpt-5.2',
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: extractionPrompt },
-          {
-            type: 'image_url',
-            image_url: {
-              url: `data:${mimeType};base64,${imageBase64}`,
+  const defaultDeployment = resolveDeploymentNameByKey(DEFAULT_MODEL_KEY)
+  const deploymentName = config.deploymentName || defaultDeployment
+
+  // Epic 23 Story 23.4 Phase 1（呼叫點 #2a）：flag 開啟且 modelKey 已播種時經 gateway；
+  // 回 null（flag 關 / 未播種 / deployment 被呼叫端覆蓋）即落到下方既有直接呼叫，行為零變。
+  const viaGateway =
+    deploymentName === defaultDeployment
+      ? await callGatewayByModelKey({
+          modelKey: DEFAULT_MODEL_KEY,
+          stageKey: LLM_STAGE_KEYS.VISION_EXTRACTION,
+          // 刻意維持「單一 user、無 system」的既有擺法（tech-spec §3.5 G7）
+          messages: [{ role: 'user', content: extractionPrompt }],
+          images: [
+            {
+              data: `data:${mimeType};base64,${imageBase64}`,
+              mediaType: mimeType,
               detail: 'high',
             },
-          },
-        ],
-      },
-    ],
-    max_completion_tokens: config.maxTokens,
-  })
+          ],
+          output: { mode: 'text' }, // 既有呼叫不帶 response_format
+          maxOutputTokens: config.maxTokens,
+        })
+      : null
+
+  let content: string | null | undefined
+
+  if (viaGateway) {
+    content = viaGateway.content
+  } else {
+    // 調用 API
+    const response = await client.chat.completions.create({
+      model: deploymentName,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: extractionPrompt },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${imageBase64}`,
+                detail: 'high',
+              },
+            },
+          ],
+        },
+      ],
+      max_completion_tokens: config.maxTokens,
+    })
+
+    content = response.choices[0]?.message?.content
+  }
 
   // 解析回應
-  const content = response.choices[0]?.message?.content
   if (!content) {
     throw new Error('Empty response from GPT-5.2 Vision')
   }
@@ -1094,29 +1135,60 @@ export async function classifyDocument(
     const { prompt: classificationPrompt, source: promptSource } = await getClassificationPrompt(options)
     console.log(`[GPT Vision] Classification: Using ${promptSource} prompt for document classification`)
 
-    // 調用 API（使用分類專用提示詞）
-    const response = await client.chat.completions.create({
-      model: mergedConfig.deploymentName || 'gpt-5.2',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: classificationPrompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${imageBase64}`,
+    const defaultDeployment = resolveDeploymentNameByKey(DEFAULT_MODEL_KEY)
+    const deploymentName = mergedConfig.deploymentName || defaultDeployment
+
+    // Epic 23 Story 23.4 Phase 1（呼叫點 #2b）：flag 開啟且 modelKey 已播種時經 gateway；
+    // 回 null（flag 關 / 未播種 / deployment 被呼叫端覆蓋）即落到下方既有直接呼叫，行為零變。
+    const viaGateway =
+      deploymentName === defaultDeployment
+        ? await callGatewayByModelKey({
+            modelKey: DEFAULT_MODEL_KEY,
+            stageKey: LLM_STAGE_KEYS.VISION_CLASSIFICATION,
+            // 刻意維持「單一 user、無 system」的既有擺法（tech-spec §3.5 G7）
+            messages: [{ role: 'user', content: classificationPrompt }],
+            images: [
+              {
+                data: `data:${mimeType};base64,${imageBase64}`,
+                mediaType: mimeType,
                 detail: 'low', // 使用 low detail 減少成本
               },
-            },
-          ],
-        },
-      ],
-      max_completion_tokens: mergedConfig.maxTokens,
-    })
+            ],
+            output: { mode: 'text' }, // 既有呼叫不帶 response_format
+            maxOutputTokens: mergedConfig.maxTokens,
+          })
+        : null
+
+    let content: string | null | undefined
+
+    if (viaGateway) {
+      content = viaGateway.content
+    } else {
+      // 調用 API（使用分類專用提示詞）
+      const response = await client.chat.completions.create({
+        model: deploymentName,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: classificationPrompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${imageBase64}`,
+                  detail: 'low', // 使用 low detail 減少成本
+                },
+              },
+            ],
+          },
+        ],
+        max_completion_tokens: mergedConfig.maxTokens,
+      })
+
+      content = response.choices[0]?.message?.content
+    }
 
     // 解析回應
-    const content = response.choices[0]?.message?.content
     if (!content) {
       throw new Error('Empty response from GPT Vision for classification')
     }

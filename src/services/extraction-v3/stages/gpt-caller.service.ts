@@ -29,6 +29,7 @@
 import {
   getLlmModelOption,
   resolveDeploymentName,
+  resolveDeploymentNameByKey,
 } from '@/lib/constants/llm-models';
 import { shouldUseLlmGateway } from '@/config/feature-flags';
 import { llmGatewayService } from '@/services/llm';
@@ -169,10 +170,11 @@ const API_VERSION = '2024-12-01-preview';
 const DEFAULT_CONFIG: Required<GptCallerConfig> = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT || '',
   apiKey: process.env.AZURE_OPENAI_API_KEY || '',
-  nanoDeploymentName:
-    process.env.AZURE_OPENAI_NANO_DEPLOYMENT_NAME || 'gpt-5-nano',
-  fullDeploymentName:
-    process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5-2-vision',
+  // FIX-137：原 fallback 為 CHANGE-102 已移除的 `gpt-5-nano` / `gpt-5-2-vision`。
+  // 這兩個欄位**不在提取路徑上**（實際呼叫走 resolveDeploymentName(modelOption)），
+  // 只餵給 checkHealth 的部署可用性探測 —— 失效的名稱會讓健康檢查誤報「不可用」。
+  nanoDeploymentName: resolveDeploymentNameByKey('gpt-5.4-nano'),
+  fullDeploymentName: resolveDeploymentNameByKey('gpt-5.4-mini'),
   maxTokens: 8192, // 預設使用較大的 token 限制
   temperature: 0.1,
   timeout: 300000, // 5 分鐘 - Stage 3 欄位提取處理多頁文件可能需要較長時間

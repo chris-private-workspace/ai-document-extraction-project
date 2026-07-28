@@ -30,6 +30,9 @@
  */
 
 import { AzureOpenAI } from 'openai';
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages';
+import { callGatewayByModelKey } from '@/services/llm';
 import type { SelectedData } from './data-selector.service';
 
 // ============================================================
@@ -113,12 +116,17 @@ export interface GptMiniExtractorConfig {
 /**
  * 預設配置
  */
+/**
+ * 本服務的預設模型 key（FIX-137）。
+ * 原先硬編 `gpt-5-nano`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
+ * 本服務為輕量純文字提取，對應到白名單的 nano。
+ */
+const DEFAULT_MODEL_KEY = 'gpt-5.4-nano';
+
 const DEFAULT_CONFIG: Required<GptMiniExtractorConfig> = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT ?? '',
   apiKey: process.env.AZURE_OPENAI_API_KEY ?? '',
-  deploymentName: process.env.AZURE_OPENAI_MINI_DEPLOYMENT_NAME ??
-    process.env.AZURE_OPENAI_NANO_DEPLOYMENT_NAME ??
-    'gpt-5-nano',
+  deploymentName: resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
   apiVersion: process.env.AZURE_OPENAI_API_VERSION ?? '2024-12-01-preview',
   maxTokens: 1000,
   temperature: 0.1,
@@ -135,13 +143,18 @@ const DEFAULT_CONFIG: Required<GptMiniExtractorConfig> = {
  * - 必須使用 max_completion_tokens
  * - system message 會被當作 developer message
  */
-function isReasoningModel(deploymentName: string): boolean {
+export function isReasoningModel(deploymentName: string): boolean {
   const reasoningPatterns = [
     /^o1/i,        // o1, o1-mini, o1-preview
     /^o3/i,        // o3, o3-mini
     /^o4/i,        // o4-mini
-    /gpt-5-nano/i, // gpt-5-nano（可能是 o-series）
-    /gpt-5-mini/i, // gpt-5-mini（可能是 o-series）
+    // FIX-137：原為 /gpt-5-nano/i 與 /gpt-5-mini/i，對 5.4 系列（gpt-5.4-nano /
+    // gpt-5.4-mini）**不匹配**。而 5.4 確實是 reasoning 模型——2026-07-27 實跑時
+    // AI SDK 明確警告 "temperature is not supported for reasoning models"。
+    // 漏判會送錯參數格式（temperature + max_tokens），比 404 更難診斷。
+    // 非錨定比對，故容納 Azure 部署名後綴（如 gpt-5.4-mini-aidocprocessing）。
+    /gpt-5(\.\d+)?-nano/i,
+    /gpt-5(\.\d+)?-mini/i,
   ];
   return reasoningPatterns.some(pattern => pattern.test(deploymentName));
 }
@@ -340,73 +353,107 @@ export async function extractFieldsWithGptMini(
         '...'
     );
 
-    // 調用 GPT
-    // 注意：
-    // - 新版 Azure OpenAI API 使用 max_completion_tokens 而非 max_tokens
-    // - Reasoning 模型（o1/o3/gpt-5-nano/gpt-5-mini）：
-    //   - 不支持 temperature, top_p 等參數
-    //   - system message 會被當作 developer message
-    //   - 建議使用 developer role
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const messages: any[] = isReasoning
-      ? [
-          // Reasoning 模型：使用 developer role
-          { role: 'developer', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ]
-      : [
-          // 標準 GPT 模型：使用 system role
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ];
+    // Epic 23 Story 23.4 Phase 1（呼叫點 #5）：flag 開啟且 modelKey 已播種時經 gateway；
+    // 回 null（flag 關 / 未播種 / deployment 被呼叫端覆蓋）即落到下方既有直接呼叫，行為零變。
+    // reasoning 模型的 developer role 由 `@ai-sdk/openai` 自動處理（tech-spec §3.5），
+    // 故此處統一送 system；`reasoning_effort` 經 providerOptions 忠實轉發（G4）。
+    const viaGateway =
+      mergedConfig.deploymentName === resolveDeploymentNameByKey(DEFAULT_MODEL_KEY)
+        ? await callGatewayByModelKey({
+            modelKey: DEFAULT_MODEL_KEY,
+            stageKey: LLM_STAGE_KEYS.EXTRACTION_V2_MINI,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            output: { mode: 'text' }, // 既有呼叫不帶 response_format
+            maxOutputTokens: isReasoning ? 4000 : mergedConfig.maxTokens,
+            temperature: isReasoning ? undefined : mergedConfig.temperature,
+            providerOptions: isReasoning
+              ? { openai: { reasoningEffort: 'low' } }
+              : undefined,
+          })
+        : null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const requestParams: any = {
-      model: mergedConfig.deploymentName,
-      messages,
-    };
+    let content: string;
+    let tokensUsed: { input: number; output: number; total: number };
 
-    // Reasoning 模型特殊處理
-    // 重要：reasoning_tokens 會消耗 max_completion_tokens 額度！
-    // 例如：設定 1000，可能 1000 全用於推理，輸出為空
-    // 因此 reasoning 模型需要更大的 token 限制
-    if (isReasoning) {
-      // Reasoning 模型需要更多 tokens（推理 + 輸出）
-      // 使用 low effort 減少推理 token 消耗，留更多給輸出
-      requestParams.max_completion_tokens = 4000; // 大幅增加以容納推理
-      requestParams.reasoning_effort = 'low';      // 使用 low 減少推理消耗
+    if (viaGateway) {
+      content = viaGateway.content;
+      tokensUsed = {
+        input: viaGateway.usage.input,
+        output: viaGateway.usage.output,
+        total: viaGateway.usage.total,
+      };
     } else {
-      // 標準模型
-      requestParams.max_completion_tokens = mergedConfig.maxTokens;
-      requestParams.temperature = mergedConfig.temperature;
+      // 調用 GPT
+      // 注意：
+      // - 新版 Azure OpenAI API 使用 max_completion_tokens 而非 max_tokens
+      // - Reasoning 模型（o1/o3/gpt-5-nano/gpt-5-mini）：
+      //   - 不支持 temperature, top_p 等參數
+      //   - system message 會被當作 developer message
+      //   - 建議使用 developer role
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const messages: any[] = isReasoning
+        ? [
+            // Reasoning 模型：使用 developer role
+            { role: 'developer', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ]
+        : [
+            // 標準 GPT 模型：使用 system role
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const requestParams: any = {
+        model: mergedConfig.deploymentName,
+        messages,
+      };
+
+      // Reasoning 模型特殊處理
+      // 重要：reasoning_tokens 會消耗 max_completion_tokens 額度！
+      // 例如：設定 1000，可能 1000 全用於推理，輸出為空
+      // 因此 reasoning 模型需要更大的 token 限制
+      if (isReasoning) {
+        // Reasoning 模型需要更多 tokens（推理 + 輸出）
+        // 使用 low effort 減少推理 token 消耗，留更多給輸出
+        requestParams.max_completion_tokens = 4000; // 大幅增加以容納推理
+        requestParams.reasoning_effort = 'low';      // 使用 low 減少推理消耗
+      } else {
+        // 標準模型
+        requestParams.max_completion_tokens = mergedConfig.maxTokens;
+        requestParams.temperature = mergedConfig.temperature;
+      }
+
+      const response = await client.chat.completions.create(requestParams);
+
+      // 調試：輸出完整的 response 結構
+      console.log(`[GptMiniExtractor] Response structure:`, {
+        choices: response.choices?.length,
+        finishReason: response.choices?.[0]?.finish_reason,
+        messageRole: response.choices?.[0]?.message?.role,
+        contentLength: response.choices?.[0]?.message?.content?.length ?? 0,
+        usage: response.usage,
+      });
+
+      // 提取回應內容
+      content = response.choices[0]?.message?.content ?? '';
+
+      // 計算 token 使用
+      tokensUsed = {
+        input: response.usage?.prompt_tokens ?? 0,
+        output: response.usage?.completion_tokens ?? 0,
+        total: response.usage?.total_tokens ?? 0,
+      };
     }
-
-    const response = await client.chat.completions.create(requestParams);
-
-    // 調試：輸出完整的 response 結構
-    console.log(`[GptMiniExtractor] Response structure:`, {
-      choices: response.choices?.length,
-      finishReason: response.choices?.[0]?.finish_reason,
-      messageRole: response.choices?.[0]?.message?.role,
-      contentLength: response.choices?.[0]?.message?.content?.length ?? 0,
-      usage: response.usage,
-    });
-
-    // 提取回應內容
-    const content = response.choices[0]?.message?.content ?? '';
 
     // 調試：輸出 GPT 回應內容（前 500 字符）
     console.log(`[GptMiniExtractor] GPT Response (first 500 chars): ${content.substring(0, 500)}`);
 
     // 解析回應
     const extractedFields = parseGptResponse(content, fields);
-
-    // 計算 token 使用
-    const tokensUsed = {
-      input: response.usage?.prompt_tokens ?? 0,
-      output: response.usage?.completion_tokens ?? 0,
-      total: response.usage?.total_tokens ?? 0,
-    };
 
     const processingTimeMs = Date.now() - startTime;
 
@@ -513,10 +560,8 @@ export function validateConfig(): {
     missing.push('AZURE_OPENAI_API_KEY');
   }
 
-  const deploymentName =
-    process.env.AZURE_OPENAI_MINI_DEPLOYMENT_NAME ??
-    process.env.AZURE_OPENAI_NANO_DEPLOYMENT_NAME ??
-    'gpt-5-nano';
+  // FIX-137：與 DEFAULT_CONFIG 同源，避免兩處各自 fallback 到不同（且已移除的）部署名
+  const deploymentName = resolveDeploymentNameByKey(DEFAULT_MODEL_KEY);
 
   return {
     valid: missing.length === 0,

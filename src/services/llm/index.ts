@@ -5,6 +5,8 @@
  */
 
 export { LlmGatewayService, LlmGatewayError, llmGatewayService } from './llm-gateway.service';
+export { callGatewayByModelKey } from './gateway-bridge';
+export type { GatewayBridgeInput, GatewayBridgeResult } from './gateway-bridge';
 export { LlmCircuitBreaker, llmCircuitBreaker } from './llm-circuit-breaker';
 export type {
   CircuitState,

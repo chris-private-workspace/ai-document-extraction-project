@@ -15,6 +15,15 @@
  *     - 直接重送每份文件當初存的完整 prompt（extraction_results.stage_3_ai_details），忠實重放。
  *     - 舊路徑 = 原始 REST（鏡射 gpt-caller.service.ts）；新路徑 = 動態 import 的 AI SDK
  *       （鏡射 llm-gateway.service.ts 的 createAzure/generateObject + image detail 轉發）。
+ *
+ *   🔴 **鏡射會漂移——本檔不適合用來驗證 gateway 的 SDK 契約**（2026-07-27 實證）：
+ *     FIX-135 修好了真 gateway 的 system→instructions，但本檔的鏡射沒同步，導致本檔對
+ *     **已修好的** gateway 報出 0/2 失敗、看似 gateway 有缺陷。該漂移已於同日修正，但
+ *     只要「鏡射」這個設計還在，下一次 gateway 改動就會再次漂移。
+ *     → **契約層驗證改用 `tests/integration/llm-gateway-wire-contract.test.ts`**
+ *       （直接呼叫真正的 `llmGatewayService`，不複製任何組裝邏輯）。
+ *     → 本檔保留的價值在**語意層**：新舊路徑對同一批真實發票的 confidence 分佈與欄位
+ *       一致率比對，那需要真 blob，是整合測試不做的部分。
  *     - `ai` / `@ai-sdk/azure` 為 ESM-only → 在此 CommonJS ts-node 腳本用 dynamic `import()` 載入。
  *
  *   ⚠️ 輸出（含發票欄位值）只寫 scratchpad，不進 repo。
@@ -323,10 +332,11 @@ async function buildGatewayAiSdkCaller(): Promise<PathCaller> {
   return async (req) => {
     const start = Date.now();
     try {
-      // 鏡射 gateway toAiMessages/toFilePart：圖片在前、文字在後，附加到 user 訊息
+      // 鏡射 gateway toAiMessages/toFilePart：圖片在前、文字在後，附加到 user 訊息。
+      // ⚠️ system **不得**放進 messages —— `ai@7` 的 standardizePrompt 見到 role:'system'
+      //    即丟 InvalidPromptError（FIX-135），須改走 instructions。
       const filePartOpts = { openai: { imageDetail: req.imageDetail } };
       const messages = [
-        { role: 'system' as const, content: req.system },
         {
           role: 'user' as const,
           content: [
@@ -342,6 +352,7 @@ async function buildGatewayAiSdkCaller(): Promise<PathCaller> {
       ];
       const settings = {
         model,
+        instructions: req.system,
         messages,
         maxOutputTokens: AZURE_MAX_TOKENS,
         maxRetries: AZURE_MAX_RETRIES,

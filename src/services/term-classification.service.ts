@@ -25,6 +25,17 @@
 import { AzureOpenAI } from 'openai';
 import type { StandardChargeCategory } from '@prisma/client';
 
+import { resolveDeploymentNameByKey } from '@/lib/constants/llm-models';
+import { LLM_STAGE_KEYS } from '@/lib/constants/llm-stages';
+import { callGatewayByModelKey } from '@/services/llm';
+
+/**
+ * 本服務的預設模型 key（FIX-137）。
+ * 原先硬編 `gpt-5.2`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
+ * 改走白名單解析（env 覆蓋 → 白名單預設部署名）。
+ */
+const DEFAULT_MODEL_KEY = 'gpt-5.4-mini';
+
 // ============================================================================
 // Types & Interfaces
 // ============================================================================
@@ -91,7 +102,7 @@ export interface ClassificationConfig {
 const DEFAULT_CONFIG: ClassificationConfig = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT,
   apiKey: process.env.AZURE_OPENAI_API_KEY,
-  deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5.2',
+  deploymentName: resolveDeploymentNameByKey(DEFAULT_MODEL_KEY),
   apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2025-03-01-preview',
   batchSize: 50,
   maxRetries: 3,
@@ -273,7 +284,13 @@ export async function classifyTerms(
   const maxRetries = mergedConfig.maxRetries || 3;
 
   const client = createClient(mergedConfig);
-  const deploymentName = mergedConfig.deploymentName || 'gpt-5.2';
+  const deploymentName =
+    mergedConfig.deploymentName || resolveDeploymentNameByKey(DEFAULT_MODEL_KEY);
+
+  // Epic 23 Story 23.4 Phase 1：deployment 被呼叫端覆蓋時不改道 gateway
+  //（gateway 以 modelKey 解析部署，會忽略該覆蓋 → 改道會違反呼叫端意圖）
+  const gatewayEligible =
+    deploymentName === resolveDeploymentNameByKey(DEFAULT_MODEL_KEY);
 
   const allClassifications: TermClassification[] = [];
   const allErrors: Array<{ term: string; error: string }> = [];
@@ -291,15 +308,35 @@ export async function classifyTerms(
           batch.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
         );
 
-        const response = await client.chat.completions.create({
-          model: deploymentName,
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.3, // Lower temperature for more consistent classifications
-          max_tokens: 4000,
-          response_format: { type: 'json_object' },
-        });
+        // Epic 23 Story 23.4 Phase 1（呼叫點 #3）：flag 開啟且 modelKey 已播種時經 gateway。
+        // `maxRetries: 0` —— 外層 while 迴圈已是唯一重試權威，避免重試次數相乘。
+        // 回 null（flag 關 / 未播種）即落到下方既有直接 Azure 呼叫，行為零變。
+        const viaGateway = gatewayEligible
+          ? await callGatewayByModelKey({
+              modelKey: DEFAULT_MODEL_KEY,
+              stageKey: LLM_STAGE_KEYS.TERM_CLASSIFICATION,
+              messages: [{ role: 'user', content: prompt }],
+              output: { mode: 'json' }, // 對應既有 response_format: json_object
+              temperature: 0.3,
+              maxOutputTokens: 4000,
+              maxRetries: 0,
+            })
+          : null;
 
-        const content = response.choices[0]?.message?.content || '';
+        let content: string;
+        if (viaGateway) {
+          content = viaGateway.content;
+        } else {
+          const response = await client.chat.completions.create({
+            model: deploymentName,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.3, // Lower temperature for more consistent classifications
+            max_tokens: 4000,
+            response_format: { type: 'json_object' },
+          });
+
+          content = response.choices[0]?.message?.content || '';
+        }
 
         // Parse response - handle both array and object formats
         let rawClassifications: unknown[];
