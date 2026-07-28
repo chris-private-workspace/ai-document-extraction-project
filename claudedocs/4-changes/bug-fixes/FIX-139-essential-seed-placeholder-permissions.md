@@ -4,7 +4,7 @@
 > **發現方式**: FIX-138 部署驗收（唯讀查 Azure `/api/roles`）
 > **影響頁面/功能**: 所有以 `PERMISSIONS.*` 判斷的 API 與頁面守衛（Azure 環境）
 > **優先級**: 中（目前 0 users 掛受影響角色，但指派即發作，且每次部署復發）
-> **狀態**: 🚧 待修復
+> **狀態**: ✅ 已修復（2026-07-28，程式碼層；Azure 生效需下次部署）
 
 ---
 
@@ -79,15 +79,60 @@ essential seed 每次容器啟動都 upsert。FIX-138 部署後 `updatedAt` 全�
 
 ## 解決方案
 
-三個方向，**需決定後才實作**：
+### 採用：複製值 + 防漂移測試（原選項 C 的強化版，2026-07-28 用戶決定）
 
-| 選項 | 做法 | 優點 | 代價 |
-|------|------|------|------|
-| **A（建議）** | 把權限常量抽到一個**零依賴**的獨立檔案（純字串常量，不 import 任何 `src/` 模組），dev seed 與 essential seed 都從它 import | 單一真實來源，不再漂移；保留 prod seed 不依賴 `src/` 的初衷 | 需確認該檔案能被 prod build 的 seed 路徑解析 |
-| B | essential seed 只建角色，`permissions` 寫**空陣列** | 最小改動；空陣列至少**誠實**（不會讓人誤以為權限已設好）| 角色完全無權限，仍需其他機制填值 |
-| C | 把 `ROLE_PERMISSIONS` 的值**複製**進 essential seed | 改動最小 | 維護兩份，必然再次漂移 —— 這正是當前問題的成因 |
+三個原選項的成本結構在**實測後**改變了 —— 本文件原標「A（建議）」是在不知道 tsc 行為的情況下寫的。
 
-> ⚠️ 修正 seed 之後，**既有的 Azure 角色需要被 upsert 覆寫**才會生效（essential seed 每次啟動都跑，所以下次部署即自動修正，不需一次性腳本）。
+#### 為何不選 A（實測推翻）
+
+essential seed 之所以不 import `src/`，真正的技術原因是 `Dockerfile:109-111` 用**裸 tsc 單檔編譯**（無 `--project`，故 `@/*` alias 解析不到）：
+
+```
+node node_modules/typescript/bin/tsc prisma/seed-prod-essential.ts \
+      --outDir prisma/dist --module commonjs --target es2020 ...
+```
+
+未指定 `--rootDir` 時 tsc 取所有輸入檔的 common root。**本機實測**（對既有的 `prisma/seed.ts` 跑同一條命令，該檔已 import `../src/types/role-permissions`，exit 0）：
+
+```
+<outDir>/prisma/seed.js
+<outDir>/src/types/permissions.js
+<outDir>/src/types/role-permissions.js
+```
+
+一旦 import `../src/**`，common root 上移至專案根，輸出變成 `prisma/dist/prisma/seed-prod-essential.js`，而 `scripts/docker-entrypoint.sh:26` 執行的是 `prisma/dist/seed-prod-essential.js` —— **該步驟在 `set -e` 下失敗即容器起不來**，且本機無法完整驗證（需真的 build 映像）。
+
+換言之 A 的代價不是「抽個常量檔」，而是**改動容器啟動關鍵路徑**。不值得。
+
+#### 實際做法
+
+| # | 動作 |
+|---|------|
+| 1 | 權限值改為與 `PERMISSIONS` 常量**逐字相符**（含順序），7 個角色全部對齊 |
+| 2 | 角色定義抽為純資料檔 `prisma/seed-prod-essential.roles.ts`（**同在 `prisma/` 下**，common root 維持不變）|
+| 3 | 新增防漂移測試，任一邊改動未同步即 CI 紅 |
+
+第 2 步是必要的：seed 主檔在 module load 時就建立 `Pool` / `PrismaClient` 並於檔尾呼叫 `main()`，測試 import 它會真的連 DB 並執行 seed。
+
+**實測確認輸出路徑不變**（重構後跑同一條 tsc 命令，exit 0）：
+
+```
+<outDir>/seed-prod-essential.js
+<outDir>/seed-prod-essential.roles.js
+```
+
+兩者都在根層 → `docker-entrypoint.sh` 路徑依然正確，`require('./seed-prod-essential.roles')` 也解析得到。**Dockerfile 與 entrypoint 零改動。**
+
+#### 刻意保留的兩處差異
+
+| 角色 | 值 | 理由 |
+|------|-----|------|
+| `System Admin` | `['*']`（非 21 項展開）| 語意等價（`sessionHasPermission` 顯式認 wildcard），但**未來新增權限自動涵蓋**；Azure 上實際在用的 4 個帳號即持此值 |
+| `System` | `['system:internal']` | essential-seed-only 角色，不在 `ROLE_NAMES`（該常量只含可指派給人的 6 個），故 `PERMISSIONS` 亦無對應項；僅統一為冒號命名慣例 |
+
+測試對這兩處有專屬斷言（wildcard 以 `permissionListHas` 驗證涵蓋全部 `PERMISSIONS`），不是跳過。
+
+> ⚠️ 修正 seed 之後，**既有的 Azure 角色需要被 upsert 覆寫**才會生效（essential seed 每次啟動都跑，所以下次部署即自動修正，不需一次性腳本、不需 gated flag）。
 
 ---
 
@@ -95,20 +140,32 @@ essential seed 每次容器啟動都 upsert。FIX-138 部署後 `updatedAt` 全�
 
 | 檔案 | 修改內容 |
 |------|----------|
-| `prisma/seed-prod-essential.ts` | 權限來源改為共用常量（選項 A）或空陣列（選項 B）|
-| （選項 A）新增零依賴常量檔 | 供兩條 seed 路徑共用 |
-| `src/types/role-permissions.ts` | 可能需調整為從共用常量衍生，避免又變成兩份 |
+| `prisma/seed-prod-essential.roles.ts` | 🆕 純資料檔（零 import、零副作用）：`RoleSeed` 型別 + 7 個角色，權限值對齊 `PERMISSIONS` |
+| `prisma/seed-prod-essential.ts` | 🔧 移除內嵌 `ROLES` 與 `RoleSeed`，改 `import { ROLES } from './seed-prod-essential.roles'`；`@lastModified` 更新 |
+| `tests/unit/prisma/essential-seed-permissions.test.ts` | 🆕 13 項防漂移測試（涵蓋範圍 / 逐字對齊 / wildcard 等價 / 格式迴歸守衛）|
+
+**未修改**（刻意）：`src/types/permissions.ts`、`src/types/role-permissions.ts`（保持權威來源不動）、`Dockerfile`、`scripts/docker-entrypoint.sh`（啟動路徑零變更）。
 
 ---
 
 ## 測試驗證
 
-- [ ] 決定採用哪個選項
-- [ ] 本地 `npx prisma db seed` 後，`roles` 的權限值與 `PERMISSIONS.*` 常量逐字相符
-- [ ] 模擬 essential seed 路徑執行後，寫入值與 dev seed 一致
-- [ ] 部署到 Azure 後，`GET /api/roles` 的 `Auditor` 權限含 `audit:view` / `audit:export`
+### 本地（已完成）
+
+- [x] 決定採用哪個選項 —— 複製值 + 防漂移測試（2026-07-28）
+- [x] 防漂移測試 13 項全通過（`npx vitest run tests/unit/prisma/essential-seed-permissions.test.ts`）
+- [x] **紅→綠驗證**：把 `Auditor` 暫時改回 `['audit.view','report.view']` → **4 條防線同時紅**（逐字對齊 / 有效值 / 點號守衛 / 格式），錯誤訊息指名 `角色「Auditor」的「audit.view」`；還原後回綠
+- [x] tsc 輸出路徑實測不變（`seed-prod-essential.js` 與 `.roles.js` 同在 outDir 根層）→ entrypoint 無須改動
+- [x] 確認 `System Admin` 的 `['*']` 未被破壞（專屬斷言 + wildcard 涵蓋全部 `PERMISSIONS` 的等價驗證）
+- [x] `npm run type-check` / `npm run lint` / `npm run test` 全通過
+
+### Azure（下次部署後驗）
+
+- [ ] `GET /api/roles` 的 `Auditor` 權限為 `["report:view","report:export","audit:view","audit:export"]`（點號值已被 upsert 覆寫）
+- [ ] `System Admin` 仍為 `["*"]`、4 個帳號不受影響
 - [ ] 建立 Auditor 帳號登入，`/api/audit/query` 回 200（**這也是 FIX-134 BUG-3 唯一能被實機驗證的途徑** —— 本地因 dev bypass 一律 globalAdmin，驗不到）
-- [ ] 確認 `System Admin` 的 `["*"]` 未被破壞（4 個帳號在用）
+
+> 部署即自動生效：essential seed 每次容器啟動都 upsert，**不需 gated flag、不需一次性腳本**。
 
 ---
 
