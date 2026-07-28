@@ -1,6 +1,21 @@
 # Quality Checks — type-check / lint / i18n 同步 / 單元測試 / production build
 # Story 22-4 AC8 (SDLC-08)：CI 強制 type-check + lint + i18n
-# 此 workflow 為 Day 1 required（非 advisory）；對應 npm scripts: type-check / lint / i18n:check
+#
+# FIX-141（2026-07-28）：本註解原寫「此 workflow 為 Day 1 required（非 advisory）」，
+#   但 workflow 定義與 GitHub 的分支設定是**兩套獨立的東西** —— main 分支當時
+#   完全沒有 branch protection（`gh api .../branches/main/protection` 回 404），
+#   11 個 check 全是 advisory：紅了照樣能合併。`mergeStateStatus` 一直顯示
+#   `UNSTABLE`（若有 required check 未過應為 `BLOCKED`）其實就在提示這件事。
+#   現已設定 branch protection，實際分野如下：
+#
+#   required（擋合併）：type-check / lint / unit-tests / build / docs-check
+#   advisory（只跑不擋）：i18n-sync / semgrep / Semgrep OSS / gitleaks
+#                        / npm-audit / pip-audit
+#
+#   安全掃描刻意不設 required —— 依賴上游 CVE 資料庫，新 CVE 發布即變紅，
+#   會擋住與該改動無關的 PR。i18n-sync 亦暫留 advisory。
+#   ⚠️ 日後新增 job 若要具備強制力，**必須同時更新 GitHub 的 required status
+#      checks 清單**，只改本檔不會有任何強制效果（這正是 FIX-141 的成因）。
 #
 # CHANGE-110 後補：unit-tests + build
 #   在此之前 CI 完全不跑 vitest 也不跑 next build，造成兩個實際損失：

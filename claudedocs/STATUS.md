@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 110 | CHANGE-112 | **CHANGE-113** |
-| FIX | 142 | FIX-140 | **FIX-141** |
+| FIX | 143 | FIX-141 | **FIX-142** |
 
 ## 📋 未開始（25）
 
@@ -86,7 +86,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（202）
+## ✅ 已完成（203）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -292,4 +292,5 @@
 | [FIX-138](4-changes/bug-fixes/FIX-138-azure-missing-epic23-llm-tables.md) | azure missing epic23 llm tables | ✅ 已修復（2026-07-28 部署 `dev-fix138-20260728115434`，21/21 套用成功） |
 | [FIX-139](4-changes/bug-fixes/FIX-139-essential-seed-placeholder-permissions.md) | essential seed placeholder permissions | ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix139-20260728142008`；7 個角色權限… |
 | [FIX-140](4-changes/bug-fixes/FIX-140-entrypoint-nonempty-flag-check-false-still-runs.md) | entrypoint nonempty flag check false still runs | ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix140-20260728151614`；以保留 `fa… |
+| [FIX-141](4-changes/bug-fixes/FIX-141-main-branch-protection-never-applied.md) | main branch protection never applied | ✅ 已修復（2026-07-28） |
 
