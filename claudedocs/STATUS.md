@@ -290,5 +290,5 @@
 | [FIX-136](4-changes/bug-fixes/FIX-136-epic-23-llm-tables-never-created-on-azure.md) | epic 23 llm tables never created on azure | ✅ 已完成（2026-07-27）—— `apply-schema-drift.js` 補上完整 10 條冪等 DDL，臨時空庫實跑驗證；… |
 | [FIX-137](4-changes/bug-fixes/FIX-137-stale-deployment-fallbacks-across-llm-callers.md) | stale deployment fallbacks across llm callers | ✅ 已完成（2026-07-27）—— 6 個服務檔改走白名單解析 + `isReasoningModel` 補 5.4 系列 + 8 個… |
 | [FIX-138](4-changes/bug-fixes/FIX-138-azure-missing-epic23-llm-tables.md) | azure missing epic23 llm tables | ✅ 已修復（2026-07-28 部署 `dev-fix138-20260728115434`，21/21 套用成功） |
-| [FIX-139](4-changes/bug-fixes/FIX-139-essential-seed-placeholder-permissions.md) | essential seed placeholder permissions | ✅ 已修復（2026-07-28，程式碼層；Azure 生效需下次部署） |
+| [FIX-139](4-changes/bug-fixes/FIX-139-essential-seed-placeholder-permissions.md) | essential seed placeholder permissions | ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix139-20260728142008`；7 個角色權限… |
 

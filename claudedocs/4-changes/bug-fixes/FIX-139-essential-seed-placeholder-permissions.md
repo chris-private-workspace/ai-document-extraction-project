@@ -4,7 +4,7 @@
 > **發現方式**: FIX-138 部署驗收（唯讀查 Azure `/api/roles`）
 > **影響頁面/功能**: 所有以 `PERMISSIONS.*` 判斷的 API 與頁面守衛（Azure 環境）
 > **優先級**: 中（目前 0 users 掛受影響角色，但指派即發作，且每次部署復發）
-> **狀態**: ✅ 已修復（2026-07-28，程式碼層；Azure 生效需下次部署）
+> **狀態**: ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix139-20260728142008`；7 個角色權限實機確認全部對齊）
 
 ---
 
@@ -159,13 +159,31 @@ node node_modules/typescript/bin/tsc prisma/seed-prod-essential.ts \
 - [x] 確認 `System Admin` 的 `['*']` 未被破壞（專屬斷言 + wildcard 涵蓋全部 `PERMISSIONS` 的等價驗證）
 - [x] `npm run type-check` / `npm run lint` / `npm run test` 全通過
 
-### Azure（下次部署後驗）
+### Azure DEV（2026-07-28 已部署驗收）
 
-- [ ] `GET /api/roles` 的 `Auditor` 權限為 `["report:view","report:export","audit:view","audit:export"]`（點號值已被 upsert 覆寫）
-- [ ] `System Admin` 仍為 `["*"]`、4 個帳號不受影響
-- [ ] 建立 Auditor 帳號登入，`/api/audit/query` 回 200（**這也是 FIX-134 BUG-3 唯一能被實機驗證的途徑** —— 本地因 dev bypass 一律 globalAdmin，驗不到）
+| 項目 | 值 |
+|------|-----|
+| 映像 | `dev-fix139-20260728142008`（ACR run `ck1g` Succeeded，9m03s）|
+| 前一映像 | `dev-fix138-20260728115434` |
+| 變更範圍 | **僅 1 個 commit** `d736263` —— 映像與 main 僅差 FIX-139 本身 |
+| 前置檢查 | `.env.example` 零變更（無新 env）；8 個 `RUN_*` / `FORCE_SCHEMA_RESET` 全 `false`（不需動）；`docker-entrypoint.sh` CR=0 |
+| 健康 | ✅ 200 `{"status":"healthy","services":{"database":"connected"}}` |
+| 容器 log | ✅ `Step 1/3` → `Step 2/3` → **`Upserted: Auditor`** → `Step 3/3` → `Ready in 1154ms`；無 `exec: not found`、無 `re2.wasm` ENOENT、無 P20xx |
 
-> 部署即自動生效：essential seed 每次容器啟動都 upsert，**不需 gated flag、不需一次性腳本**。
+- [x] `GET /api/roles` 的 `Auditor` 權限為 `["report:view","report:export","audit:view","audit:export"]` —— **點號值已被 upsert 覆寫**
+- [x] 其餘 5 個角色同步對齊（City Manager 9 項 / Data Processor 3 項 / Regional Manager 9 項 / Super User 11 項 / System `["system:internal"]`）
+- [x] `System Admin` 仍為 `["*"]`，未被破壞（驗收當時即以該角色帳號登入、dashboard 正常載入）
+- [ ] 建立 Auditor 帳號登入，`/api/audit/query` 回 200（**FIX-134 BUG-3 唯一能被實機驗證的途徑** —— 本地因 dev bypass 一律 globalAdmin，驗不到）。**未執行**：需在 Azure 建測試帳號，屬資料變更，待授權
+
+> 部署即自動生效經實機確認：essential seed 每次容器啟動都 upsert，**未使用任何 gated flag、未跑一次性腳本**。
+
+### ⚠️ 部署時發現的既有缺陷（不屬 FIX-139，未修）
+
+容器 log 出現 `[entrypoint] (optional) template field mapping seed: mode=false` —— 該旗標明明是 `false` 卻仍被觸發。
+
+`scripts/docker-entrypoint.sh` 對 `RUN_TEMPLATE_MAPPING_SEED` 用 `[ -n "$X" ]`（非空即執行），而字串 `"false"` 非空；其餘旗標都用 `= "true"`。**關閉它的唯一方法是清空該 app setting，設成 `false` 不會關閉。**
+
+嚴重性低：`prisma/seed-template-field-mappings.js:336` 有 unknown mode 保護（`未知 MODE=false…不執行`），所以只浪費一次 node 啟動、無資料變更風險。但屬「防護恰好救了它」而非設計正確，建議另開 FIX 統一為 `= "true"` 判斷。
 
 ---
 
