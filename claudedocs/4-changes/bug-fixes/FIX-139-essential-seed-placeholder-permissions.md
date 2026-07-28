@@ -191,7 +191,9 @@ node node_modules/typescript/bin/tsc prisma/seed-prod-essential.ts \
 
 - FIX-134 —— 統一權限判斷入口；本問題使其在 Azure 上對非 wildcard 角色無效
 - FIX-138 —— 本問題於該次部署驗收時發現
+- FIX-140 —— 反過來，本 FIX 的部署 log 掃描又挖出該問題
 - `src/lib/auth/has-permission.ts` —— `sessionHasAuditAccess` 等判斷邏輯（程式碼無誤，問題在資料）
+- [部署記錄](../../../docs/07-deployment/02-azure-deployment/deployment-records/2026-07-28-dev-fix138-140.md) —— 2026-07-28 三次部署合併記錄
 
 ---
 
