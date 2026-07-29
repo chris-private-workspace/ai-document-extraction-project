@@ -512,6 +512,8 @@ export class UnifiedDocumentProcessorService {
         customFields: result.customFields ? { ...result.customFields } : undefined,
         fields: result.fields ? { ...result.fields } : undefined, // FIX-045: 保留原始 key
         lineItems: result.lineItems ? [...result.lineItems] : undefined,
+        // CHANGE-113 階段二: 分組結果須一併寫入，模板層 GROUP 模式據此展開多列
+        lineItemGroups: result.lineItemGroups ? [...result.lineItemGroups] : undefined,
       } : undefined,
       // CHANGE-072: 帶上 FX 換算結果，使 persistProcessingResult 能持久化審計原值
       //（覆蓋寫回後，原始金額僅存於 fxConversionResult.conversions[]）

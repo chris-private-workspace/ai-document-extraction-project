@@ -3047,6 +3047,10 @@ model DataTemplate {
   scope                 DataTemplateScope      @default(GLOBAL)
   companyId             String?                @map("company_id")
   fields                Json
+  /// CHANGE-113: 行項目分列模式 — PIVOT（1 文件 = 1 列，費用按分類聚合為欄）/
+  /// EXPAND（1 筆費用 = 1 列）/ GROUP（1 個分組鍵 = 1 列，一份發票對應多個 shipment）。
+  /// 值域由 src/types/data-template.ts 的 LINE_ITEM_MODES 把關。
+  lineItemMode          String                 @default("PIVOT") @map("line_item_mode") @db.VarChar(20)
   isActive              Boolean                @default(true) @map("is_active")
   isSystem              Boolean                @default(false) @map("is_system")
   createdAt             DateTime               @default(now()) @map("created_at")

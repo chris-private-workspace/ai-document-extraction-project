@@ -98,7 +98,8 @@
     "back": "返回",
     "saving": "保存中...",
     "updateTemplate": "更新模板",
-    "createTemplate": "创建模板"
+    "createTemplate": "创建模板",
+    "lineItemMode": "行项目分列模式"
   },
   "fieldEditor": {
     "title": "字段定义",
@@ -122,5 +123,15 @@
   "scopes": {
     "GLOBAL": "全局",
     "COMPANY": "公司"
+  },
+  "lineItemModes": {
+    "PIVOT": "每份文件一列",
+    "EXPAND": "每笔费用一列",
+    "GROUP": "每个分组键一列"
+  },
+  "lineItemModeHints": {
+    "PIVOT": "一份文件产生一列，费用按分类聚合成字段。",
+    "EXPAND": "每一笔费用各自成为一列，供逐笔核对使用。",
+    "GROUP": "按行项目的分组键展开成多列，供一份发票对应多个 shipment 的文件使用。文件需重新处理后才会带有分组信息。"
   }
 }

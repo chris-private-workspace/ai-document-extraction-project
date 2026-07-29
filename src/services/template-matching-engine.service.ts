@@ -41,10 +41,13 @@ import type {
   ValidateMappingParams,
   ValidateMappingResult,
   MatchingErrorCode,
+  TemplateRowUnit,
 } from '@/types/template-matching-engine';
 import { MatchingEngineError } from '@/types/template-matching-engine';
 import type { TemplateFieldMappingRule, ResolvedMappingConfig } from '@/types/template-field-mapping';
-import type { DataTemplateField } from '@/types/data-template';
+import type { DataTemplateField, LineItemMode } from '@/types/data-template';
+import { DEFAULT_LINE_ITEM_MODE } from '@/types/data-template';
+import type { LineItemGroupV3 } from '@/types/extraction-v3.types';
 import { EDITABLE_STATUSES } from '@/types/template-instance';
 import type { TemplateInstanceStatus, ValidationResult } from '@/types/template-instance';
 
@@ -57,6 +60,46 @@ const DEFAULT_BATCH_SIZE = 100;
 
 /** 預設 rowKey 欄位 */
 const DEFAULT_ROW_KEY_FIELD = 'shipment_no';
+
+// ============================================================================
+// Internal Types
+// ============================================================================
+
+/**
+ * 已載入的文件（含模板層需要的提取結果片段）
+ * @since CHANGE-113 階段二
+ */
+interface LoadedDocument {
+  /** 文件 ID */
+  id: string;
+  /** 文件層級來源欄位（fieldMappings + li_* 展平 + _ref_*） */
+  mappedFields: Record<string, unknown>;
+  /** 文件層級行項目 */
+  lineItems?: TemplateRowUnit['lineItems'];
+  /** 文件層級額外費用 */
+  extraCharges?: TemplateRowUnit['extraCharges'];
+  /** CHANGE-113: Stage 3 依 groupKey 切好的分組（各組費用欄位已單獨回填） */
+  lineItemGroups?: LineItemGroupV3[];
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * 正規化參考編號 token
+ *
+ * @description
+ *   人工在 PDF 上補註的分組鍵格式並不統一 —— 實測同一批 DHL 文件出現
+ *   `RCIM-25-0111`、`RCIM/25/0246`、結尾帶 `\r` 等變體（四位標註者各寫各的）。
+ *   參考編號主檔則統一為 `RCIM250111`。去掉所有非英數字元並轉大寫後即可對上，
+ *   毋須在程式中維護格式規則。
+ *
+ * @since CHANGE-113 階段二
+ */
+export function normalizeReferenceToken(value: string): string {
+  return value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
 
 // ============================================================================
 // Service Class
@@ -149,10 +192,19 @@ export class TemplateMatchingEngineService {
     // 3. 載入 Documents
     const documents = await this.loadDocuments(documentIds);
 
+    // 3.1 CHANGE-113 階段二: 依模板的分列模式展開成列單元
+    //     PIVOT（現況）一份文件一個單元；GROUP 則每個分組鍵各一個單元。
+    //     展開在交易外完成 —— 組層級的參考編號查詢不佔用交易連線（FIX-132）。
+    const rowUnits = await this.buildRowUnits(
+      documents,
+      (template.lineItemMode as LineItemMode) || DEFAULT_LINE_ITEM_MODE,
+      options.rowKeyField || DEFAULT_ROW_KEY_FIELD
+    );
+
     // 4. 分批處理
     const results: RowResult[] = [];
     const batchSize = options.batchSize || DEFAULT_BATCH_SIZE;
-    const batches = this.createBatches(documents, batchSize);
+    const batches = this.createBatches(rowUnits, batchSize);
     const totalBatches = batches.length;
 
     for (let i = 0; i < batches.length; i++) {
@@ -168,13 +220,13 @@ export class TemplateMatchingEngineService {
 
       // 進度回調
       if (options.onProgress) {
-        const processed = Math.min((i + 1) * batchSize, documents.length);
+        const processed = Math.min((i + 1) * batchSize, rowUnits.length);
         options.onProgress({
           processed,
-          total: documents.length,
+          total: rowUnits.length,
           currentBatch: i + 1,
           totalBatches,
-          percentage: Math.round((processed / documents.length) * 100),
+          percentage: Math.round((processed / rowUnits.length) * 100),
         });
       }
     }
@@ -355,25 +407,174 @@ export class TemplateMatchingEngineService {
   }
 
   // --------------------------------------------------------------------------
+  // Private Methods - Row Expansion (CHANGE-113 階段二)
+  // --------------------------------------------------------------------------
+
+  /**
+   * 依模板的分列模式，把文件展開成待寫入的列單元
+   *
+   * @description
+   *   `PIVOT`（現況）一份文件產生一個單元。`GROUP` 則對「一份發票含多個 shipment」
+   *   的文件，依 Stage 3 切好的 `lineItemGroups` 每組產生一個單元，並把三種來源
+   *   全部替換成**組層級**的值：
+   *
+   *   1. **費用欄位**（field definition key）—— 取自該組單獨回填的結果。若沿用文件
+   *      層級的值，每一列都會拿到整份發票的加總（DHL 實測：兩列都會是 2557.50 而非
+   *      各自的 247.50 / 2310.00）。
+   *   2. **`li_*` 展平值** —— 對組內行項目重算，供 `AGGREGATE` 型映射使用。
+   *   3. **`_ref_number`** —— 分組鍵對到參考編號主檔後的標準號碼。既有映射規則
+   *      `_ref_number → shipment_number` 因此自動變成每列各自的號碼，**規則本身不用改**。
+   *
+   *   `EXPAND`（1 筆費用 = 1 列）尚未實作 —— 見 CHANGE-113 §階段二範圍說明。
+   *   選到該值時行為與 `PIVOT` 相同。
+   *
+   * @param documents - 已載入的文件
+   * @param lineItemMode - 模板的分列模式
+   * @param rowKeyField - 非 GROUP 模式下用於取 rowKey 的欄位名
+   * @since CHANGE-113 階段二
+   */
+  private async buildRowUnits(
+    documents: LoadedDocument[],
+    lineItemMode: LineItemMode,
+    rowKeyField: string
+  ): Promise<TemplateRowUnit[]> {
+    const useGrouping = lineItemMode === 'GROUP';
+
+    // 一次查完所有分組鍵對應的主檔號碼（交易外、逐份查會放大連線壓力 — FIX-132）
+    const refNumberByToken = useGrouping
+      ? await this.resolveGroupReferenceNumbers(documents)
+      : new Map<string, { number: string; type: string }>();
+
+    const units: TemplateRowUnit[] = [];
+
+    for (const doc of documents) {
+      const groups = useGrouping ? doc.lineItemGroups : undefined;
+
+      // 非 GROUP 模式，或該文件沒有分組（一般發票）→ 維持一份文件一列
+      if (!groups || groups.length === 0) {
+        units.push({
+          documentId: doc.id,
+          rowKey: this.extractRowKey(doc.mappedFields, rowKeyField),
+          sourceFields: doc.mappedFields,
+          lineItems: doc.lineItems,
+          extraCharges: doc.extraCharges,
+        });
+        continue;
+      }
+
+      // 任一組認領過的費用欄位 key。各組單元必須先排除文件層級的同名值 ——
+      // 否則「本組沒有、他組才有」的費用欄位會殘留整份發票的加總。
+      const groupChargeKeys = new Set(
+        groups.flatMap((group) => Object.keys(group.fields ?? {}))
+      );
+
+      for (const group of groups) {
+        const sourceFields: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(doc.mappedFields)) {
+          if (groupChargeKeys.has(key)) continue; // 文件層級費用加總不帶入
+          if (key.startsWith('li_')) continue; // 文件層級 li_* 展平不帶入
+          sourceFields[key] = value;
+        }
+
+        // 1. 組層級費用欄位
+        for (const [key, fieldValue] of Object.entries(group.fields ?? {})) {
+          sourceFields[key] = fieldValue?.value ?? null;
+        }
+
+        // 2. 組層級 li_* 展平
+        Object.assign(sourceFields, this.flattenChargeItems(group.lineItems));
+
+        // 3. 組層級 _ref_*：對到主檔用標準號碼，對不到則保留原始分組鍵
+        //    （寧可讓該列帶著人工補註的原始格式，也不要與別組共用同一個 rowKey）
+        const matched = refNumberByToken.get(normalizeReferenceToken(group.groupKey));
+        const rowKey = matched?.number ?? group.groupKey;
+        sourceFields['_ref_number'] = rowKey;
+        if (matched) {
+          sourceFields['_ref_type'] = matched.type;
+          sourceFields[`_ref_${matched.type}`] = matched.number;
+        }
+
+        units.push({
+          documentId: doc.id,
+          rowKey,
+          sourceFields,
+          lineItems: group.lineItems,
+        });
+      }
+    }
+
+    return units;
+  }
+
+  /**
+   * 批次解析各分組鍵對應的參考編號主檔記錄
+   *
+   * @description
+   *   以正規化後的分組鍵精確比對主檔 `number`。
+   *
+   *   **不使用 `findMatchesInText()`**：那是給「從一段文字裡找出號碼」用的
+   *   ILIKE substring 查詢，且會遞增主檔的 `matchCount` / `lastMatchedAt` ——
+   *   模板匹配可重複執行，套用它會污染參考編號的匹配統計。此處已握有完整號碼，
+   *   精確比對即可，也無副作用。
+   *
+   *   已知界限：分組鍵帶額外後綴時（實測有 `RCEX-25-0479 PDI`）精確比對會落空，
+   *   該列改用原始分組鍵作 rowKey。列不會消失，只是號碼不是主檔的標準格式。
+   *
+   * @since CHANGE-113 階段二
+   */
+  private async resolveGroupReferenceNumbers(
+    documents: LoadedDocument[]
+  ): Promise<Map<string, { number: string; type: string }>> {
+    const tokens = new Set<string>();
+    for (const doc of documents) {
+      for (const group of doc.lineItemGroups ?? []) {
+        const token = normalizeReferenceToken(group.groupKey ?? '');
+        if (token) tokens.add(token);
+      }
+    }
+
+    if (tokens.size === 0) {
+      return new Map();
+    }
+
+    const records = await prisma.referenceNumber.findMany({
+      where: {
+        number: { in: [...tokens] },
+        isActive: true,
+        status: 'ACTIVE',
+      },
+      select: { number: true, type: true },
+    });
+
+    return new Map(
+      records.map((record) => [
+        record.number,
+        { number: record.number, type: record.type as string },
+      ])
+    );
+  }
+
+  // --------------------------------------------------------------------------
   // Private Methods - Batch Processing
   // --------------------------------------------------------------------------
 
   /**
-   * 處理單批文件
+   * 處理單批列單元
    *
    * @description
-   *   使用事務確保批次內的一致性
-   *   單行失敗不影響其他行
+   *   使用事務確保批次內的一致性，單列失敗不影響其他列。
+   *
+   *   CHANGE-113 階段二：輸入由「文件」改為「列單元」—— 一份文件在 `GROUP` 模式下
+   *   會展開成多個單元。展開與 rowKey 決定都已在 {@link buildRowUnits} 完成，
+   *   本方法只負責寫入。
    */
   private async processBatch(
-    documents: Array<{ id: string; mappedFields: unknown; stage3Result?: unknown }>,
+    rowUnits: TemplateRowUnit[],
     instance: { id: string; dataTemplateId: string },
     templateFields: DataTemplateField[],
     mappingConfig: ResolvedMappingConfig,
-    options: { rowKeyField?: string; skipValidation?: boolean }
+    options: { skipValidation?: boolean }
   ): Promise<RowResult[]> {
-    const rowKeyField = options.rowKeyField || DEFAULT_ROW_KEY_FIELD;
-
     return prisma.$transaction(async (tx) => {
       const results: RowResult[] = [];
 
@@ -386,19 +587,15 @@ export class TemplateMatchingEngineService {
       });
       let nextRowIndex = (maxRow?.rowIndex ?? -1) + 1;
 
-      for (const doc of documents) {
+      for (const unit of rowUnits) {
         try {
-          const mappedFields = doc.mappedFields as Record<string, unknown> || {};
-
-          // 提取 rowKey
-          const rowKey = this.extractRowKey(mappedFields, rowKeyField);
-
           // 轉換欄位（含 AGGREGATE 所需的 lineItems context）
           const { values: transformedFields, unresolvedSourceKeys } =
             await this.transformFields(
-              mappedFields,
+              unit.sourceFields,
               mappingConfig.mappings,
-              doc.stage3Result
+              unit.lineItems,
+              unit.extraCharges
             );
 
           // 驗證
@@ -410,8 +607,8 @@ export class TemplateMatchingEngineService {
           // 創建或更新行（FIX-132: 傳入預分配的 rowIndex，新建列時消耗並遞增）
           const { row, created } = await this.upsertRow(tx, {
             instanceId: instance.id,
-            rowKey,
-            documentId: doc.id,
+            rowKey: unit.rowKey,
+            documentId: unit.documentId,
             fieldValues: transformedFields,
             validation,
             unresolvedSourceKeys,
@@ -420,9 +617,9 @@ export class TemplateMatchingEngineService {
           if (created) nextRowIndex++;
 
           results.push({
-            documentId: doc.id,
+            documentId: unit.documentId,
             rowId: row.id,
-            rowKey,
+            rowKey: unit.rowKey,
             status: validation.isValid ? 'VALID' : 'INVALID',
             errors: validation.errors,
             ...(Object.keys(unresolvedSourceKeys).length > 0
@@ -431,7 +628,7 @@ export class TemplateMatchingEngineService {
           });
         } catch (error) {
           results.push({
-            documentId: doc.id,
+            documentId: unit.documentId,
             rowId: null,
             rowKey: null,
             status: 'ERROR',
@@ -463,12 +660,16 @@ export class TemplateMatchingEngineService {
    *   `li_*` / `_ref_*` 為動態合成欄位（依文件內容產生），缺席不代表
    *   拼錯，一律豁免。
    *
-   * @lastModified FIX-128 (2026-07-22)
+   *   CHANGE-113 階段二：`lineItems` / `extraCharges` 改由呼叫端直接傳入 —— `GROUP`
+   *   模式下它們是**該組的子集**，不再是整份文件的行項目。
+   *
+   * @lastModified CHANGE-113 階段二 (2026-07-29)
    */
   private async transformFields(
     sourceFields: Record<string, unknown>,
     mappings: TemplateFieldMappingRule[],
-    stage3Result?: unknown
+    lineItems?: TemplateRowUnit['lineItems'],
+    extraCharges?: TemplateRowUnit['extraCharges']
   ): Promise<{
     values: Record<string, unknown>;
     unresolvedSourceKeys: Record<string, string[]>;
@@ -476,12 +677,6 @@ export class TemplateMatchingEngineService {
     const result: Record<string, unknown> = {};
     const unresolvedSourceKeys: Record<string, string[]> = {};
     const knownRowKeys = new Set(Object.keys(sourceFields));
-
-    // CHANGE-043 Phase 2: 從 stage3Result 提取 lineItems/extraCharges 供 AGGREGATE 使用
-    const s3 = (stage3Result && typeof stage3Result === 'object') ? stage3Result as {
-      lineItems?: Array<{ description: string; classifiedAs?: string; amount: number; quantity?: number; unitPrice?: number }>;
-      extraCharges?: Array<{ description: string; classifiedAs?: string; amount: number }>;
-    } : undefined;
 
     // 按 order 排序
     const sortedMappings = [...mappings].sort((a, b) => a.order - b.order);
@@ -504,8 +699,8 @@ export class TemplateMatchingEngineService {
             row: sourceFields,
             sourceField: mapping.sourceField,
             targetField: mapping.targetField,
-            lineItems: s3?.lineItems,
-            extraCharges: s3?.extraCharges,
+            lineItems,
+            extraCharges,
           }
         );
 
@@ -639,11 +834,12 @@ export class TemplateMatchingEngineService {
    * 載入文件及其提取結果
    *
    * @description
-   *   從 Document 及其關聯的 ExtractionResult 載入 fieldMappings
+   *   從 Document 及其關聯的 ExtractionResult 載入 fieldMappings。
+   *
+   *   CHANGE-113 階段二：一併載入 `stage3Result.lineItemGroups`（Stage 3 依
+   *   `groupKey` 切好、且各組已單獨回填費用欄位的結果），供 `GROUP` 模式展開。
    */
-  private async loadDocuments(
-    documentIds: string[]
-  ): Promise<Array<{ id: string; mappedFields: Record<string, unknown>; stage3Result?: unknown }>> {
+  private async loadDocuments(documentIds: string[]): Promise<LoadedDocument[]> {
     const documents = await prisma.document.findMany({
       where: { id: { in: documentIds } },
       select: {
@@ -670,26 +866,50 @@ export class TemplateMatchingEngineService {
       );
     }
 
-    // 轉換為所需格式（含 lineItem 展平 + 保留 stage3Result 供 AGGREGATE 使用）
     return documents.map((doc) => {
-      const mappedFields = this.extractMappedFields(
-        doc.extractionResult?.fieldMappings,
-        doc.extractionResult?.stage3Result
-      );
+      const stage3 = this.readStage3Result(doc.extractionResult?.stage3Result);
 
+      const mappedFields = this.extractFieldValues(doc.extractionResult?.fieldMappings);
+      // CHANGE-043: 展平 lineItems + extraCharges 為 li_* pseudo-fields
+      Object.assign(
+        mappedFields,
+        this.flattenChargeItems(stage3.lineItems, stage3.extraCharges)
+      );
       // CHANGE-047: 注入 Pipeline 匹配的 Reference Number 為合成來源欄位
       this.injectRefNumberFields(mappedFields, doc.extractionResult?.referenceNumberMatch);
 
       return {
         id: doc.id,
         mappedFields,
-        stage3Result: doc.extractionResult?.stage3Result ?? undefined,
+        lineItems: stage3.lineItems,
+        extraCharges: stage3.extraCharges,
+        lineItemGroups: stage3.lineItemGroups,
       };
     });
   }
 
   /**
-   * 從 fieldMappings JSON 提取欄位值，並展平 lineItems 為 li_* pseudo-fields
+   * 讀取 `ExtractionResult.stage3Result` 中模板層需要的部分
+   * @since CHANGE-113 階段二（原內嵌於 extractMappedFields / transformFields）
+   */
+  private readStage3Result(stage3Result: unknown): {
+    lineItems?: TemplateRowUnit['lineItems'];
+    extraCharges?: TemplateRowUnit['extraCharges'];
+    lineItemGroups?: LineItemGroupV3[];
+  } {
+    if (!stage3Result || typeof stage3Result !== 'object') {
+      return {};
+    }
+
+    return stage3Result as {
+      lineItems?: TemplateRowUnit['lineItems'];
+      extraCharges?: TemplateRowUnit['extraCharges'];
+      lineItemGroups?: LineItemGroupV3[];
+    };
+  }
+
+  /**
+   * 從 fieldMappings JSON 提取欄位值
    *
    * @description
    *   ExtractionResult.fieldMappings 結構為:
@@ -703,16 +923,9 @@ export class TemplateMatchingEngineService {
    *   }
    *   我們需要提取 value 來進行轉換。
    *
-   *   若 stage3Result 包含 lineItems/extraCharges，按 classifiedAs 聚合展平為：
-   *   - li_{CLASSIFIED_AS}_total: 金額合計
-   *   - li_{CLASSIFIED_AS}_count: 筆數
-   *
-   * @since CHANGE-043 Phase 1
+   * @since CHANGE-043 Phase 1（CHANGE-113 階段二：li_* 展平抽至 flattenChargeItems）
    */
-  private extractMappedFields(
-    fieldMappings: unknown,
-    stage3Result?: unknown
-  ): Record<string, unknown> {
+  private extractFieldValues(fieldMappings: unknown): Record<string, unknown> {
     if (!fieldMappings || typeof fieldMappings !== 'object') {
       return {};
     }
@@ -727,38 +940,47 @@ export class TemplateMatchingEngineService {
       }
     }
 
-    // CHANGE-043: 展平 lineItems + extraCharges 為 li_* pseudo-fields
-    if (stage3Result && typeof stage3Result === 'object') {
-      const s3 = stage3Result as {
-        lineItems?: Array<{ classifiedAs?: string; amount?: number }>;
-        extraCharges?: Array<{ classifiedAs?: string; amount?: number }>;
-      };
+    return result;
+  }
 
-      // 合併 lineItems 和 extraCharges（對用戶而言都是費用項）
-      const allItems = [
-        ...(s3.lineItems || []),
-        ...(s3.extraCharges || []),
-      ];
+  /**
+   * 按 `classifiedAs` 聚合費用項，展平為 `li_*` pseudo-fields
+   *
+   * @description
+   *   - `li_{CLASSIFIED_AS}_total`: 金額合計
+   *   - `li_{CLASSIFIED_AS}_count`: 筆數
+   *
+   *   CHANGE-113 階段二：抽成獨立方法，讓 `GROUP` 模式能對**組內**行項目重算
+   *   同一組 pseudo-fields（否則每一列都會拿到整份文件的加總）。
+   *
+   * @since CHANGE-043 Phase 1
+   */
+  private flattenChargeItems(
+    lineItems?: Array<{ classifiedAs?: string; amount?: number }>,
+    extraCharges?: Array<{ classifiedAs?: string; amount?: number }>
+  ): Record<string, unknown> {
+    // 合併 lineItems 和 extraCharges（對用戶而言都是費用項）
+    const allItems = [...(lineItems || []), ...(extraCharges || [])];
+    if (allItems.length === 0) {
+      return {};
+    }
 
-      if (allItems.length > 0) {
-        // 按 classifiedAs 分組聚合
-        const aggregated = new Map<string, { total: number; count: number }>();
+    // 按 classifiedAs 分組聚合
+    const aggregated = new Map<string, { total: number; count: number }>();
 
-        for (const item of allItems) {
-          const key = item.classifiedAs || 'UNCLASSIFIED';
-          const existing = aggregated.get(key) || { total: 0, count: 0 };
-          aggregated.set(key, {
-            total: existing.total + (item.amount || 0),
-            count: existing.count + 1,
-          });
-        }
+    for (const item of allItems) {
+      const key = item.classifiedAs || 'UNCLASSIFIED';
+      const existing = aggregated.get(key) || { total: 0, count: 0 };
+      aggregated.set(key, {
+        total: existing.total + (item.amount || 0),
+        count: existing.count + 1,
+      });
+    }
 
-        // 展平為 li_* pseudo-fields
-        for (const [classifiedAs, agg] of aggregated) {
-          result[`li_${classifiedAs}_total`] = agg.total;
-          result[`li_${classifiedAs}_count`] = agg.count;
-        }
-      }
+    const result: Record<string, unknown> = {};
+    for (const [classifiedAs, agg] of aggregated) {
+      result[`li_${classifiedAs}_total`] = agg.total;
+      result[`li_${classifiedAs}_count`] = agg.count;
     }
 
     return result;

@@ -97,6 +97,38 @@ export interface DataTemplateField {
 export type DataTemplateScope = 'GLOBAL' | 'COMPANY';
 
 /**
+ * 行項目分列模式
+ *
+ * @description
+ *   決定一份文件在模板實例中展開成幾列：
+ *   - `PIVOT`：1 份文件 = 1 列，費用按分類聚合為欄（CHANGE-043，現行預設）
+ *   - `EXPAND`：1 筆費用 = 1 列（逐筆審計核對用，原 CHANGE-044）
+ *   - `GROUP`：1 個分組鍵 = 1 列，組內費用再聚合為欄 —— 供「一份發票對應多個
+ *     shipment」的文件（如 DHL：一張發票含多個 AWB，各有自己的費用）
+ *
+ * @since CHANGE-113 階段二
+ */
+export type LineItemMode = 'PIVOT' | 'EXPAND' | 'GROUP';
+
+/**
+ * 行項目分列模式值域
+ *
+ * @description
+ *   供 Zod 驗證與 UI 選單迭代使用。**不含顯示文字** —— 模式名稱與說明一律走 i18n
+ *   （`dataTemplate.lineItemMode.*`），避免 CHANGE-088 治理過的「常量硬編碼中文
+ *   導致英文介面顯示中文」問題重現。
+ *
+ * @since CHANGE-113 階段二
+ */
+export const LINE_ITEM_MODES = ['PIVOT', 'EXPAND', 'GROUP'] as const;
+
+/**
+ * 預設行項目分列模式（與 Prisma schema 的 `@default("PIVOT")` 一致）
+ * @since CHANGE-113 階段二
+ */
+export const DEFAULT_LINE_ITEM_MODE: LineItemMode = 'PIVOT';
+
+/**
  * 數據模版完整類型
  * @description
  *   對應 Prisma DataTemplate 模型的完整類型定義
@@ -114,6 +146,8 @@ export interface DataTemplate {
   companyId?: string | null;
   /** 欄位定義列表 */
   fields: DataTemplateField[];
+  /** CHANGE-113: 行項目分列模式 */
+  lineItemMode: LineItemMode;
   /** 是否啟用 */
   isActive: boolean;
   /** 是否為系統模版（系統模版不可修改/刪除） */
@@ -174,6 +208,8 @@ export interface CreateDataTemplateInput {
   companyId?: string;
   /** 欄位定義列表 */
   fields: DataTemplateField[];
+  /** CHANGE-113: 行項目分列模式（未指定時為 PIVOT） */
+  lineItemMode?: LineItemMode;
 }
 
 /**
@@ -186,6 +222,8 @@ export interface UpdateDataTemplateInput {
   description?: string | null;
   /** 欄位定義列表 */
   fields?: DataTemplateField[];
+  /** CHANGE-113: 行項目分列模式 */
+  lineItemMode?: LineItemMode;
   /** 是否啟用 */
   isActive?: boolean;
 }

@@ -202,6 +202,12 @@ const MIGRATIONS = [
         on delete set null on update cascade;
     exception when duplicate_object then null; end $$;`,
   },
+  {
+    // CHANGE-113 階段二：模板的行項目分列模式（PIVOT / EXPAND / GROUP）
+    id: 'CHANGE-113 data_templates.line_item_mode',
+    sql: `alter table "data_templates" add column if not exists "line_item_mode"
+      varchar(20) not null default 'PIVOT';`,
+  },
 ]
 
 async function main() {

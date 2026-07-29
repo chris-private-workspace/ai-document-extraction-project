@@ -98,7 +98,8 @@
     "back": "Back",
     "saving": "Saving...",
     "updateTemplate": "Update Template",
-    "createTemplate": "Create Template"
+    "createTemplate": "Create Template",
+    "lineItemMode": "Line Item Row Mode"
   },
   "fieldEditor": {
     "title": "Field Definitions",
@@ -122,5 +123,15 @@
   "scopes": {
     "GLOBAL": "Global",
     "COMPANY": "Company"
+  },
+  "lineItemModes": {
+    "PIVOT": "One row per document",
+    "EXPAND": "One row per charge",
+    "GROUP": "One row per group key"
+  },
+  "lineItemModeHints": {
+    "PIVOT": "Each document produces one row, with charges aggregated into columns by classification.",
+    "EXPAND": "Each charge becomes its own row, for line-by-line reconciliation.",
+    "GROUP": "Expands into multiple rows by the line items' group key — for documents where one invoice covers several shipments. Documents must be reprocessed before group information is available."
   }
 }

@@ -30,6 +30,7 @@ import type {
   DataTemplateFilters,
   DataTemplateField,
   DataTemplateOption,
+  LineItemMode,
 } from '@/types/data-template';
 import type {
   CreateDataTemplateInput,
@@ -148,6 +149,7 @@ export class DataTemplateService {
       scope: template.scope as 'GLOBAL' | 'COMPANY',
       companyId: template.companyId,
       fields: template.fields as unknown as DataTemplateField[],
+      lineItemMode: template.lineItemMode as LineItemMode,
       isActive: template.isActive,
       isSystem: template.isSystem,
       createdAt: template.createdAt.toISOString(),
@@ -212,6 +214,7 @@ export class DataTemplateService {
         scope: input.scope,
         companyId: input.scope === 'COMPANY' ? input.companyId : null,
         fields: input.fields,
+        ...(input.lineItemMode ? { lineItemMode: input.lineItemMode } : {}),
         isSystem: false,
         createdBy,
       },
@@ -256,6 +259,9 @@ export class DataTemplateService {
     }
     if (input.fields !== undefined) {
       updateData.fields = input.fields;
+    }
+    if (input.lineItemMode !== undefined) {
+      updateData.lineItemMode = input.lineItemMode;
     }
     if (input.isActive !== undefined) {
       updateData.isActive = input.isActive;

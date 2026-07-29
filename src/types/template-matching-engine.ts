@@ -378,6 +378,46 @@ export interface ValidateMappingResult {
 // ============================================================================
 
 /**
+ * 待寫入的列單元
+ *
+ * @description
+ *   把「一份文件展開成幾列」的決定收斂在此結構 —— `processBatch` 只負責逐單元寫入，
+ *   不再假設「一份文件恰好一列」。
+ *
+ *   - `PIVOT`（現況）：一份文件產生一個單元
+ *   - `GROUP`：一份文件的每個分組鍵各產生一個單元，`sourceFields` 中的費用欄位、
+ *     `li_*` 展平值與 `_ref_*` 均已替換為**該組**的值
+ *
+ * @since CHANGE-113 階段二
+ */
+export interface TemplateRowUnit {
+  /** 來源文件 ID */
+  documentId: string;
+
+  /** 行識別碼 */
+  rowKey: string;
+
+  /** 該列的來源欄位（映射規則的取值來源） */
+  sourceFields: Record<string, unknown>;
+
+  /** 該列的行項目（供 AGGREGATE 轉換使用；GROUP 模式下為該組子集） */
+  lineItems?: Array<{
+    description: string;
+    classifiedAs?: string;
+    amount: number;
+    quantity?: number;
+    unitPrice?: number;
+  }>;
+
+  /** 該列的額外費用（供 AGGREGATE 轉換使用） */
+  extraCharges?: Array<{
+    description: string;
+    classifiedAs?: string;
+    amount: number;
+  }>;
+}
+
+/**
  * Upsert 行參數
  * @description 用於創建或更新行的內部參數
  */

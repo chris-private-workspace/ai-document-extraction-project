@@ -663,6 +663,8 @@ export class ExtractionV3Service {
           customFields: threeStageResult.stage3.customFields,
           fields: threeStageResult.stage3.fields, // FIX-045: 傳遞原始 FieldDefinitionSet key
           lineItems: threeStageResult.stage3.lineItems,
+          // CHANGE-113 階段二: 分組結果須逐層透傳，否則模板層讀不到（FIX-092 同型漏接）
+          lineItemGroups: threeStageResult.stage3.lineItemGroups,
           // CHANGE-045: extraCharges removed from Stage 3 output
           overallConfidence: threeStageResult.stage3.overallConfidence,
           // FIX: V3.1 需要設定 resolvedCompanyId/resolvedFormatId
