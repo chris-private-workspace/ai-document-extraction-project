@@ -1,7 +1,7 @@
 # CHANGE-113: 一份發票對應多個 Shipment —— 註解可見性、行項目分組鍵與模板三模式輸出
 
 > **日期**: 2026-07-29
-> **狀態**: 🚧 進行中（階段一 B 程式碼完成；階段一 A 與階段二待實作）
+> **狀態**: 🚧 進行中（階段一 A + B 完成並通過本地實測 2026-07-29；階段二待實作）
 > **優先級**: High
 > **類型**: Feature Enhancement
 > **影響範圍**: PDF 轉換層、提取層（LineItemV3、Stage 3 Schema）、模板匹配引擎、DataTemplate Model、DataTemplate UI
@@ -129,7 +129,9 @@ groupKey?: string;        // 該筆費用所屬的 shipment / 參考號
 groupSourceRef?: string;  // 該組的文件原生單號（DHL = Air Waybill Number）
 ```
 
-**兩個都抓的理由**：`groupKey` 來自人工補註，可能漏標或標錯位置；`groupSourceRef`（AWB）是 DHL 原生印刷、OCR 穩定度高。金額掛錯 shipment 的代價很高，多存一個原生欄位可用於核對，也能在 `groupKey` 讀不到時作為備援分組依據。
+**兩個都抓的原始理由**：`groupKey` 來自人工補註，可能漏標或標錯位置；`groupSourceRef`（AWB）是 DHL 原生印刷，推測 OCR 穩定度較高，可在 `groupKey` 讀不到時作為備援分組依據。
+
+> 🔴 **2026-07-29 實測推翻了這個推測**，見 §階段一實測結果。`groupSourceRef` 三次讀出三個不同的值、且多數錯誤；`groupKey` 三次完全一致且正確。**`groupSourceRef` 不得用於自動分組**，僅保留作為人工核對線索。
 
 #### B2. GPT 輸出結構同步
 
@@ -163,7 +165,7 @@ Stage 3 的 structured output schema 由 `stage-3-extraction.service.ts` 的 `ge
 
 ```
 文件
- └─ 依 groupKey（缺則 groupSourceRef，再缺則整份視為一組）分組 lineItems
+ └─ 依 groupKey 分組 lineItems（缺 groupKey → 整份視為一組；**不得**改用 groupSourceRef）
      └─ 每組產生一個待寫入單元：
          ├─ 組 fields   = 文件層級的非費用欄位（invoice_number / invoice_date / currency …）
          │                + 對「該組 lineItems」重跑 backfillLineItemCharges 得到的費用欄位
@@ -226,6 +228,61 @@ lineItemMode String @default("PIVOT") @map("line_item_mode")
 階段一無。階段二新增 `data_templates.line_item_mode`（有預設值、向後相容）。
 
 > ⚠️ 依 [[feedback_azure_migration_needs_schema_drift_entry]]：Azure 容器啟動流程**不執行** `migrate deploy`，PR 內的 migration 對非空的 Azure 資料庫無效。階段二部署前必須把此 DDL 轉為冪等寫法加進 `prisma/apply-schema-drift.js` 的 `MIGRATIONS`，並帶 `RUN_SCHEMA_DRIFT_FIX=true` 執行一次，否則新程式碼讀取新欄位會出現 P2022。
+
+---
+
+## 階段一實測結果（2026-07-29，本地真實提取）
+
+對 `DHL_RCIM250111_28699.pdf` 跑完整 V3.1 三階段、連續三次。
+
+### 分組成功
+
+| groupKey | 費用組成 | 合計 | 期望值 |
+|---|---|---|---|
+| `RCIM-25-0111` | EXPRESS WORLDWIDE nondoc 247.50 + FUEL SURCHARGE 69.92 | **317.42** | 317.42 ✅ |
+| `RCIM-25-0113` | EXPRESS WORLDWIDE nondoc 2310.00 + FUEL SURCHARGE 652.58 | **2962.58** | 2962.58 ✅ |
+
+四筆行項目全部帶對 `groupKey`，且未把「Service Sub Total」「Total: HKD」等彙總列誤當成行項目。三次結果完全一致。
+
+### 🔴 `groupSourceRef` 不可靠 —— 原假設被推翻
+
+| 次數 | 第一組 AWB | 第二組 AWB |
+|---|---|---|
+| 1 | `88557336` | `24097724` |
+| 2 | `8365573366` ✅ | `240977124` |
+| 3 | `88557336` | `24097724` |
+
+正確值為 `8365573366` 與 `2407071774`，六次讀取僅一次正確，且三次結果互不相同。
+
+**原因**：AWB 是 10 位數字、小字級、帶超連結底線；`groupKey` 經階段一 A 補畫為 40px 粗體紅字，清晰度遠高於原生印刷內容。**人工補註反而比原生印刷更容易被正確辨識** —— 與規劃時的推測完全相反。
+
+**設計影響**：`groupSourceRef` 若用於分組，同一份文件每次重跑會分出不同的組，比不分組更糟。因此階段二的分組只依 `groupKey`，缺失時整份視為一組。`groupSourceRef` 僅保留供人工核對。
+
+### 需要 DHL 專屬 Prompt —— §1.4 的問題已有答案
+
+只靠 structured output 的 schema `description`（未建 DHL Prompt 前）：
+
+| 嘗試 | lineItems | 說明 |
+|---|---|---|
+| 1 | 1 筆，amount 2557.50 | 讀成 Service Sub Total 的標準費用合計 |
+| 2 | 1 筆，amount 3280.00 | 改讀 Total: HKD |
+| 3 | 1 筆，amount 2557.50 | 又跳回小計 |
+
+不但沒有分組，連明細表都沒逐列拆，且在兩個錯誤答案間跳動。**schema description 不足**，必須有 DHL COMPANY 層的 Stage 3 Prompt 明確指示「逐列提取、排除彙總列、填寫分組鍵」。
+
+Prompt 已建立於本地：`prompt_configs.id = 'change113-dhl-stage3-001'`（COMPANY scope、`OVERRIDE`）。**Azure 尚未建立，部署前必須一併套用。**
+
+### ⚠️ 測試陷阱：ExtractionV3Service 的 flags 不讀環境變數
+
+```typescript
+// extraction-v3.service.ts:152
+this.flags = { ...DEFAULT_EXTRACTION_V3_FLAGS, ...config.flags };
+// DEFAULT_EXTRACTION_V3_FLAGS.useExtractionV3_1 === false
+```
+
+env 的 `FEATURE_EXTRACTION_V3_1=true` **不會**被這裡讀到 —— 生產是由 `unified-document-processor` 讀 env 後傳入 `config.flags`。直接呼叫 `processFileV3()` 而不傳 flags，會靜默跑 **V3 單階段**，且照樣回報 `success=true`。
+
+本次前四輪實測都因此測在錯誤路徑上（V3 單階段不走 Stage 3，本 CHANGE 的 schema 與 Prompt 全部沒生效）。任何繞過 `unified-document-processor` 的提取測試都必須明確傳入 flags。
 
 ---
 
