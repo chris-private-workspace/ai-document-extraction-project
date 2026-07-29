@@ -49,9 +49,10 @@ async function getFormData() {
     orderBy: { name: 'asc' },
   });
 
-  // Fetch companies (only active ones)
+  // FIX-142: 與 new/page.tsx 一致 —— 納入 PENDING（灰帶待審核公司），排除 MERGED。
+  //   編輯頁若不同步，既有掛在 PENDING 公司的映射會在編輯時找不到自己的公司而顯示空白。
   const companies = await prisma.company.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: { in: ['ACTIVE', 'PENDING'] } },
     select: { id: true, name: true },
     orderBy: { name: 'asc' },
   });

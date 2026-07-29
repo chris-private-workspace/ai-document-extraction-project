@@ -93,9 +93,11 @@ async function getFormData() {
     orderBy: { name: 'asc' },
   });
 
-  // Fetch companies (only active ones)
+  // FIX-142: 納入 PENDING（CHANGE-103 Phase 2 灰帶待審核公司），與欄位定義集的公司來源對齊 ——
+  //   灰帶公司已綁著文件且可建欄位定義集，卻選不到來建映射，是本頁獨有的缺口。
+  //   仍排除 MERGED：那是已併入他人的記錄，不該再掛新映射。
   const companies = await prisma.company.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: { in: ['ACTIVE', 'PENDING'] } },
     select: { id: true, name: true },
     orderBy: { name: 'asc' },
   });
