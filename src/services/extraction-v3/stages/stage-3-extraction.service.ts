@@ -43,6 +43,7 @@ import type {
   StageAiDetails,
   StandardFieldsV3,
   LineItemV3,
+  LineItemGroupV3,
   ExtraChargeV3,
   FieldValue,
   FieldDefinition,
@@ -236,6 +237,14 @@ export class Stage3ExtractionService {
         );
       }
 
+      // 4c. CHANGE-113 階段二: 依 groupKey 切分行項目，各組單獨回填費用欄位
+      //     供模板層 GROUP 模式展開成多列（一份發票對應多個 shipment）。
+      //     行項目未帶 groupKey 時為 undefined，一般發票行為不變。
+      const lineItemGroups = this.buildLineItemGroups(
+        parsed.lineItems,
+        config.fieldDefinitions
+      );
+
       // 計算 overallConfidence（優先使用動態 fields，fallback 到 standardFields）
       const overallConfidence = parsed.overallConfidence > 0
         ? parsed.overallConfidence
@@ -261,6 +270,7 @@ export class Stage3ExtractionService {
         customFields: parsed.customFields,
         fields: parsed.fields,
         lineItems: parsed.lineItems,
+        ...(lineItemGroups ? { lineItemGroups } : {}),
         extraCharges: parsed.extraCharges,
         overallConfidence,
         fieldDefinitionSetId: config.fieldDefinitionSetId,
@@ -1502,6 +1512,81 @@ Respond in valid JSON format matching the provided schema.`;
     if (typeof value !== 'string') return undefined;
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  /**
+   * CHANGE-113 階段二: 依 `groupKey` 切分行項目，各組單獨回填費用欄位
+   *
+   * @description
+   *   「一份發票對應多個 shipment」時（如 DHL：一張發票含多個 AWB，各有自己的費用），
+   *   模板層需要把該文件展開成多列。每一列的費用欄位必須是**該組的**金額，
+   *   而非文件層級的總和。
+   *
+   *   **為何在此處算、而非模板層**：費用欄位由 {@link backfillLineItemCharges} 依
+   *   `FieldDefinitionSet` 的 label / aliases 確定性回填，該欄位定義集只在 Stage 3
+   *   的配置載入階段取得。把分組結果連同已回填的費用欄位一併存進 `stage3Result`，
+   *   模板層只需展開，不需要重新解析欄位定義。
+   *
+   *   **不使用 `groupSourceRef` 分組**：實測同一份文件連續三次讀出三個不同的 AWB
+   *   （六次僅一次正確），用它分組會讓同一份文件每次重跑分出不同的組，比不分組更糟。
+   *   未帶 `groupKey` 的行項目不歸入任何組 —— 寧可讓該筆在 GROUP 模式下缺席並由
+   *   數量差異暴露問題，也不憑空產生一列。
+   *
+   * @param lineItems - 已完成文件層級回填的行項目
+   * @param fieldDefinitions - 當前 FieldDefinitionSet 的欄位定義
+   * @returns 分組結果；無任何行項目帶 `groupKey` 時為 `undefined`（一般發票）
+   * @since CHANGE-113 階段二
+   */
+  private buildLineItemGroups(
+    lineItems: LineItemV3[],
+    fieldDefinitions: FieldDefinitionEntry[]
+  ): LineItemGroupV3[] | undefined {
+    if (!lineItems?.length) return undefined;
+
+    // Map 依插入序迭代 → 組的順序即各組首次出現在文件中的順序
+    const grouped = new Map<string, LineItemV3[]>();
+    for (const item of lineItems) {
+      if (!item.groupKey) continue;
+      const bucket = grouped.get(item.groupKey);
+      if (bucket) {
+        bucket.push(item);
+      } else {
+        grouped.set(item.groupKey, [item]);
+      }
+    }
+
+    if (grouped.size === 0) return undefined;
+
+    const groups: LineItemGroupV3[] = [];
+    for (const [groupKey, items] of grouped) {
+      // 傳入空 fields：回填的「清除」步驟只作用於已有值的欄位，空物件不受影響，
+      // 因此結果只含該組行項目認領到的費用欄位。
+      const fields: Record<string, FieldValue> = {};
+      this.backfillLineItemCharges(fields, items, fieldDefinitions);
+
+      const sourceRefs = [
+        ...new Set(
+          items
+            .map((item) => item.groupSourceRef)
+            .filter((ref): ref is string => typeof ref === 'string' && ref.length > 0)
+        ),
+      ];
+
+      groups.push({
+        groupKey,
+        fields,
+        lineItems: items,
+        ...(sourceRefs.length > 0 ? { sourceRefs } : {}),
+      });
+    }
+
+    const groupedCount = groups.reduce((sum, group) => sum + group.lineItems.length, 0);
+    console.log(
+      `[Stage3] CHANGE-113: built ${groups.length} line item group(s) covering ` +
+        `${groupedCount}/${lineItems.length} line item(s)`
+    );
+
+    return groups;
   }
 
   /**

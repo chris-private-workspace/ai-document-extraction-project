@@ -98,7 +98,8 @@
     "back": "返回",
     "saving": "儲存中...",
     "updateTemplate": "更新模版",
-    "createTemplate": "創建模版"
+    "createTemplate": "創建模版",
+    "lineItemMode": "行項目分列模式"
   },
   "fieldEditor": {
     "title": "欄位定義",
@@ -122,5 +123,15 @@
   "scopes": {
     "GLOBAL": "全局",
     "COMPANY": "公司"
+  },
+  "lineItemModes": {
+    "PIVOT": "每份文件一列",
+    "EXPAND": "每筆費用一列",
+    "GROUP": "每個分組鍵一列"
+  },
+  "lineItemModeHints": {
+    "PIVOT": "一份文件產生一列，費用依分類聚合成欄位。",
+    "EXPAND": "每一筆費用各自成為一列，供逐筆核對使用。",
+    "GROUP": "依行項目的分組鍵展開成多列，供一份發票對應多個 shipment 的文件使用。文件需重新處理後才會帶有分組資訊。"
   }
 }

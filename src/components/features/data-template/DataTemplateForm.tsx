@@ -39,7 +39,13 @@ import {
   createDataTemplateSchema,
   updateDataTemplateSchema,
 } from '@/validations/data-template';
-import type { DataTemplate, DataTemplateField, DataTemplateScope } from '@/types/data-template';
+import type {
+  DataTemplate,
+  DataTemplateField,
+  DataTemplateScope,
+  LineItemMode,
+} from '@/types/data-template';
+import { DEFAULT_LINE_ITEM_MODE } from '@/types/data-template';
 
 // ============================================================================
 // Types
@@ -68,8 +74,18 @@ interface FormValues {
   scope: 'GLOBAL' | 'COMPANY';
   companyId?: string | null;
   fields: DataTemplateField[];
+  lineItemMode?: LineItemMode;
   isActive?: boolean;
 }
+
+/**
+ * 可選的分列模式
+ *
+ * @description
+ *   `EXPAND`（1 筆費用 = 1 列）雖已納入型別與資料庫值域，但展開邏輯尚未實作
+ *   （見 CHANGE-113 §階段二範圍），因此不列入選單 —— 避免使用者選了卻沒有作用。
+ */
+const LINE_ITEM_MODE_CHOICES: LineItemMode[] = ['PIVOT', 'GROUP'];
 
 // ============================================================================
 // Component
@@ -110,6 +126,7 @@ export function DataTemplateForm({
       description: initialData?.description ?? '',
       scope: initialData?.scope ?? 'GLOBAL',
       companyId: initialData?.companyId ?? undefined,
+      lineItemMode: initialData?.lineItemMode ?? DEFAULT_LINE_ITEM_MODE,
       fields: initialData?.fields ?? [
         { name: 'field_1', label: t('fieldEditor.defaultFieldLabel', { number: 1 }), dataType: 'string', isRequired: false, order: 1 },
       ],
@@ -118,6 +135,7 @@ export function DataTemplateForm({
 
   const scope = watch('scope');
   const fields = watch('fields');
+  const lineItemMode = watch('lineItemMode') ?? DEFAULT_LINE_ITEM_MODE;
 
   // --- Handlers ---
 
@@ -238,6 +256,41 @@ export function DataTemplateForm({
                   </p>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* 行項目分列模式（CHANGE-113） */}
+          <div className="space-y-2">
+            <Label>{t('form.lineItemMode')}</Label>
+            <Controller
+              name="lineItemMode"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value ?? DEFAULT_LINE_ITEM_MODE}
+                  onValueChange={field.onChange}
+                  disabled={readOnly}
+                >
+                  <SelectTrigger className={readOnly ? 'bg-muted' : ''}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LINE_ITEM_MODE_CHOICES.map((mode) => (
+                      <SelectItem key={mode} value={mode}>
+                        {t(`lineItemModes.${mode}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <p className="text-sm text-muted-foreground">
+              {t(`lineItemModeHints.${lineItemMode}`)}
+            </p>
+            {errors.lineItemMode && (
+              <p className="text-sm text-destructive">
+                {errors.lineItemMode.message}
+              </p>
             )}
           </div>
         </CardContent>

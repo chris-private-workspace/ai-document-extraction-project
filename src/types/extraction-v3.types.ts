@@ -308,6 +308,44 @@ export interface LineItemV3 {
 }
 
 /**
+ * 行項目分組結果
+ *
+ * @description
+ *   「一份文件含多個 shipment」時，依 {@link LineItemV3.groupKey} 把行項目切成數組，
+ *   每組各自擁有一套費用欄位 —— 供模板層 `GROUP` 模式展開成多列。
+ *
+ *   **費用欄位為何在提取層算好、而非模板層現算**：費用欄位由
+ *   `backfillLineItemCharges` 依 `FieldDefinitionSet` 的 label / aliases 確定性回填
+ *   （FIX-108 / FIX-126 / FIX-127 累積的比對規則），該欄位定義集只在 Stage 3 的
+ *   配置載入階段取得。模板層拿不到它，只拿得到已回填好的結果。
+ *
+ * @since CHANGE-113 階段二
+ */
+export interface LineItemGroupV3 {
+  /** 分組鍵（該組所屬的 shipment / 參考號，取自組內行項目的 `groupKey`） */
+  groupKey: string;
+  /**
+   * 該組的費用欄位
+   *
+   * @description
+   *   對「組內行項目」單獨重跑確定性回填的結果，只含該組認領到的費用欄位；
+   *   發票層級欄位（invoice_number / invoice_date / currency 等）不在此處，
+   *   由模板層自文件層級欄位補齊。
+   */
+  fields: Record<string, FieldValue>;
+  /** 該組的行項目 */
+  lineItems: LineItemV3[];
+  /**
+   * 該組觀察到的文件原生單號（DHL = Air Waybill Number）
+   *
+   * @description
+   *   僅供人工核對。**不得用於分組** —— 實測同一份文件連續三次讀出三個不同的值
+   *   （詳見 CHANGE-113 §階段一實測結果）。
+   */
+  sourceRefs?: string[];
+}
+
+/**
  * 額外費用項目
  * @description 含術語預分類的額外費用
  * @since CHANGE-021
@@ -369,6 +407,14 @@ export interface UnifiedExtractionResult {
   fields?: Record<string, FieldValue>;
   /** 行項目（含術語預分類） */
   lineItems: LineItemV3[];
+  /**
+   * CHANGE-113 階段二: 依 `groupKey` 切分的行項目分組
+   *
+   * @description
+   *   由 Stage 3 產生（見 {@link Stage3ExtractionResult.lineItemGroups}），
+   *   須沿此結構一路傳遞到持久化層，否則模板層讀不到分組。
+   */
+  lineItemGroups?: LineItemGroupV3[];
   /** 額外費用（含術語預分類） */
   extraCharges?: ExtraChargeV3[];
   /** 整體信心度（GPT 自評，0-100） */
@@ -1242,6 +1288,14 @@ export interface Stage3ExtractionResult {
   fields?: Record<string, FieldValue>;
   /** 行項目（含術語預分類） */
   lineItems: LineItemV3[];
+  /**
+   * CHANGE-113 階段二: 依 `groupKey` 切分的行項目分組
+   *
+   * @description
+   *   只有「行項目帶 `groupKey`」的文件才會有值（一份發票對應多個 shipment）。
+   *   一般發票為 `undefined`，模板層據此落回既有的「一份文件一列」行為。
+   */
+  lineItemGroups?: LineItemGroupV3[];
   /** 額外費用（含術語預分類） */
   extraCharges?: ExtraChargeV3[];
   /** GPT 自評信心度 (0-100) */

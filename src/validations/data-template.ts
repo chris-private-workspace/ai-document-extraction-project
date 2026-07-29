@@ -21,6 +21,7 @@
  */
 
 import { z } from 'zod';
+import { LINE_ITEM_MODES } from '@/types/data-template';
 
 // ============================================================================
 // Field Validation Schemas
@@ -114,6 +115,11 @@ export const createDataTemplateSchema = z.object({
   fields: z.array(dataTemplateFieldSchema)
     .min(1, '至少需要定義一個欄位')
     .max(100, '欄位數量不能超過 100 個'),
+
+  /** CHANGE-113: 行項目分列模式（省略時由 Prisma 的 @default("PIVOT") 決定） */
+  lineItemMode: z.enum(LINE_ITEM_MODES, {
+    message: '請選擇有效的行項目分列模式',
+  }).optional(),
 }).refine(
   (data) => {
     // COMPANY 範圍需要 companyId
@@ -152,6 +158,11 @@ export const updateDataTemplateSchema = z.object({
     .min(1, '至少需要定義一個欄位')
     .max(100, '欄位數量不能超過 100 個')
     .optional(),
+
+  /** CHANGE-113: 行項目分列模式 */
+  lineItemMode: z.enum(LINE_ITEM_MODES, {
+    message: '請選擇有效的行項目分列模式',
+  }).optional(),
 
   /** 是否啟用 */
   isActive: z.boolean().optional(),

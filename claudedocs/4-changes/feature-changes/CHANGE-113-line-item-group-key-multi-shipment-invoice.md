@@ -1,7 +1,7 @@
 # CHANGE-113: 一份發票對應多個 Shipment —— 註解可見性、行項目分組鍵與模板三模式輸出
 
 > **日期**: 2026-07-29
-> **狀態**: 🚧 進行中（階段一 A + B 完成並通過本地實測 2026-07-29；階段二待實作）
+> **狀態**: 🚧 進行中（階段一 A + B 完成並通過本地實測；階段二程式碼完成、待本地端到端驗證 2026-07-29。`EXPAND` 模式未實作，見 §階段二實作範圍）
 > **優先級**: High
 > **類型**: Feature Enhancement
 > **影響範圍**: PDF 轉換層、提取層（LineItemV3、Stage 3 Schema）、模板匹配引擎、DataTemplate Model、DataTemplate UI
@@ -145,7 +145,7 @@ Stage 3 的 structured output schema 由 `stage-3-extraction.service.ts` 的 `ge
 
 ---
 
-### 階段二：模板層按分組展開（設計已修正，待實作）
+### 階段二：模板層按分組展開（✅ 程式碼完成 2026-07-29，待端到端驗證）
 
 > 前置條件：階段一 A + B 驗證通過（GPT 能穩定逐列填對分組鍵）。
 
@@ -202,6 +202,53 @@ lineItemMode String @default("PIVOT") @map("line_item_mode")
 
 優先序：**組 `_ref_number`（GROUP 模式）> 文件 `_ref_number`（CHANGE-048）> `rowKeyField` > 時間戳**。CHANGE-048 實作時需沿用。
 
+實作上，`GROUP` 模式的 rowKey 由 `buildRowUnits()` 直接決定，不經 `extractRowKey()` —— 後者維持原樣供其餘模式使用。CHANGE-048 屆時只需在 `extractRowKey()` 內加入文件層級 `_ref_number` 的優先序，不會與本 CHANGE 衝突。
+
+---
+
+## 階段二實作範圍（2026-07-29 定案）
+
+實作過程中對規劃做了三處修正，均為實作位置或手段的調整，行為規格不變。
+
+### 修正 1：組層級回填改在 Stage 3 執行，而非模板層
+
+**規劃原文**：「`processBatch()` 分組展開、組層級回填」——即在 `template-matching-engine.service.ts` 對每組重跑 `backfillLineItemCharges`。
+
+**實際不可行**：該方法依賴 `FieldDefinitionSet` 的 label / aliases 比對規則（FIX-108 / FIX-126 / FIX-127 累積），而欄位定義集只在 Stage 3 的配置載入階段取得。模板層要重跑，就得把整套比對邏輯連同欄位定義集載入一起搬出來。
+
+**改為**：Stage 3 在完成文件層級回填後，依 `groupKey` 切組並對**每組**再跑一次 `backfillLineItemCharges`，結果存進 `stage3Result.lineItemGroups`。模板層只讀取與展開。
+
+**取捨**：分組資訊固化在提取當下，文件必須重新處理才會有。實際上沒有損失 —— `groupKey` 本身是階段一才加的欄位，任何要用 `GROUP` 模式的文件，本來就必須在階段一之後重新處理過。
+
+### 修正 2：組 `_ref_number` 改用精確比對，不用 `findMatchesInText()`
+
+**規劃原文**：「丟給既有的 `findMatchesInText()` 對主檔」。
+
+**兩個問題**：該函數會遞增主檔的 `matchCount` / `lastMatchedAt`；模板匹配可重複執行，套用它會污染參考編號的匹配統計。且它是為「從一段文字裡找出號碼」設計的 ILIKE substring 查詢，而此處已握有完整號碼。
+
+**改為**：正規化後對 `reference_numbers.number` 精確比對，一次查完整批（`resolveGroupReferenceNumbers()`）。無副作用、不需 `types` 參數、不逐組查詢。
+
+**已知界限**：分組鍵帶額外後綴時（實測有 `RCEX-25-0479 PDI`）精確比對會落空，該列改用原始分組鍵作 rowKey。列不會消失，只是號碼不是主檔的標準格式。若日後發現後綴案例普遍，再改為 substring 比對。
+
+### 修正 3：`EXPAND` 模式未實作
+
+`lineItemMode` 的三個值都已定義於型別、Zod 值域與資料庫，但**只有 `PIVOT` 與 `GROUP` 有展開邏輯**。
+
+原因：使用者本次交辦的是「分組展開 + 組層級回填 + 組層級 `_ref_number`」，三項皆屬 `GROUP`；`EXPAND`（驗收 13）為 Medium 優先級且無需求驅動。更關鍵的是，`EXPAND` 要讓每一列拿到**該筆費用**的欄位值，需要 Stage 3 為每筆行項目各產生一套 `fields` —— 目前只做到組層級。若硬用現有結構實作，每列的 field definition key 都會拿到文件層級的值，正是 H6 禁止的「看似差不多」的近似。
+
+處置：UI 選單只提供 `PIVOT` 與 `GROUP`（`LINE_ITEM_MODE_CHOICES`），選不到 `EXPAND`。資料庫若已存在該值，行為等同 `PIVOT`。原 CHANGE-044 的需求出現時再另立工作項。
+
+### 額外修補：分組結果的逐層透傳（FIX-092 同型漏接）
+
+`stage3Result` 從 Stage 3 到資料庫之間有**兩處逐欄位重建**，任何未列出的欄位會被靜默丟棄：
+
+| 位置 | 說明 |
+|---|---|
+| `extraction-v3.service.ts:661` | `result: { standardFields, fields, lineItems, … }` |
+| `unified-document-processor.service.ts:506` | `stage3Result: { success, fieldCount, lineItems, … }` |
+
+兩處都已補上 `lineItemGroups`，並在 `UnifiedExtractionResult` 與 `unified-processor.ts` 的 `stage3Result` 型別加上對應欄位。這正是 FIX-092 讓 `referenceNumberMatch` 永遠是 NULL 的同一條路徑 —— 不補的話，Stage 3 算好的分組永遠到不了模板層，且不會拋錯。
+
 ---
 
 ## 技術設計
@@ -215,19 +262,31 @@ lineItemMode String @default("PIVOT") @map("line_item_mode")
 | 一B ✅ | `src/types/extraction-v3.types.ts` | 🔧 修改 | `LineItemV3` 加 `groupKey?` / `groupSourceRef?` |
 | 一B ✅ | `src/services/extraction-v3/stages/stage-3-extraction.service.ts` | 🔧 修改 | `generateOutputSchema()` 加兩欄位；`convertRawLineItems()` 透傳；`normalizeGroupToken()` |
 | 一B ✅ | `tests/unit/services/stage-3-line-item-group-key.test.ts` | 🆕 新增 | 釘住透傳行為（7 案例） |
-| 二 | `prisma/schema.prisma` | 🔧 修改 | `DataTemplate.lineItemMode` + migration |
-| 二 | `src/services/template-matching-engine.service.ts` | 🔧 修改 | `processBatch()` 分組展開、組層級回填與 `_ref_*` 注入、`extractRowKey()` 優先序 |
-| 二 | `src/types/template-matching-engine.ts` | 🔧 修改 | options 加模式參數 |
-| 二 | `src/services/data-template.service.ts` | 🔧 修改 | CRUD 帶 `lineItemMode` |
-| 二 | DataTemplate 表單組件 + `messages/{en,zh-TW,zh-CN}/*.json` | 🔧 修改 | 模式選擇器 + 三語言字串 |
+| 二 ✅ | `src/types/extraction-v3.types.ts` | 🔧 修改 | `LineItemGroupV3`；`Stage3ExtractionResult` / `UnifiedExtractionResult` 加 `lineItemGroups` |
+| 二 ✅ | `src/services/extraction-v3/stages/stage-3-extraction.service.ts` | 🔧 修改 | `buildLineItemGroups()` —— 依 `groupKey` 切組並對每組重跑回填 |
+| 二 ✅ | `src/services/extraction-v3/extraction-v3.service.ts` | 🔧 修改 | 透傳 `lineItemGroups`（逐欄位重建處） |
+| 二 ✅ | `src/services/unified-processor/unified-document-processor.service.ts` | 🔧 修改 | 同上（第二處逐欄位重建） |
+| 二 ✅ | `src/types/unified-processor.ts` | 🔧 修改 | `stage3Result` 型別加 `lineItemGroups` |
+| 二 ✅ | `prisma/schema.prisma` + migration + `apply-schema-drift.js` | 🔧 修改 | `DataTemplate.lineItemMode`（Azure 需 gated 執行，見下） |
+| 二 ✅ | `src/services/template-matching-engine.service.ts` | 🔧 修改 | `buildRowUnits()` 分組展開 + `resolveGroupReferenceNumbers()`；`processBatch()` 改吃列單元；`extractMappedFields()` 拆為 `extractFieldValues()` + `flattenChargeItems()` |
+| 二 ✅ | `src/types/template-matching-engine.ts` | 🔧 修改 | 新增 `TemplateRowUnit` |
+| 二 ✅ | `src/types/data-template.ts` + `src/validations/data-template.ts` | 🔧 修改 | `LineItemMode` / `LINE_ITEM_MODES` / Zod 值域 |
+| 二 ✅ | `src/services/data-template.service.ts` | 🔧 修改 | CRUD 帶 `lineItemMode` |
+| 二 ✅ | `DataTemplateForm.tsx` + `messages/{en,zh-TW,zh-CN}/dataTemplates.json` | 🔧 修改 | 模式選擇器 + 三語言字串 |
+| 二 ✅ | `tests/unit/services/template-matching-group-expansion.test.ts` | 🆕 新增 | 展開行為 15 案例 |
+| 二 ✅ | `tests/unit/services/stage-3-line-item-group-key.test.ts` | 🔧 修改 | 追加階段二分組產生 7 案例 |
 
-**不需修改**：`src/services/transform/aggregate.transform.ts`。
+**不需修改**：`src/services/transform/aggregate.transform.ts`（分組責任留在呼叫端，聚合器維持單一職責）。
 
 ### 資料庫影響
 
-階段一無。階段二新增 `data_templates.line_item_mode`（有預設值、向後相容）。
+階段一無。階段二新增 `data_templates.line_item_mode`（`VARCHAR(20)`、預設 `'PIVOT'`、向後相容）。
 
-> ⚠️ 依 [[feedback_azure_migration_needs_schema_drift_entry]]：Azure 容器啟動流程**不執行** `migrate deploy`，PR 內的 migration 對非空的 Azure 資料庫無效。階段二部署前必須把此 DDL 轉為冪等寫法加進 `prisma/apply-schema-drift.js` 的 `MIGRATIONS`，並帶 `RUN_SCHEMA_DRIFT_FIX=true` 執行一次，否則新程式碼讀取新欄位會出現 P2022。
+- Migration：`prisma/migrations/20260729120000_change113_add_line_item_mode_to_data_template/`
+- 本地：已以 `npx prisma db push` 套用（`prisma migrate dev` 因既有 migration 基線問題無法建立 shadow database —— 屬 CHANGE-056 待處理的 pre-existing 狀況，與本 CHANGE 無關）
+- Azure：冪等 DDL 已加進 `prisma/apply-schema-drift.js` 的 `MIGRATIONS`（id `CHANGE-113 data_templates.line_item_mode`）
+
+> ⚠️ 依 [[feedback_azure_migration_needs_schema_drift_entry]]：Azure 容器啟動流程**不執行** `migrate deploy`，PR 內的 migration 對非空的 Azure 資料庫無效。部署時必須帶 `RUN_SCHEMA_DRIFT_FIX=true` 執行一次，否則新程式碼讀取 `lineItemMode` 會出現 P2022。
 
 ---
 
@@ -334,8 +393,18 @@ env 的 `FEATURE_EXTRACTION_V3_1=true` **不會**被這裡讀到 —— 生產�
 | 10 | 二 | 組層級號碼 | 兩列的 `shipment_number` 分別為各自的號碼（驗證缺口 1 已解） | High |
 | 11 | 二 | 組內金額 | 兩列的費用合計分別為 317.42 與 2,962.58（驗證缺口 2、3 已解） | High |
 | 12 | 二 | 模式預設 | 既有 DataTemplate 未設定時為 `PIVOT`，輸出與現況一致 | High |
-| 13 | 二 | EXPAND 模式 | 1 筆費用產生 1 列（原 CHANGE-044 需求） | Medium |
-| 14 | 全 | 型別 / 規範 / i18n | `type-check`、`lint`、`i18n:check` 通過 | High |
+| 13 | 二 | ~~EXPAND 模式~~ | **本次不實作** —— 見 §階段二實作範圍 修正 3 | Medium |
+| 14 | 全 ✅ | 型別 / 規範 / i18n | `type-check`、`lint`、`i18n:check` 通過 | High |
+
+驗收 9-12 的**單元測試層級**已於 2026-07-29 通過（`template-matching-group-expansion.test.ts` 15 案例 + `stage-3-line-item-group-key.test.ts` 追加 7 案例，全庫 362 通過 / 2 跳過）。**尚未做的是本地端到端驗證** —— 需重新處理 DHL 文件、把模板設為 `GROUP`、實際加進模板實例確認產出兩列。
+
+端到端驗證前必須先完成的資料設定（缺口 2，屬設定非程式碼）：
+
+| # | 項目 | 說明 |
+|---|---|---|
+| 1 | DHL 欄位定義集補燃油附加費欄位 | 現行僅 2 欄且無燃油，湊不出 317.42 |
+| 2 | `freight` 映射改為涵蓋「標準費用 + 燃油」 | 現為 `DIRECT`，需改 `FORMULA` 或組層級 `AGGREGATE` |
+| 3 | 重新處理 DHL 文件 | 分組資訊在提取時固化，舊結果沒有 `lineItemGroups` |
 
 ---
 
@@ -351,8 +420,9 @@ env 的 `FEATURE_EXTRACTION_V3_1=true` **不會**被這裡讀到 —— 生產�
 | 6 | 單一 shipment 回歸 | 重跑 Nippon / CEVA 既有文件 | 分組欄位為空，其餘輸出與先前一致 |
 | 7 | GROUP 模式 | DataTemplate 設為 `GROUP`，加入 DHL 文件 | 2 列，shipment_number 與金額均正確 |
 | 8 | PIVOT 回歸 | 既有模板實例加入文件 | 行為與現況完全相同 |
-| 9 | 分組鍵缺失 | 移除部分 `groupKey` 後執行 GROUP 模式 | 落回 `groupSourceRef`；兩者皆無則整份併為一組 |
+| 9 | 分組鍵缺失 | 移除部分 `groupKey` 後執行 GROUP 模式 | 未標記的行項目不歸入任何組（**不**落回 `groupSourceRef` —— 該欄位已實測不可靠）；完全沒有 `groupKey` 則整份維持一列 |
 | 10 | 多文件同分組鍵 | 兩份文件含相同 shipment 號碼 | 合併為同一列（`sourceDocumentIds` 含 2 個 ID） |
+| 11 | 分組鍵對不到主檔 | 分組鍵帶後綴（如 `RCEX-25-0479 PDI`） | 該列以原始分組鍵作 rowKey，列不消失、也不與他組共用 rowKey |
 
 ---
 
@@ -361,10 +431,11 @@ env 的 `FEATURE_EXTRACTION_V3_1=true` **不會**被這裡讀到 —— 生產�
 | 階段 | 內容 | 出口條件 |
 |---|---|---|
 | 一B ✅ | 型別 + Schema + 透傳 + 測試 | 已完成（驗收 5） |
-| 一A | 註解補畫 + 候選清單注入 | 驗收 1-4 通過 |
-| — | **檢查點：本地重跑 DHL 文件，確認分組穩定度** | 驗收 6-8 通過，使用者確認 |
-| 二 | Prisma 欄位 + 分組展開 + 組層級回填 + UI/i18n | 驗收 9-14 通過 |
-| — | **本地端到端：模板實例產出兩列、金額正確** | 使用者確認後才部署 |
+| 一A ✅ | 註解補畫 + 候選清單注入 | 已完成（驗收 1-4） |
+| — ✅ | **檢查點：本地重跑 DHL 文件，確認分組穩定度** | 已完成（連跑 3 次結果一致，驗收 6-8） |
+| 二 ✅ | Prisma 欄位 + 分組展開 + 組層級回填 + UI/i18n | 程式碼完成，單元測試涵蓋驗收 9-12、14 |
+| — ⏳ | **本地端到端：模板實例產出兩列、金額正確** | **未執行** —— 需先補 DHL 欄位定義與映射（見驗收表下方），使用者確認後才部署 |
+| — ⏳ | Azure 部署 | 需手動 `az acr build` + `RUN_SCHEMA_DRIFT_FIX=true` + 建立 DHL Stage 3 Prompt |
 
 階段一若因風險 #2、#3 無法達標，**不進入階段二** —— 改回報並重新評估（例如升級為座標對應的確定性方案）。
 
