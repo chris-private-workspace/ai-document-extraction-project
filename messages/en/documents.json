@@ -131,6 +131,13 @@
     "failed": "Retry failed: {message}",
     "button": "Retry"
   },
+  "reprocess": {
+    "button": "Reprocess",
+    "success": "Reprocessing started",
+    "failed": "Reprocess failed: {message}",
+    "confirmTitle": "Reprocess this document?",
+    "confirmDescription": "\"{fileName}\" will be extracted again using the current field definition set, prompts and mapping rules. The existing extraction result will be replaced, and AI processing costs will be incurred."
+  },
   "detail": {
     "title": "Document Details",
     "backToList": "Back to List",
