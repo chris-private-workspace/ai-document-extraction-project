@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 測試回報「Nippon 的 VAT 7% 拿不到」（`NEX_RCIM250001_202.pdf`）
 > **影響頁面/功能**: Stage 3 欄位提取 → 模板實例欄位值
 > **優先級**: 中（該欄位在任何情況下都不可能有值，且下游公式靜默算成 0）
-> **狀態**: ✅ 已修復（2026-07-29，Azure DEV 設定資料修正）
+> **狀態**: ✅ 已修復並驗證（2026-07-29，Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`）
 
 ---
 
@@ -88,11 +88,42 @@ vat_7.fieldType: "lineItem" → "standard"（label / aliases / category / dataTy
 
 ---
 
-## 尚待驗證
+## 驗證結果（2026-07-29）✅ 已取得
 
-**改設定不會回溯既有提取結果** —— 需重新處理一份 Nippon 文件才會生效。
+改設定不回溯既有提取結果，故由使用者在 Azure DEV 重新上傳同一份 PDF 處理一次（`NEX_RCIM250001_202.SIGNED. (1).pdf`，文件 `a8e2b366-c814-43f6-98f9-6c73950467c3`，提取於 `2026-07-29T02:50:53Z`）。原 7/23 那份未被觸碰，成為天然對照組。
 
-且本次修復只移除了「只在明細行找」的誤導，**沒有主動指示 GPT 去總額下方找**。若重新處理後 `vat_7` 仍為 null，下一步是替該欄位填 `extractionHints`（`FieldDefinitionEntry.extractionHints`，會由 `buildFieldDefinitionsSection` 第 939-941 行以 `(Hints: ...)` 注入 prompt），例如「印在發票總金額下方的稅額，不在費用明細行內」。
+| 項目 | 7/23（改前） | 7/29（改後） |
+|------|-------------|-------------|
+| `vat_7` | `null` / 信心度 0 / 無 `source` | **`1617`** / 信心度 95 / **無 `source`** |
+| `subtotal` | 66223 | **65323** |
+| `total_amount` | 66940 | 66940 |
+| 平均信心度 | 97.55 | 96.80 |
+
+`vat_7` 沒有 `source` 標記，代表值來自 **GPT 直接提取**而非 `backfillLineItemCharges` 回填 —— 正是改為 `standard` 後預期的路徑。`field_mappings` 同步落地：
+
+```json
+"vat_7": { "value": 1617, "source": "unified", "rawValue": "1617",
+           "confidence": 97, "extractionMethod": "DIRECT" }
+```
+
+**未使用 `extractionHints`** —— 原本預備的「若仍為 null 就補提示」這一步不需要了。單純移除「只在明細行找」的誤導就足以讓模型正確歸戶。
+
+### 意外收穫：`subtotal` 一併變準
+
+```
+lineItems 加總 = 500 + 1650 + 13950 + 2100 + 2100 + 2800 + 36191 + 6032 = 65323
+65323 (subtotal) + 1617 (vat_7) = 66940 (total_amount)  ✓ 完全閉合
+```
+
+改前的 `subtotal` 66223 是錯值（66940 − 717）—— 那是模型在 VAT 無處可歸的情況下湊出來的。`vat_7` 有了正確去處之後，summary 區的數字不再互相擠壓，整張發票的加總關係自洽。
+
+> 這是把欄位歸錯類的隱性代價：不只該欄位取不到，**相鄰欄位也會被連累失準**，而後者不會有任何錯誤訊號。
+
+> 附帶一提：label 是「VAT 7%」但 1617 / 65323 ≈ 2.5%。標籤與實際稅率對不上屬資料面問題，不影響提取正確性 —— 取到的數字與發票上印的一致。
+
+### 下游尚未確認
+
+該文件目前未加入任何模板實例（`templateRowCount: 0`）。依現有值，Inbound 映射的 `{handling_charge} + {empty_container_placement} + {vat_7}` 應算出 **2117**（500 + 0 + 1617），對比 7/23 的 500；`transform_diagnostics.handling` 應只剩 `empty_container_placement`，`vat_7` 會從缺失清單消失。待該文件加入實例後可確認。
 
 ---
 

@@ -294,5 +294,5 @@
 | [FIX-140](4-changes/bug-fixes/FIX-140-entrypoint-nonempty-flag-check-false-still-runs.md) | entrypoint nonempty flag check false still runs | ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix140-20260728151614`；以保留 `fa… |
 | [FIX-141](4-changes/bug-fixes/FIX-141-main-branch-protection-never-applied.md) | main branch protection never applied | ✅ 已修復（2026-07-28） |
 | [FIX-142](4-changes/bug-fixes/FIX-142-template-field-mapping-excludes-pending-companies.md) | template field mapping excludes pending companies | ✅ 已修復（2026-07-29） |
-| [FIX-143](4-changes/bug-fixes/FIX-143-summary-area-vat-field-typed-as-lineitem.md) | summary area vat field typed as lineitem | ✅ 已修復（2026-07-29，Azure DEV 設定資料修正） |
+| [FIX-143](4-changes/bug-fixes/FIX-143-summary-area-vat-field-typed-as-lineitem.md) | summary area vat field typed as lineitem | ✅ 已修復並驗證（2026-07-29，Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`） |
 
