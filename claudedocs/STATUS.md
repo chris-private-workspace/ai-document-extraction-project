@@ -7,17 +7,16 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 110 | CHANGE-112 | **CHANGE-113** |
-| FIX | 145 | FIX-143 | **FIX-144** |
+| CHANGE | 111 | CHANGE-113 | **CHANGE-114** |
+| FIX | 146 | FIX-144 | **FIX-145** |
 
-## 📋 未開始（25）
+## 📋 未開始（24）
 
 > 完全未動工的規劃。
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
 | [CHANGE-029](4-changes/feature-changes/CHANGE-029-reference-number-ui-consistency.md) | reference number ui consistency | ⏳ 待實作 |
-| [CHANGE-044](4-changes/feature-changes/CHANGE-044-line-item-hybrid-dual-mode.md) | line item hybrid dual mode | ⏳ 待實作（依賴 CHANGE-043 完成 + 測試通過） |
 | [CHANGE-048](4-changes/feature-changes/CHANGE-048-ref-number-as-row-key.md) | ref number as row key | ⏳ 待實作（待 CHANGE-047 完成後評估） |
 | [CHANGE-052](4-changes/feature-changes/CHANGE-052-global-admin-role-name-unification.md) | global admin role name unification | 📋 規劃中 |
 | [CHANGE-056](4-changes/feature-changes/CHANGE-056-prisma-migration-baseline.md) | prisma migration baseline | 📋 規劃中（待 CHANGE-055 Phase 1 架構評審完成後實施） |
@@ -42,7 +41,7 @@
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 
-## 🚧 進行中 / 部分完成（21）
+## 🚧 進行中 / 部分完成（22）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -55,6 +54,7 @@
 | [CHANGE-079](4-changes/feature-changes/CHANGE-079-city-scope-idor-unified-fix.md) | city scope idor unified fix | ✅ 已實作（程式碼層面，2026-06-10）：6 套用點全部完成；單元測試 + 執行期待驗證 |
 | [CHANGE-091](4-changes/feature-changes/CHANGE-091-template-instance-flow-ux-async-progress.md) | template instance flow ux async progress | 🚧 Phase 1 已完成（2026-06-26）／Phase 2 待實作 |
 | [CHANGE-095](4-changes/feature-changes/CHANGE-095-allow-editing-company-code.md) | allow editing company code | 🔬 待 E2E 驗證（實作完成、type-check/lint 通過；使用者自行測試中） |
+| [CHANGE-113](4-changes/feature-changes/CHANGE-113-line-item-group-key-multi-shipment-invoice.md) | line item group key multi shipment invoice | 🚧 進行中（階段一程式碼完成 2026-07-29，待部署後實機驗證；階段二未開始） |
 | [FIX-065](4-changes/bug-fixes/FIX-065-mapping-api-auth-and-city-scope.md) | mapping api auth and city scope | 🔧 認證已修復（2026-06-10）；城市範圍 IDOR 留 WP-4 |
 | [FIX-067](4-changes/bug-fixes/FIX-067-v1-confidence-prompts-classified-auth.md) | v1 confidence prompts classified auth | 🔧 部分修復（2026-06-10）：confidence/prompts/classified 已修；`/api/v1` 留 WP-2… |
 | [FIX-069](4-changes/bug-fixes/FIX-069-redos-safe-regex-execution.md) | redos safe regex execution | ✅ 核心已完成（2026-06-11，程式碼層面；執行期 staging 驗證待部署） |
@@ -70,12 +70,13 @@
 | [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通… |
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
 
-## ❓ 狀態無法解析（1）
+## ❓ 狀態無法解析（2）
 
 > 缺少 `> **狀態**:` 欄位或狀態文字無法歸類 —— 新檔不應出現在此區。
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
+| [CHANGE-044](4-changes/feature-changes/CHANGE-044-line-item-hybrid-dual-mode.md) | line item hybrid dual mode | ❌ 已取消（2026-07-29 併入 [CHANGE-113](CHANGE-113-line-item-group-key-multi… |
 | [FIX-119](4-changes/bug-fixes/FIX-119-stage2-overfit-identification-keywords.md) | stage2 overfit identification keywords | 🔴 已回滾 —— 問題分析成立，但實作導致辨識準確度明顯下降，已還原至修改前狀態（見 §實作嘗試與回滾）。問題本身尚未解決。 |
 
 ## ⏸️ 已取代 / 已升級（3）
@@ -86,7 +87,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（205）
+## ✅ 已完成（206）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -294,5 +295,6 @@
 | [FIX-140](4-changes/bug-fixes/FIX-140-entrypoint-nonempty-flag-check-false-still-runs.md) | entrypoint nonempty flag check false still runs | ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix140-20260728151614`；以保留 `fa… |
 | [FIX-141](4-changes/bug-fixes/FIX-141-main-branch-protection-never-applied.md) | main branch protection never applied | ✅ 已修復（2026-07-28） |
 | [FIX-142](4-changes/bug-fixes/FIX-142-template-field-mapping-excludes-pending-companies.md) | template field mapping excludes pending companies | ✅ 已修復（2026-07-29） |
-| [FIX-143](4-changes/bug-fixes/FIX-143-summary-area-vat-field-typed-as-lineitem.md) | summary area vat field typed as lineitem | ✅ 已修復（2026-07-29，Azure DEV 設定資料修正） |
+| [FIX-143](4-changes/bug-fixes/FIX-143-summary-area-vat-field-typed-as-lineitem.md) | summary area vat field typed as lineitem | ✅ 已修復並驗證（2026-07-29，Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`） |
+| [FIX-144](4-changes/bug-fixes/FIX-144-completed-documents-have-no-reprocess-entry.md) | completed documents have no reprocess entry | ✅ 已修復（2026-07-29） |
 

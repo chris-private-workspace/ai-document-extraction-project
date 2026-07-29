@@ -1,12 +1,20 @@
 # CHANGE-044: Line Item Hybrid 雙模式 — DataTemplate 配置 Pivot/Expand 輸出模式
 
 > **日期**: 2026-02-25
-> **狀態**: ⏳ 待實作（依賴 CHANGE-043 完成 + 測試通過）
+> **狀態**: ❌ 已取消（2026-07-29 併入 [CHANGE-113](CHANGE-113-line-item-group-key-multi-shipment-invoice.md)）
 > **優先級**: Medium
 > **類型**: Feature Enhancement
 > **影響範圍**: DataTemplate Model、Template Matching Engine、DataTemplate UI
 > **前置分析**: `docs/05-analysis/2026-02-25-ARCH-line-item-pivot-design.md` §2.2 + §3.3
 > **前置條件**: CHANGE-043（方案 Y: Pivot 展平策略）已完成且驗證通過
+
+---
+
+## ⚠️ 本 CHANGE 已併入 CHANGE-113（2026-07-29）
+
+DHL 發票（一份發票對應多個 shipment）需要**第三種**輸出模式：1 個 shipment = 1 列、組內費用再 pivot 成欄。三種模式共用同一個 `lineItemMode` 欄位與同一段分列邏輯，若本 CHANGE 先行實作，CHANGE-113 會被迫重構它的成果。
+
+故 `lineItemMode` 的三個值（`PIVOT` / `EXPAND` / `GROUP`）改由 [CHANGE-113](CHANGE-113-line-item-group-key-multi-shipment-invoice.md) 一次定義完成，**本文件以下內容僅保留作為 EXPAND 模式的需求背景**，不再單獨實作。
 
 ---
 

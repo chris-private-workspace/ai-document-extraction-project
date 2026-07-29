@@ -131,6 +131,13 @@
     "failed": "重試失敗：{message}",
     "button": "重試"
   },
+  "reprocess": {
+    "button": "重新處理",
+    "success": "已開始重新處理",
+    "failed": "重新處理失敗：{message}",
+    "confirmTitle": "確定要重新處理這份文件？",
+    "confirmDescription": "將以目前的欄位定義集、Prompt 與映射規則重新提取「{fileName}」。現有的提取結果會被取代，並會產生 AI 處理費用。"
+  },
   "detail": {
     "title": "文件詳情",
     "backToList": "返回列表",

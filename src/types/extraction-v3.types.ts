@@ -280,6 +280,31 @@ export interface LineItemV3 {
   confidence: number;
   /** 是否需要人工分類 */
   needsClassification?: boolean;
+  /**
+   * 分組鍵 —— 該筆費用所屬的 shipment / 參考號
+   *
+   * @description
+   *   用於「一份文件含多個 shipment」的發票（如 DHL：一張發票對應多個 AWB，
+   *   每個 AWB 各有自己的費用）。一般發票不填，行為與現況完全相同。
+   *
+   *   本欄位多來自使用者在文件上補註的內容 —— 只有使用者能說明每一列對應
+   *   哪個 shipment，因此也可能漏標或位置偏移；`groupSourceRef` 提供第二個
+   *   訊號以便察覺標註問題。
+   *
+   * @since CHANGE-113 階段一
+   */
+  groupKey?: string;
+  /**
+   * 分組的文件原生單號
+   *
+   * @description
+   *   該組在文件上印刷的承運商單號（DHL = Air Waybill Number）。
+   *   與 `groupKey` 不同，本欄位是文件原生印刷內容、OCR 穩定度高，
+   *   供事後交叉核對，並在 `groupKey` 讀不到時作為備援分組依據。
+   *
+   * @since CHANGE-113 階段一
+   */
+  groupSourceRef?: string;
 }
 
 /**

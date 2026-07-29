@@ -684,6 +684,19 @@ export class Stage3ExtractionService {
               unitPrice: { type: 'number' },
               amount: { type: 'number' },
               confidence: { type: 'number', minimum: 0, maximum: 100 },
+              // CHANGE-113 階段一：多 shipment 發票的分組資訊。
+              // 刻意不列入 required —— 絕大多數發票只有一個 shipment，
+              // 設為必填會迫使 GPT 為它們編造分組鍵。
+              groupKey: {
+                type: 'string',
+                description:
+                  'Shipment / reference number this charge belongs to. Only fill when the invoice covers multiple shipments and the document states which shipment each row belongs to. Leave out otherwise.',
+              },
+              groupSourceRef: {
+                type: 'string',
+                description:
+                  'Carrier-native tracking number printed on the document for this group (e.g. DHL Air Waybill Number). Only fill when the invoice covers multiple shipments.',
+              },
             },
             required: ['description', 'amount'],
           },
@@ -1465,8 +1478,30 @@ Respond in valid JSON format matching the provided schema.`;
         amount: (rawItem.amount as number) || 0,
         confidence: (rawItem.confidence as number) ?? 85,
         needsClassification: !rawItem.category,
+        // CHANGE-113 階段一：分組資訊必須在此明確透傳 —— 本函數是「逐欄位重建」，
+        // 未列出的欄位一律被靜默丟棄（同 FIX-092 referenceNumberMatch 的漏接模式）。
+        groupKey: this.normalizeGroupToken(rawItem.groupKey ?? rawItem.group_key),
+        groupSourceRef: this.normalizeGroupToken(
+          rawItem.groupSourceRef ?? rawItem.group_source_ref
+        ),
       };
     });
+  }
+
+  /**
+   * 正規化分組 token
+   *
+   * @description
+   *   CHANGE-113 階段一：GPT 對「這筆沒有分組」的表達方式不一致 —— 可能省略欄位、
+   *   回空字串、或回只有空白字元的字串。統一收斂為 undefined，避免第二階段
+   *   把空字串當成一個有效的分組鍵而產生空 rowKey 的列。
+   *
+   * @since CHANGE-113 階段一
+   */
+  private normalizeGroupToken(value: unknown): string | undefined {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   /**

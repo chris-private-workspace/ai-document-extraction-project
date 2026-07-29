@@ -40,7 +40,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
-import { canRetryStatus, type DocumentStatusKey } from '@/lib/document-status'
+import { ReprocessButton } from '@/components/features/document/ReprocessButton'
+import {
+  canRetryStatus,
+  canReprocessStatus,
+  type DocumentStatusKey,
+} from '@/lib/document-status'
 
 // ============================================================
 // Types
@@ -85,6 +90,11 @@ export function DocumentDetailHeader({
   //          原本硬編碼 ['OCR_FAILED', 'FAILED'] 漏掉 REF_MATCH_FAILED，
   //          導致該狀態的文件在列表頁有重試按鈕、進到詳情頁卻沒有。
   const isRetryable = canRetryStatus(document.status)
+
+  // FIX-144: 已處理成功的文件也需要重跑入口（設定變更後套用新設定）。
+  //          後端 retryProcessing 早已允許 MAPPING_COMPLETED / OCR_COMPLETED，
+  //          缺的只是前端沒給按鈕 —— 使用者按不到任何東西。
+  const isReprocessable = canReprocessStatus(document.status)
 
   // 處理下載
   const handleDownload = React.useCallback(async () => {
@@ -177,6 +187,16 @@ export function DocumentDetailHeader({
           <RetryButton
             documentId={document.id}
             onRetry={onRefresh}
+            size="sm"
+          />
+        )}
+
+        {/* Reprocess（FIX-144）—— 與 Retry 互斥：失敗走重試、成功走重新處理 */}
+        {isReprocessable && (
+          <ReprocessButton
+            documentId={document.id}
+            fileName={document.fileName}
+            onReprocess={onRefresh}
             size="sm"
           />
         )}

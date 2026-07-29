@@ -79,6 +79,22 @@ export interface StatusConfig {
   isError: boolean
   /** 是否可重試 */
   canRetry: boolean
+  /**
+   * 是否可重新處理（FIX-144）
+   *
+   * @description
+   *   與 `canRetry` 的差別在語意與適用對象：
+   *   - `canRetry`：**失敗**後再試一次（OCR_FAILED / REF_MATCH_FAILED / FAILED）
+   *   - `canReprocess`：文件已處理**成功**，但因設定變更（欄位定義集、Prompt、映射）
+   *     需要用新設定重跑一次
+   *
+   *   兩者互斥 —— 失敗狀態只出現「重試」，成功狀態只出現「重新處理」，
+   *   避免同一排出現兩個語意相近的按鈕。
+   *
+   *   ⚠️ 取值必須是 `document.service.ts` `retryProcessing` 的 `retryableStatuses`
+   *   子集，否則按鈕按下去會被後端擋回 400。
+   */
+  canReprocess?: boolean
   /** 排序順序 */
   order: number
 }
@@ -137,6 +153,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatusKey, StatusConfig> = {
     isProcessing: false,
     isError: false,
     canRetry: false,
+    canReprocess: true,
     order: 4,
   },
   OCR_FAILED: {
@@ -173,6 +190,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatusKey, StatusConfig> = {
     isProcessing: false,
     isError: false,
     canRetry: false,
+    canReprocess: true,
     order: 7,
   },
   REF_MATCH_FAILED: {
@@ -345,6 +363,24 @@ export function getProcessingStage(status: string): number {
 export function canRetryStatus(status: string): boolean {
   const config = getStatusConfig(status)
   return config.canRetry
+}
+
+/**
+ * 判斷狀態是否可「重新處理」（FIX-144）
+ *
+ * @description
+ *   用於已處理成功、但因設定變更需以新設定重跑的文件。與 {@link canRetryStatus}
+ *   互斥：失敗狀態走重試、成功狀態走重新處理。
+ *
+ *   ⚠️ 後端入口與重試共用 `POST /api/documents/[id]/retry`
+ *   （`retryProcessing` 的允許清單同時涵蓋兩者），故此處的 true 值必須是該清單的子集。
+ *
+ * @param status - 狀態鍵值
+ * @returns 是否可重新處理
+ */
+export function canReprocessStatus(status: string): boolean {
+  const config = getStatusConfig(status)
+  return config.canReprocess ?? false
 }
 
 /**
