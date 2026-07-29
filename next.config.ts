@@ -24,7 +24,13 @@ const nextConfig: NextConfig = {
   // externals 對「靜態 import 的 route handler 依賴」無效（只對 pdf-to-img 那種 await import()
   // 動態載入有效），serverExternalPackages 才是 App Router 的正解。搭配 FIX-081 Dockerfile 的
   // COPY node_modules/pdfkit（standalone trace 不含 .afm 資產檔）。
-  serverExternalPackages: ['re2-wasm', 'pdfkit'],
+  // CHANGE-113: @napi-rs/canvas 同理。它是 native 套件（skia.*.node），webpack 沒有
+  // 對應 loader，掃到就會 "Module parse failed: Unexpected character"。
+  // 先前它只被 pdf-to-img 內部 require，而 pdf-to-img 已列在下方 webpack externals，
+  // 所以 webpack 從未追到它；階段一 A 改為由 pdf-converter 直接 await import()，
+  // 打包器便開始追進 node_modules 的 .node 二進位檔而 build 失敗。
+  // Dockerfile 已 COPY @napi-rs/canvas 與其 linux-x64-gnu prebuilt（FIX-080），runtime 找得到。
+  serverExternalPackages: ['re2-wasm', 'pdfkit', '@napi-rs/canvas'],
 
   // ESLint configuration for build
   // Note: Warnings are treated as errors in production build by default
