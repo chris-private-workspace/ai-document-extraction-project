@@ -5,7 +5,8 @@
 > **根因確認方式**: 拉下線上映像，直接讀 `.next` 編譯產物
 > **影響範圍**: `src/services/extraction-v3/utils/pdf-converter.ts`（`loadPdfjs`）、`next.config.ts`、`src/services/processing-result-persistence.service.ts`
 > **優先級**: 高（CHANGE-113 階段一的三項機制在任何 production build 上都無效）
-> **狀態**: 🚧 已實作，待 Azure DEV 端到端驗證
+> **狀態**: ✅ 已完成（2026-07-30 第三輪部署，五項驗證訊號全部達標）
+> **修復輪次**: 3 輪（第一輪修錯層、第二輪讓訊號可見、第三輪命中真根因）
 
 ---
 
@@ -299,13 +300,70 @@ numPages      = 2
 
 驗證：`type-check` ✅、`test` 392 通過 / 2 跳過 ✅、`build` ✅、`lint` 無 error。
 
-### 下一輪部署後要確認
+### 下一輪部署後要確認（部署**前**登記的判準）
 
 1. 容器 log **不再**出現 `[pdf-converter] collectPageHints failed:`
 2. `FILE_PREPARATION.data.annotationCount` = **2**
 3. `rotatedPages` 非空（第 2 頁 90 度）
 4. `gpt_prompt` 含 `Shipment Group Candidates` 段落
 5. `groupSourceRef` 變成 10 位（`8365573366` / `2407071774`）
+
+---
+
+## 第三輪部署結果（2026-07-30 10:17 UTC）—— ✅ 五項全部達標
+
+映像 `dev-fix146r3-20260730180535`（來源 `53c69b7`），10:17:42 `✓ Ready`。文件於 10:25:32 重新處理。
+
+| # | 判準 | 修復前 | 實測 | 結果 |
+|---|---|---|---|---|
+| 1 | `collectPageHints failed:` | `TypeError: a is not a function` | **未出現** | ✅ |
+| 2 | `annotationCount` | 0 | **2** | ✅ |
+| 3 | `rotatedPages` | `[]` | **`[{ pageNumber: 2, degrees: 90 }]`** | ✅ |
+| 4 | `gpt_prompt` 候選清單 | 無 | **已注入**（見下） | ✅ |
+| 5 | `groupSourceRef`（AWB） | 8 位 `88557336`／`24097724` | **10 位 `8365573366`／`2407071774`** | ✅ |
+
+容器 log 首次出現：`10:25:27 [Stage3] Injected 2 PDF annotation(s) as groupKey candidates`（即證據鏈第 4 項先前缺席的那條）。
+
+### A2 實際注入的內容
+
+```
+Shipment Group Candidates (hand-written annotations found in this PDF):
+- RCIM-25-0111
+- RCIM-25-0113
+
+Rules for the line item `groupKey`:
+1. `groupKey` MUST be copied verbatim from the candidate list above. Never
+   invent, reformat, or derive a value that is not on the list.
+2. Only set `groupKey` when the document shows which shipment a line item
+   belongs to. If you cannot tell, leave it unset for that line item.
+3. Either set `groupKey` on every line item that belongs to a sh...
+```
+
+groupKey 自此有**封閉值域約束** —— 這是先前完全缺失的保障。
+
+### 提取結果
+
+| 費用項目 | 金額 | groupKey | groupSourceRef |
+|---|---|---|---|
+| EXPRESS WORLDWIDE nondoc | 247.5 | `RCIM-25-0111` | `8365573366` |
+| FUEL SURCHARGE | 69.92 | `RCIM-25-0111` | `8365573366` |
+| EXPRESS WORLDWIDE nondoc | 2310 | `RCIM-25-0113` | `2407071774` |
+| FUEL SURCHARGE | 652.58 | `RCIM-25-0113` | `2407071774` |
+
+### 模板實例（`cms7db4ed000001pet7rkij70`）
+
+| row_key | shipment_number | freight | fuel_surcharge_at_origin | status |
+|---|---|---|---|---|
+| `RCIM250111` | RCIM250111 | 247.5 | 69.92 | **VALID** |
+| `RCIM250113` | RCIM250113 | 2310 | 652.58 | **VALID** |
+
+### 判準 5 是最強的證據
+
+前三輪一直無法確認 A3（側躺頁轉正）是否生效 —— 第一輪曾誤把「AWB 與轉正前相同」當成 A3 未生效的理由，後來自行更正為「這是間接推論、不成立」。
+
+本輪 AWB 從 8 位錯誤值變成**正確的 10 位**。第 2 頁轉正 90 度後，模型才讀得對那串小字。這是 A3 生效的**直接**證據，不再是推論。
+
+`filePrepMs` 亦從 8365 → **11193**（+34%），與「多跑一次完整 pdfjs 解析 + sharp 旋轉」的成本一致。先前試圖用此訊號判斷時它落在噪音範圍（8365 vs 8398/9484），現在有明確差異 —— 補充印證，非主要判準。
 
 ---
 
@@ -319,15 +377,30 @@ Stage 3 的 Output Format 段落中，`lineItems` 的 JSON schema **沒有 `grou
 
 | 項目 | 為何不併 |
 |---|---|
-| Azure 上 DHL 沒有預設模板配置，文件不會自動建模板實例（`template_instance_id` 為 null） | 屬設定問題，非程式缺陷；本地亦同 |
+| Azure 上 DHL 沒有預設模板配置，文件不會自動建模板實例（`template_instance_id` 為 null） | 屬設定問題，非程式缺陷；本地亦同。已於第二輪部署前**另行以資料設定解決**（`companies.default_template_id` 設為 `cmrbi0ktk033201o3rivrxb6h`，並把 0 列的舊 DRAFT 實例 `cmrbitl4x033301o3nf7rin7d` 標為 `COMPLETED` 迫使系統自建新實例），無程式改動 |
 | `EXPAND` 模式未實作 | CHANGE-113 階段二範圍 |
 | FIX-145（`prompt-assembly.service.ts` 用不存在的 `cityCode` 查公司） | 獨立缺陷，已有文件 |
 
 ---
 
+## 教訓（三輪走完後的總結）
+
+| # | 教訓 | 出處 |
+|---|---|---|
+| 1 | **讀編譯產物能證明「這一行會失敗」，不能證明「這是最先失敗的那一行」**。判斷執行順序必須有 runtime 訊號 | 第一輪修 `import(pdfjsPath)` 的 stub，但執行流程在前一行 `createRequire` 就拋錯了 |
+| 2 | 「產物看起來對」≠「執行起來對」。改完打包器相關的程式碼，要把 minified 形式**逐字**複製到真實 Node 執行一次 | 第三輪才補上這一步，也因此一次命中 |
+| 3 | 訊號不可見時，**先讓失效說出自己的名字**，再談修復 | 第二輪只加 `console.error` + 透傳，看似繞路，實則是第三輪能一次命中的前提 |
+| 4 | 部署後映像體積無故跳躍（+27 MB）而 `Dockerfile`／`package*.json` 未動 —— 這是根因徵候，要追 | 第一輪看到了但沒追；原因正是 webpack 把 `pdfjs-dist` bundle 進 chunks |
+| 5 | 打包器對 `import('node:*')` 與 `import(變數)` 有**兩種不同**的破壞方式：前者換成 `c.t` 假 namespace（具名解構得 undefined）、後者換成必然拋錯的 missing-module stub。兩者都要繞 | 本 FIX 的改動 1 與改動 6 分別對應 |
+| 6 | dev 與 build 的行為差異在本專案已第二次咬人。任何依賴動態載入／原生模組的機制，驗證**必須**包含 `next build` 一輪 | 前例 memory `feedback_local_login_dev_bypass_vs_build` |
+
+另有一項與程式無關的認知更正：**pdfjs 自己就會繪製 FreeText 註解**（`appearance=false` 時自行生成外觀）。所以 A1 的「補畫」在本案例中屬**有效但無用** —— 模型能讀到 RCIM 號碼與 A1 無關。這點在第一輪曾被誤當成「A1 必定生效」的推論依據。
+
+---
+
 ## 相關
 
-- CHANGE-113 — 本缺陷所屬功能；階段一 A1/A2/A3 的驗證需補 production build 一輪
+- CHANGE-113 — 本缺陷所屬功能；階段一 A1/A2/A3 已於本 FIX 第三輪補上 production build 驗證
 - FIX-079 / FIX-080 / FIX-081 / FIX-083 — 同一類「Next standalone／webpack 對動態依賴處理不當、部署才爆」的前例
 - FIX-092 — 同類型的靜默漏接（`referenceNumberMatch` 因持久化路徑漏欄位而永遠為 null）
 - FIX-145 — 同期在 CHANGE-113 實測中發現的另一個靜默降級缺陷
