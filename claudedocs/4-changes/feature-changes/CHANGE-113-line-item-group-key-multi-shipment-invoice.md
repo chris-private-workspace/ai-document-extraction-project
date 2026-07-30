@@ -566,7 +566,62 @@ DHL 欄位定義集有 3 個 `lineItem` 欄位，原本只映射了 1 個，另�
 | — ✅ | **檢查點：本地重跑 DHL 文件，確認分組正確** | 已完成 —— 但**先前那次「三次一致」的結論不成立**（Prompt 範例污染，見 §階段一結論的重大更正） |
 | 二 ✅ | Prisma 欄位 + 分組展開 + 組層級回填 + UI/i18n | 程式碼完成，單元測試涵蓋驗收 9-12、14 |
 | — ✅ | **本地端到端：模板實例產出兩列、金額正確** | 已完成 2026-07-29 —— 2 列、rowKey `RCIM250111` / `RCIM250113`、freight 247.5 / 2310 |
-| — ⏳ | Azure 部署 | 需手動 `az acr build` + `RUN_SCHEMA_DRIFT_FIX=true` + 建立 DHL Stage 3 Prompt（**且該 Prompt 不可含真實號碼範例**） |
+| — ⏳ | Azure 部署 | 見 §Azure 部署準備。腳本與旗標已就緒（2026-07-30），尚未執行 |
+
+---
+
+## Azure 部署準備（2026-07-30）
+
+### 部署前查證結果
+
+| 查核項 | 結果 |
+|---|---|
+| 線上映像 | `dev-fix142-20260729102003` → 對應 `e9a1fdb`（FIX-142，10:06 合併 → 10:20 建置） |
+| 落後 main | **4 個 commit**：`dbc6afd`、`772dcb2`、`cc0300a`、`c7ebc55` —— 全部屬 CHANGE-113，無夾帶無關變更 |
+| 新增 env | **無**。區間內所有 `process.env` 讀取都在 `scripts/change-113/`（診斷腳本，讀既有變數）；`autoRotatePages` / `paintRotatedAnnotations` 是程式碼層預設值，不走 env |
+| Prisma migration | `20260729120000_change113_add_line_item_mode_to_data_template` —— 已確認 `apply-schema-drift.js:207` 有對應條目，部署須帶 `RUN_SCHEMA_DRIFT_FIX=true` |
+| 一併上線的其他 FIX | FIX-144（已處理文件缺重新處理入口）代碼在 `dbc6afd`。FIX-145 **僅有文件、代碼未實作**，其 bug（`prompt-assembly.service.ts:258` 用不存在的 `cityCode` 欄位查 company）自 2026-01-30 引入、區間內該檔未改動 → **早已在線上**，部署不會使其變差 |
+
+> 對照 FIX-108 的教訓（memory `feedback_deploy_check_image_lag_and_new_env`）：那次只比對工作樹 vs origin/main，結果把 7/10 以來累積的 CHANGE-099/100/102/103 + Epic 23 + FIX-106/107 一次帶上線，且 CHANGE-100/102 的新 env 未設 → 靜默 fallback → 整批 OCR_FAILED。本次兩項風險都已排除。
+
+### 五項資料庫設定（不隨映像走）
+
+程式碼上線**不等於**功能生效 —— 讓 CHANGE-113 真正動起來的五項設定都在資料庫裡。未套用則映像雖新、行為仍是舊的（分組鍵被編造、燃油與文件類運費金額落空、且完全不會展開成多列）。
+
+已實作 `prisma/change113-dhl-setup.js` + entrypoint 三模式旗標 `RUN_CHANGE113_DHL_SETUP=inspect|dryrun|write`：
+
+| 步驟 | 內容 |
+|---|---|
+| 1 | 解析 DHL 公司（`code='DHL'`）—— 0 筆或多筆皆停手，不猜 |
+| 2 | 欄位定義集補 `fuel_surcharge` |
+| 3 | Stage 3 prompt：不存在則**建立**、存在則校正（含偵測真實號碼範例） |
+| 4 | 映射 `fuel_surcharge_at_origin ← fuel_surcharge`、`freight` 改 FORMULA |
+| 5 | 模板 `line_item_mode` 設為 `GROUP` |
+
+**設計要點**：
+
+- **以名稱／code 查找，不用主鍵** —— `scripts/change-113/*` 全部寫死本地 ID，各環境主鍵獨立產生，直接搬會設到錯誤的實體上（或找不到而失敗）
+- **放 `prisma/` 而非 `scripts/`** —— runner 映像只含 `prisma/*` 與 `docker-entrypoint.sh`，不含 `scripts/` 其餘檔亦無 tsx（memory `feedback_azure_runner_excludes_scripts_tsx`）
+- **不寫快照檔** —— 容器無持久檔案系統。改為在寫入前把變更前的值完整印進 log，Log Analytics 的 `AppServiceConsoleLogs` 即還原依據（這幾張表都無版本歷史／rollback）
+- **三模式而非布林** —— 比照 FIX-140：關閉方式是**清空**設定，設成 `false` 不算關閉
+- **各步驟獨立** —— 任一前置缺失只跳過該步，不擋其餘設定
+- **公司重複即停手** —— 挑錯一筆會讓設定掛在沒有文件的公司上且不報錯（memory `project_company_dup_breaks_company_mapping`）
+
+**已驗證**：本地 `inspect` 模式正確判定五步全數「無需變更」（含 prompt 內容逐位元組相符）；prompt 的 INSERT 分支本地永遠走不到，已用交易回滾實測欄位清單對真實 schema 成立（`scripts/change-113/probe-prompt-insert.js`）。
+
+### 部署步驟
+
+| # | 步驟 | 驗證 |
+|---|---|---|
+| 1 | `az acr build --registry acrscmdocprocessingdev`（tag `dev-change113-<timestamp>`） | 輪詢 `az acr task list-runs`；完整 log 取 SAS URL（本機 log 串流會在 `npx prisma generate` 的 `✔` 字元以 cp1252 崩潰，**不影響雲端建置**） |
+| 2 | 設 `RUN_SCHEMA_DRIFT_FIX=true` + `RUN_CHANGE113_DHL_SETUP=inspect` | 先唯讀看 Azure 現況 |
+| 3 | `az webapp config container set` 換映像 | 觸發重啟 |
+| 4 | 讀容器 log：schema drift 是否套用、inspect 回報什麼 | Log Analytics `AppServiceConsoleLogs` |
+| 5 | 依 inspect 結果改 `RUN_CHANGE113_DHL_SETUP=dryrun` → 確認後 `write` | 每次改 app setting 會重啟 |
+| 6 | **清空** `RUN_CHANGE113_DHL_SETUP`、`RUN_SCHEMA_DRIFT_FIX` 設回 false | 避免每次啟動重跑 |
+| 7 | 上傳 DHL 多 shipment 發票端到端驗證 | 兩列、rowKey 為主檔標準號碼、金額 317.42 / 2962.58 |
+
+> ⚠️ 重啟退避約 35 分鐘 —— `az webapp restart`、`stop`+`start`、改 app setting、`config container set` 都可能無法強制立即重啟，常需等下一次自然重試才生效。**別誤判「設定沒生效」**。
 
 階段一若因風險 #2、#3 無法達標，**不進入階段二** —— 改回報並重新評估（例如升級為座標對應的確定性方案）。
 
