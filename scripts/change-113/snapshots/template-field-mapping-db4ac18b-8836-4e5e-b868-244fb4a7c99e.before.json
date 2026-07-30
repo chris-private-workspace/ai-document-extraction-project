@@ -1,0 +1,26 @@
+{
+  "id": "db4ac18b-8836-4e5e-b868-244fb4a7c99e",
+  "name": "DHL Express - Logistics Cost - Inbound Template (Full List)",
+  "mappings": [
+    {
+      "id": "eedf4065-i-0",
+      "order": 0,
+      "isRequired": false,
+      "description": "",
+      "sourceField": "_ref_number",
+      "targetField": "shipment_number",
+      "transformType": "DIRECT",
+      "transformParams": null
+    },
+    {
+      "id": "eedf4065-i-1",
+      "order": 1,
+      "isRequired": false,
+      "description": "",
+      "sourceField": "express_worldwide_nondoc",
+      "targetField": "freight",
+      "transformType": "DIRECT",
+      "transformParams": null
+    }
+  ]
+}

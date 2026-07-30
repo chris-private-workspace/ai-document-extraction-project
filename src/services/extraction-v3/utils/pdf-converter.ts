@@ -52,6 +52,18 @@ export interface PdfConversionConfig {
    * @since CHANGE-113 階段一 A
    */
   paintRotatedAnnotations?: boolean;
+  /**
+   * 是否依內容文字方向自動把側躺頁面轉正（預設 true）
+   *
+   * @description
+   *   保留開關是因為轉正是**啟發式**判斷，且它改變的是送進 GPT 的圖像本身。
+   *   若某類文件被誤判，可用此旗標即時關閉（Azure 部署為手動重建映像，
+   *   沒有旗標就得改碼重建）。
+   *
+   * @see detectTextRotation
+   * @since CHANGE-113 階段一 A3
+   */
+  autoRotatePages?: boolean;
 }
 
 /**
@@ -93,6 +105,15 @@ export interface PdfConversionResult {
    * @description 僅 PDF 來源會有值；供下游將使用者補註的資訊納入提取上下文
    */
   annotations?: PdfAnnotationInfo[];
+  /**
+   * 實際被轉正的頁面（CHANGE-113 階段一 A3）
+   *
+   * @description
+   *   只列出真的有旋轉的頁；沒有任何頁需要轉正時為 undefined。
+   *   供上層記入處理步驟資料，讓「這份文件到底有沒有轉正」可事後查證 ——
+   *   否則轉正是否生效只能靠重新渲染比對。
+   */
+  rotatedPages?: Array<{ pageNumber: number; degrees: number }>;
 }
 
 /**
@@ -118,6 +139,163 @@ interface CollectedAnnotation {
   height: number;
   /** pdfjs 是否畫不出來、需要本流程補畫 */
   needsPaint: boolean;
+}
+
+/**
+ * 單頁從 pdfjs 取得的輔助資訊
+ *
+ * @description
+ *   註解與文字方向都來自同一次 pdfjs 解析 —— 分兩次開檔會重複付出 parse 成本。
+ *
+ * @since CHANGE-113 階段一 A3
+ */
+interface PageHints {
+  annotations: CollectedAnnotation[];
+  /** 內容文字方向（PDF 空間，逆時針角度）；0 代表已是正的 */
+  rotation: PageRotation;
+}
+
+/**
+ * 頁面內容方向（PDF 空間逆時針角度）
+ * @since CHANGE-113 階段一 A3
+ */
+export type PageRotation = 0 | 90 | 180 | 270;
+
+/** 文字方向偏離 90 度倍數超過此角度即視為斜排，不列入統計 */
+const TEXT_DIRECTION_TOLERANCE_DEG = 10;
+
+/** 主方向須佔比多少才採信（低於此值代表方向混雜，寧可不轉） */
+const ROTATION_DOMINANCE_RATIO = 0.6;
+
+/** 可據以判斷方向的最少字元數（太少不足以代表整頁） */
+const ROTATION_MIN_WEIGHT = 20;
+
+/**
+ * 從文字項目的變換矩陣推斷整頁內容方向
+ *
+ * @description
+ *   CHANGE-113 階段一 A3。有些 PDF 的 `/Rotate` 是 0、頁面尺寸也是直向，但**內容
+ *   本身**是橫向表格側著排進去的（實測 DHL 發票第 2 頁即如此：612×792 直向、
+ *   `p.rotate=0`，但整頁文字躺著）。pdfjs 照 PDF 描述渲染完全正確，無從得知該轉正，
+ *   於是送進 GPT 的是一張側躺的圖 —— 實測 GPT 讀側躺小字會出錯（AWB `8365573366`
+ *   被讀成 `88557336`），也讀不準每列對應的 shipment。
+ *
+ *   判斷依據是每個文字項目變換矩陣的 `[a, b]`（書寫方向向量），取其角度後歸入
+ *   0/90/180/270 四個方向，以字元數加權統計主方向。
+ *
+ *   **保守設計**（寧可不轉，不可轉錯）：
+ *   - 斜排文字（偏離 90 度倍數超過 {@link TEXT_DIRECTION_TOLERANCE_DEG}）不計入
+ *   - 主方向佔比未達 {@link ROTATION_DOMINANCE_RATIO} → 回 0（方向混雜）
+ *   - 可用字元數少於 {@link ROTATION_MIN_WEIGHT} → 回 0
+ *   - 掃描件（無文字層）items 為空 → 回 0，行為與改動前完全一致
+ *
+ * @param items - pdfjs `getTextContent()` 的文字項目
+ * @returns 內容方向；0 代表不需轉正
+ *
+ * @since CHANGE-113 階段一 A3
+ */
+export function detectTextRotation(
+  items: Array<{ transform?: number[]; str?: string }>
+): PageRotation {
+  const weights = new Map<PageRotation, number>([
+    [0, 0],
+    [90, 0],
+    [180, 0],
+    [270, 0],
+  ]);
+  let total = 0;
+
+  for (const item of items) {
+    const transform = item.transform;
+    if (!transform || transform.length < 4) continue;
+
+    // 以字元數加權：一頁的方向該由「多數文字」決定，而非項目個數
+    // （一個長句與一個孤立字元對版面的代表性差很多）
+    const weight = (item.str ?? '').trim().length;
+    if (weight === 0) continue;
+
+    const [a, b] = transform;
+    if (a === 0 && b === 0) continue;
+
+    const degrees = normalizeDegrees((Math.atan2(b, a) * 180) / Math.PI);
+    const bucket = (Math.round(degrees / 90) * 90) % 360;
+    if (circularDistance(degrees, bucket) > TEXT_DIRECTION_TOLERANCE_DEG) continue;
+
+    const key = bucket as PageRotation;
+    weights.set(key, (weights.get(key) ?? 0) + weight);
+    total += weight;
+  }
+
+  if (total < ROTATION_MIN_WEIGHT) return 0;
+
+  let best: PageRotation = 0;
+  let bestWeight = 0;
+  for (const [bucket, weight] of weights) {
+    if (weight > bestWeight) {
+      bestWeight = weight;
+      best = bucket;
+    }
+  }
+
+  return bestWeight / total >= ROTATION_DOMINANCE_RATIO ? best : 0;
+}
+
+/**
+ * 由 FreeText 註解的旋轉角推斷頁面內容方向
+ *
+ * @description
+ *   CHANGE-113 階段一 A3 的**備援**訊號，用於掃描件。
+ *
+ *   實測（2026-07-29，DHL_RCIM250111_28699.pdf）：該 PDF 兩頁都是純掃描圖，
+ *   `getTextContent()` 回傳 `items: []` —— {@link detectTextRotation} 完全取不到
+ *   訊號。但同一份文件的 FreeText 註解帶著 `rotation: 90`：使用者在側躺的頁面上
+ *   補註時，會把文字方塊轉到與內容同向才寫得下去。**那個角度就是內容的方向。**
+ *
+ *   訊號強度不如文字層（是使用者行為的間接證據，而非內容本身），因此只在
+ *   文字層取不到方向時才採用。
+ *
+ *   保守設計：採信的方向必須由**過半**註解共同支持，否則回 0。單一註解與
+ *   其他註解方向不一致時（例如一橫一直）視為無法判斷，寧可不轉。
+ *
+ * @param annotations - 該頁的 FreeText 註解
+ * @returns 內容方向；0 代表不需轉正
+ *
+ * @since CHANGE-113 階段一 A3
+ */
+export function detectAnnotationRotation(
+  annotations: Array<{ rotation?: number }>
+): PageRotation {
+  if (annotations.length === 0) return 0;
+
+  const counts = new Map<PageRotation, number>();
+  for (const annotation of annotations) {
+    const raw = annotation.rotation ?? 0;
+    if (!Number.isFinite(raw)) continue;
+    const bucket = normalizeDegrees(Math.round(raw / 90) * 90) as PageRotation;
+    counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+  }
+
+  let best: PageRotation = 0;
+  let bestCount = 0;
+  for (const [bucket, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      best = bucket;
+    }
+  }
+
+  return bestCount * 2 > annotations.length ? best : 0;
+}
+
+/** 角度正規化到 [0, 360) */
+function normalizeDegrees(degrees: number): number {
+  return ((degrees % 360) + 360) % 360;
+}
+
+/** 兩角度之間的最短距離（度），處理 359 與 0 只差 1 度的環狀情形 */
+function circularDistance(a: number, b: number): number {
+  const diff = Math.abs(a - b) % 360;
+  return Math.min(diff, 360 - diff);
 }
 
 /**
@@ -174,15 +352,35 @@ interface PdfjsAnnotation {
   contentsObj?: { str?: string };
   appearance?: unknown;
   rect?: number[];
+  /**
+   * 註解本身的旋轉角度（PDF `/Rotate`，逆時針度數）
+   * @since CHANGE-113 階段一 A3
+   */
+  rotation?: number;
 }
 
 interface PdfjsViewport {
   convertToViewportRectangle(rect: number[]): number[];
 }
 
+/**
+ * pdfjs `getTextContent()` 的文字項目（僅取用到的欄位）
+ * @since CHANGE-113 階段一 A3
+ */
+interface PdfjsTextItem {
+  /** 文字變換矩陣 [a, b, c, d, e, f]，`[a, b]` 為書寫方向向量 */
+  transform?: number[];
+  str?: string;
+}
+
+interface PdfjsTextContent {
+  items: PdfjsTextItem[];
+}
+
 interface PdfjsPage {
   getViewport(params: { scale: number }): PdfjsViewport;
   getAnnotations(params: { intent: string }): Promise<PdfjsAnnotation[]>;
+  getTextContent(): Promise<PdfjsTextContent>;
 }
 
 interface PdfjsDocument {
@@ -204,6 +402,7 @@ export const DEFAULT_PDF_CONVERSION_CONFIG: Required<PdfConversionConfig> = {
   maxWidth: 2048,
   compress: true,
   paintRotatedAnnotations: true,
+  autoRotatePages: true,
 };
 
 /** 支援的 MIME 類型 */
@@ -257,16 +456,20 @@ export class PdfConverter {
 
       const images: string[] = [];
       const annotations: PdfAnnotationInfo[] = [];
+      const rotatedPages: Array<{ pageNumber: number; degrees: number }> = [];
       let pageCount = 0;
 
       const scale = mergedConfig.dpi / 72; // 72 DPI 是 PDF 基準
 
-      // CHANGE-113 階段一 A：抽出 FreeText 註解。使用者以此形式補充的資訊
-      // （如 DHL 發票每列對應的 shipment）不在頁面內容裡，靠 OCR 取不到。
-      // 失敗僅記 warning，不影響主要的轉圖流程。
-      const annotationsByPage = mergedConfig.paintRotatedAnnotations
-        ? await this.collectFreeTextAnnotations(buffer, scale, warnings)
-        : new Map<number, CollectedAnnotation[]>();
+      // CHANGE-113 階段一：從 pdfjs 取兩項輔助資訊 ——
+      //   A. FreeText 註解：使用者以此補充的資訊（如 DHL 發票每列對應的 shipment）
+      //      不在頁面內容裡，靠 OCR 取不到
+      //   B. 內容文字方向：判斷整頁是否側躺、需要轉正
+      // 兩者共用同一次解析。失敗僅記 warning，不影響主要的轉圖流程。
+      const hintsByPage =
+        mergedConfig.paintRotatedAnnotations || mergedConfig.autoRotatePages
+          ? await this.collectPageHints(buffer, scale, warnings)
+          : new Map<number, PageHints>();
 
       // 使用 pdf-to-img 轉換
       const document = await pdf(buffer, { scale });
@@ -285,9 +488,16 @@ export class PdfConverter {
         // 處理圖片
         let imageBuffer = page;
 
+        const hints = hintsByPage.get(pageCount);
+        const pageRotation = mergedConfig.autoRotatePages
+          ? (hints?.rotation ?? 0)
+          : 0;
+
         // CHANGE-113 階段一 A：補畫 pdfjs 渲染不出來的旋轉 FreeText 註解。
-        // 必須在壓縮之前 —— 註解座標以未縮放的原始圖像為基準。
-        const pageAnnotations = annotationsByPage.get(pageCount);
+        // 必須在轉正與壓縮之前 —— 註解座標以未縮放、未旋轉的原始圖像為基準。
+        const pageAnnotations = mergedConfig.paintRotatedAnnotations
+          ? hints?.annotations
+          : undefined;
         if (pageAnnotations?.length) {
           for (const a of pageAnnotations) {
             annotations.push({
@@ -298,7 +508,22 @@ export class PdfConverter {
           }
           const toPaint = pageAnnotations.filter((a) => a.needsPaint);
           if (toPaint.length > 0) {
-            imageBuffer = await this.paintAnnotations(imageBuffer, toPaint, warnings);
+            imageBuffer = await this.paintAnnotations(
+              imageBuffer,
+              toPaint,
+              pageRotation,
+              warnings
+            );
+          }
+        }
+
+        // CHANGE-113 階段一 A3：把側躺的頁面轉正。必須在補畫之後（座標基準）、
+        // 壓縮之前（maxWidth 要套用在最終送給 GPT 的那個方向上）。
+        if (pageRotation !== 0) {
+          const rotated = await this.rotateImage(imageBuffer, pageRotation, warnings);
+          if (rotated !== imageBuffer) {
+            imageBuffer = rotated;
+            rotatedPages.push({ pageNumber: pageCount, degrees: pageRotation });
           }
         }
 
@@ -333,6 +558,7 @@ export class PdfConverter {
         processingTimeMs: Date.now() - startTime,
         warnings: warnings.length > 0 ? warnings : undefined,
         annotations: annotations.length > 0 ? annotations : undefined,
+        rotatedPages: rotatedPages.length > 0 ? rotatedPages : undefined,
       };
     } catch (error) {
       // 之前此錯誤被靜默吞掉（只回傳 message），導致 Azure 上 PDF→圖片失敗時
@@ -440,32 +666,35 @@ export class PdfConverter {
    * @returns 壓縮後的圖片 Buffer
    */
   /**
-   * 抽出各頁的 FreeText 註解，並判斷哪些需要補畫
+   * 抽出各頁的 FreeText 註解與內容文字方向
    *
    * @description
-   *   CHANGE-113 階段一 A。使用者常以 PDF 註解在文件上補充系統無法從原始內容
-   *   得知的資訊（DHL 發票標註每一列對應哪個 shipment 即是一例）。
+   *   CHANGE-113 階段一。一次 pdfjs 解析同時取得兩項資訊：
    *
-   *   **為何需要補畫**：pdfjs 對 FreeText 一律以水平方向排版。當註解框是「直立」
-   *   的（高 > 寬），代表原編輯器以旋轉方向排版文字，pdfjs 排不進去而把文字裁掉，
-   *   結果只畫出邊框、內容消失。橫向框則正常渲染，不可重複補畫 —— 否則會疊字、
-   *   反而蓋掉原本清楚的內容（2026-07-29 以三份真實 DHL 文件實測確認）。
+   *   **A. FreeText 註解**（階段一 A）：使用者常以 PDF 註解在文件上補充系統無法從
+   *   原始內容得知的資訊（DHL 發票標註每一列對應哪個 shipment 即是一例）。
+   *   pdfjs 對 FreeText 一律以水平方向排版：當註解框是「直立」的（高 > 寬），代表
+   *   原編輯器以旋轉方向排版文字，pdfjs 排不進去而把文字裁掉，結果只畫出邊框、
+   *   內容消失。橫向框則正常渲染，不可重複補畫 —— 否則會疊字、反而蓋掉原本清楚
+   *   的內容（2026-07-29 以三份真實 DHL 文件實測確認）。
    *
-   *   任何失敗都只記 warning：註解是加分資訊，不該讓整份文件轉檔失敗。
+   *   **B. 內容文字方向**（階段一 B）：見 {@link detectTextRotation}。
+   *
+   *   任何失敗都只記 warning：兩者都是加分資訊，不該讓整份文件轉檔失敗。
    *
    * @param buffer - PDF 原始 buffer
    * @param scale - 與 pdf-to-img 相同的縮放比例，確保座標對得上
    * @param warnings - 警告收集器（就地追加）
-   * @returns 頁碼（1-based）→ 該頁註解清單
+   * @returns 頁碼（1-based）→ 該頁輔助資訊
    *
-   * @since CHANGE-113 階段一 A
+   * @since CHANGE-113 階段一 A（階段一 B 加入方向偵測）
    */
-  private static async collectFreeTextAnnotations(
+  private static async collectPageHints(
     buffer: Buffer,
     scale: number,
     warnings: string[]
-  ): Promise<Map<number, CollectedAnnotation[]>> {
-    const result = new Map<number, CollectedAnnotation[]>();
+  ): Promise<Map<number, PageHints>> {
+    const result = new Map<number, PageHints>();
     let doc: PdfjsDocument | undefined;
 
     try {
@@ -480,7 +709,18 @@ export class PdfConverter {
         const rawAnnotations = await page.getAnnotations({ intent: 'display' });
 
         const freeTexts = rawAnnotations.filter((a) => a.subtype === 'FreeText');
-        if (freeTexts.length === 0) continue;
+
+        // 方向訊號優先序：內容文字層 > 註解旋轉角。
+        // 前者是內容本身，後者是使用者行為的間接證據 —— 但掃描件只有後者。
+        const textContent = await page.getTextContent();
+        const rotation =
+          detectTextRotation(textContent.items) || detectAnnotationRotation(freeTexts);
+
+        if (freeTexts.length === 0) {
+          // 沒有註解但方向不正時仍要記錄 —— 轉正與註解是獨立的兩件事
+          if (rotation !== 0) result.set(pageNumber, { annotations: [], rotation });
+          continue;
+        }
 
         const viewport = page.getViewport({ scale });
         const collected: CollectedAnnotation[] = [];
@@ -510,11 +750,13 @@ export class PdfConverter {
           });
         }
 
-        if (collected.length > 0) result.set(pageNumber, collected);
+        if (collected.length > 0 || rotation !== 0) {
+          result.set(pageNumber, { annotations: collected, rotation });
+        }
       }
     } catch (error) {
       warnings.push(
-        `讀取 PDF 註解失敗（不影響轉檔）：${error instanceof Error ? error.message : '未知錯誤'}`
+        `讀取 PDF 註解／文字方向失敗（不影響轉檔）：${error instanceof Error ? error.message : '未知錯誤'}`
       );
     } finally {
       await doc?.destroy().catch(() => undefined);
@@ -561,8 +803,13 @@ export class PdfConverter {
    * 將註解文字補畫到頁面圖像上
    *
    * @description
-   *   CHANGE-113 階段一 A。僅處理 collectFreeTextAnnotations 判定需補畫者。
-   *   文字沿矩形長邊排列 —— 直立框轉 -90 度，與文件其餘內容方向一致。
+   *   CHANGE-113 階段一 A。僅處理 collectPageHints 判定需補畫者。
+   *   文字沿矩形長邊排列，與文件其餘內容方向一致。
+   *
+   *   `pageRotation` 決定直立框該往哪一邊轉：頁面內容方向 270 度時往 +90 度轉，
+   *   其餘往 -90 度轉。若不看頁面方向一律 -90 度，270 度的頁面轉正之後補畫的
+   *   文字會上下顛倒 —— 補了等於沒補（階段一 B 加入轉正後才會遇到的情形）。
+   *   橫向框不在補畫範圍內（`needsPaint` 恆為 false），故不需處理 0 / 180 度。
    *
    *   使用 `@napi-rs/canvas` 而非 `canvas`：前者已是 pdfjs 的渲染後端，且
    *   Dockerfile 已為它複製 Linux prebuilt binary（FIX-080）；改用其他 canvas
@@ -573,6 +820,7 @@ export class PdfConverter {
   private static async paintAnnotations(
     imageBuffer: Buffer,
     annotations: CollectedAnnotation[],
+    pageRotation: PageRotation,
     warnings: string[]
   ): Promise<Buffer> {
     try {
@@ -602,7 +850,9 @@ export class PdfConverter {
           annotation.left + annotation.width / 2,
           annotation.top + annotation.height / 2
         );
-        if (vertical) ctx.rotate(-Math.PI / 2);
+        if (vertical) {
+          ctx.rotate(pageRotation === 270 ? Math.PI / 2 : -Math.PI / 2);
+        }
         ctx.fillStyle = '#cc0000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -616,6 +866,39 @@ export class PdfConverter {
         `補畫 PDF 註解失敗（沿用原圖）：${error instanceof Error ? error.message : '未知錯誤'}`
       );
       return imageBuffer;
+    }
+  }
+
+  /**
+   * 依偵測到的內容方向把頁面圖像轉正
+   *
+   * @description
+   *   CHANGE-113 階段一 A3。PDF 空間為 y 軸向上、渲染後的圖像為 y 軸向下，因此
+   *   內容方向為「逆時針 θ 度」時，圖像要**順時針轉 θ 度**才會正 ——
+   *   sharp 的 `rotate(角度)` 正值即為順時針，可直接傳入。
+   *
+   *   sharp 不可用時（與 compressImage 同樣的既有情形）回傳原圖，不阻斷轉檔。
+   *
+   * @param buffer - 頁面圖像（已補畫註解）
+   * @param degrees - 內容方向，必為 90 / 180 / 270
+   * @param warnings - 警告收集器（就地追加）
+   * @returns 轉正後的圖像；失敗時為傳入的原圖（呼叫端以此判斷是否真的轉過）
+   *
+   * @since CHANGE-113 階段一 A3
+   */
+  private static async rotateImage(
+    buffer: Buffer,
+    degrees: PageRotation,
+    warnings: string[]
+  ): Promise<Buffer> {
+    try {
+      const sharp = (await import('sharp')).default;
+      return await sharp(buffer).rotate(degrees).toBuffer();
+    } catch (error) {
+      warnings.push(
+        `頁面轉正失敗（沿用原方向）：${error instanceof Error ? error.message : '未知錯誤'}`
+      );
+      return buffer;
     }
   }
 

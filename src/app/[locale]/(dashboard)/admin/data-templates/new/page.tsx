@@ -18,7 +18,7 @@ import { FileCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DataTemplateForm } from '@/components/features/data-template';
 import { useCreateDataTemplate } from '@/hooks/use-data-templates';
-import type { DataTemplateField } from '@/types/data-template';
+import type { DataTemplateField, LineItemMode } from '@/types/data-template';
 
 // ============================================================================
 // Types
@@ -30,6 +30,7 @@ interface FormValues {
   scope: 'GLOBAL' | 'COMPANY';
   companyId?: string | null;
   fields: DataTemplateField[];
+  lineItemMode?: LineItemMode;
   isActive?: boolean;
 }
 
@@ -56,6 +57,7 @@ export default function NewDataTemplatePage() {
           scope: data.scope,
           companyId: data.scope === 'COMPANY' ? (data.companyId ?? undefined) : undefined,
           fields: data.fields,
+          lineItemMode: data.lineItemMode,
         });
 
         toast({

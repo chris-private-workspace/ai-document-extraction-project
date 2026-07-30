@@ -78,6 +78,8 @@ import {
   extractChargeDirections,
   type LabelMatchKind,
 } from '../utils/classify-normalizer';
+// CHANGE-113 階段一 A: PDF 註解作為分組鍵候選清單
+import type { PdfAnnotationInfo } from '../utils/pdf-converter';
 
 // ============================================================================
 // Constants
@@ -117,6 +119,12 @@ export interface Stage3Input {
   // CHANGE-042 Phase 3: Feedback recording
   /** 文件 ID（用於記錄 FieldExtractionFeedback） */
   documentId?: string;
+
+  /**
+   * PDF FreeText 註解（CHANGE-113 階段一 A）
+   * @description 使用者手寫補註的內容，作為 `groupKey` 的候選清單注入 Prompt
+   */
+  annotations?: PdfAnnotationInfo[];
 }
 
 /**
@@ -173,6 +181,69 @@ interface GptExtractionResponse {
 }
 
 // ============================================================================
+// Group Candidate Injection (CHANGE-113 階段一 A)
+// ============================================================================
+
+/** 候選清單上限（避免異常多的註解把 Prompt 撐爆） */
+const MAX_GROUP_CANDIDATES = 50;
+
+/**
+ * 由 PDF 註解建立 `groupKey` 候選清單段落
+ *
+ * @description
+ *   CHANGE-113 階段一 A。**這段存在的唯一理由是止住編造**。
+ *
+ *   2026-07-29 實測：多 shipment 的 DHL 發票第 2 頁內容側躺，GPT 讀不準每列對應
+ *   的 shipment 編號，於是**照格式編一個**（`HKG-2405-0001`、`HKG-2405-0002`
+ *   —— 兩個號碼都不存在於任何地方）。更早一次「三次都讀對」則是因為當時的 prompt
+ *   把真實號碼寫進了範例（`e.g. "RCIM-25-0111"`），GPT 是**複製範例**而非讀圖；
+ *   移除範例後隨即改為編造。
+ *
+ *   把使用者手寫補註的號碼列成封閉候選清單，GPT 的工作就從「讀出號碼」降級為
+ *   「在給定清單中選一個」—— 值域由此固定，編造無從發生。至於「哪一列配哪個號碼」
+ *   仍需讀圖判斷，那部分由階段一 B 的頁面轉正改善。
+ *
+ *   **不過濾候選內容**：註解可能是任何東西（`核准`、`待查`），但參考編號格式因
+ *   區域而異，任何正則都可能濾掉真的號碼。寧可讓無關註解留在清單裡（規則 2 要求
+ *   判斷不出就留空，且模板層對不到主檔時仍以原值成列），也不要漏掉有效號碼。
+ *
+ * @param annotations - PDF 抽出的 FreeText 註解
+ * @returns Prompt 段落；無可用註解時為空字串（呼叫端不注入）
+ *
+ * @since CHANGE-113 階段一 A
+ */
+export function buildGroupCandidateSection(
+  annotations: PdfAnnotationInfo[] | undefined
+): string {
+  if (!annotations || annotations.length === 0) return '';
+
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  for (const annotation of annotations) {
+    const text = annotation.text.trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    candidates.push(text);
+    if (candidates.length >= MAX_GROUP_CANDIDATES) break;
+  }
+
+  if (candidates.length === 0) return '';
+
+  return [
+    'Shipment Group Candidates (hand-written annotations found in this PDF):',
+    ...candidates.map((candidate) => `- ${candidate}`),
+    '',
+    'Rules for the line item `groupKey`:',
+    '1. `groupKey` MUST be copied verbatim from the candidate list above. Never invent, reformat, or derive a value that is not on the list.',
+    '2. Only set `groupKey` when the document shows which shipment a line item belongs to. If you cannot tell, leave it unset for that line item.',
+    // 規則 3-4 對應模板層 GROUP 展開的實際行為：未帶 groupKey 的行項目不歸入任何組，
+    // 因此「只標一部分」會讓其餘費用整筆從報表消失。全標或全不標都安全。
+    '3. Either set `groupKey` on every line item that belongs to a shipment, or leave it unset on all of them. Never tag only some of them.',
+    '4. If the list contains exactly one candidate, this invoice covers a single shipment — leave `groupKey` unset on all line items.',
+  ].join('\n');
+}
+
+// ============================================================================
 // Service Class
 // ============================================================================
 
@@ -208,7 +279,11 @@ export class Stage3ExtractionService {
       const variableContext = this.buildVariableContextForConfig(input, config);
 
       // 2. 組裝完整的提取 Prompt（支援變數替換）
-      const prompt = this.buildExtractionPrompt(config, variableContext);
+      const prompt = this.buildExtractionPrompt(
+        config,
+        variableContext,
+        input.annotations
+      );
 
       // 3. 調用 GPT-5.2（精準提取）
       // TODO: Phase 2 實現實際 GPT 調用
@@ -769,7 +844,8 @@ export class Stage3ExtractionService {
    */
   private buildExtractionPrompt(
     config: ExtractionConfig,
-    variableContext?: VariableContext
+    variableContext?: VariableContext,
+    annotations?: PdfAnnotationInfo[]
   ): {
     system: string;
     user: string;
@@ -831,6 +907,16 @@ Respond in valid JSON format matching the provided schema.`;
           `[Stage3] Injected ${config.fieldDefinitions.length} field definitions from FieldDefinitionSet`
         );
       }
+    }
+
+    // CHANGE-113 階段一 A: 注入分組鍵候選清單
+    // 必須放在最後 —— 這是對 groupKey 的封閉值域約束，不可被前面任何段落覆蓋。
+    const candidateSection = buildGroupCandidateSection(annotations);
+    if (candidateSection) {
+      systemPrompt = systemPrompt + '\n\n' + candidateSection;
+      console.log(
+        `[Stage3] Injected ${annotations?.length ?? 0} PDF annotation(s) as groupKey candidates`
+      );
     }
 
     return {

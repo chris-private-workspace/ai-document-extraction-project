@@ -1,0 +1,38 @@
+{
+  "id": "db4ac18b-8836-4e5e-b868-244fb4a7c99e",
+  "name": "DHL Express - Logistics Cost - Inbound Template (Full List)",
+  "mappings": [
+    {
+      "id": "eedf4065-i-0",
+      "order": 0,
+      "isRequired": false,
+      "description": "",
+      "sourceField": "_ref_number",
+      "targetField": "shipment_number",
+      "transformType": "DIRECT",
+      "transformParams": null
+    },
+    {
+      "id": "eedf4065-i-1",
+      "order": 1,
+      "isRequired": false,
+      "description": "兩種服務類型（文件類 / 非文件類）都是主運費，同一 shipment 只會有其中一種。用 FORMULA 而非兩條 DIRECT：後者會讓 null 覆蓋掉已寫入的金額（CHANGE-113，使用者 2026-07-30 核准）",
+      "sourceField": "express_worldwide_nondoc",
+      "targetField": "freight",
+      "transformType": "FORMULA",
+      "transformParams": {
+        "formula": "{express_worldwide_nondoc} + {express_worldwide_doc}"
+      }
+    },
+    {
+      "id": "eedf4065-i-2",
+      "order": 2,
+      "isRequired": false,
+      "description": "DHL FUEL SURCHARGE。目標欄標籤為「at origin」，DHL Express 為門到門快遞無起運地拆分，屬已知語意取捨（CHANGE-113 選項 A，使用者 2026-07-29 決定）",
+      "sourceField": "fuel_surcharge",
+      "targetField": "fuel_surcharge_at_origin",
+      "transformType": "DIRECT",
+      "transformParams": null
+    }
+  ]
+}
