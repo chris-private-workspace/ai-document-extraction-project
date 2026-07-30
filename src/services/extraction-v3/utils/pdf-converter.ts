@@ -785,9 +785,14 @@ export class PdfConverter {
   private static async loadPdfjs(): Promise<{
     getDocument: (params: { data: Uint8Array; verbosity: number }) => { promise: Promise<unknown> };
   }> {
-    const { createRequire } = await import('node:module');
-    const { pathToFileURL } = await import('node:url');
-    const { join } = await import('node:path');
+    // FIX-146 第三輪：不可用 `await import('node:module')` 取內建模組。
+    // webpack 會把它轉成 `c.t` 包裝的假 namespace，具名解構在產物中取到 undefined
+    // —— Azure 實測 `TypeError: a is not a function`（a 即 createRequire），
+    // 且這個錯誤發生在下方 import 之前，所以第一輪只修 import 完全沒有效果。
+    // process.getBuiltinModule 不是 import/require 語法，打包器不會介入。
+    const { createRequire } = process.getBuiltinModule('node:module');
+    const { pathToFileURL } = process.getBuiltinModule('node:url');
+    const { join } = process.getBuiltinModule('node:path');
     // createRequire 需要一個實體路徑當解析基準。這裡用專案根的 package.json：
     // Next standalone 的工作目錄與本地開發都是專案根（node_modules 就在其下），
     // 且不依賴 CJS 專屬的 __filename —— 後者在 ESM 執行環境會直接 ReferenceError。

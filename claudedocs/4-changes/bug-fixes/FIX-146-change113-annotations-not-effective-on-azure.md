@@ -211,13 +211,101 @@ V3 的 stepResults 在轉成 `UnifiedProcessingResult` 時就把 `data` 丟了�
 
 驗證：`type-check` ✅、`test` 392 通過 / 2 跳過 ✅、`build` ✅、`lint` 無新增 error（`pdf-converter.ts:122` 的 `PageConversionResult` 未使用是 `2ae2bb8`／CHANGE-021 引入的既有 dead code，依 H3 不動）。
 
-### 下一輪要確認的
+---
 
-1. 容器 log 是否出現 `[pdf-converter] collectPageHints failed:` —— 有則直接看錯誤，無則表示 pdfjs 載入已成功
-2. `FILE_PREPARATION.data.annotationCount` 是否為 2
-3. `rotatedPages` 是否非空
-4. `gpt_prompt` 是否含候選清單段落
-5. `groupSourceRef` 是否變成 10 位
+## 第二輪部署結果（2026-07-30 09:19 UTC）—— 診斷目標達成
+
+映像 `dev-fix146r2-20260730170712`（來源 `e16b5eb`）上線，平台 log 確認容器跑的就是它。
+
+### 訊號終於可見了
+
+容器 log：
+
+```
+09:34:22  [pdf-converter] collectPageHints failed: TypeError: a is not a function
+09:34:22      at async h.collectPageHints (.next/server/chunks/54429.js:165:16672)
+```
+
+`FILE_PREPARATION.data`（已落地）：
+
+```json
+{
+  "warnings": ["讀取 PDF 註解／文字方向失敗（不影響轉檔）：a is not a function"],
+  "pageCount": 2, "imageCount": 2,
+  "rotatedPages": [], "annotationCount": 0
+}
+```
+
+`stepsWithData` = `["FILE_PREPARATION", "REFERENCE_NUMBER_MATCHING", "EXCHANGE_RATE_CONVERSION"]` —— 白名單如預期運作，三階段的完整結果沒有被重複寫進 `pipelineSteps`。
+
+第二輪的兩項改動都生效：透傳修好了、log 也有了。A2/A3 仍未生效（本輪不聲稱修好）。
+
+---
+
+## 🔴 真正的根因：失敗發生在第一輪修的那一行**之前**
+
+`TypeError: a is not a function`。對照編譯產物：
+
+```js
+let {createRequire:a}=await Promise.resolve().then(c.t.bind(c,98995,23)),
+    ...
+    e=a(d(process.cwd(),"package.json")),   // ← a 是 undefined
+```
+
+`a` 就是 `createRequire`。webpack 把 `await import('node:module')` 轉成 `c.t` 包裝的假 namespace，**具名解構取到 undefined**。
+
+執行流程因此在 `createRequire(...)` 就拋錯，**根本走不到**第一輪修的 `import(pdfjsPath)`。第一輪修的 stub 確實也是真問題（產物確實是 stub），但它從來不是第一個失敗點 —— 這是「只看編譯產物的字面、沒有執行訊號」時的盲區。
+
+> **教訓**：讀編譯產物能證明「這一行會失敗」，不能證明「這是最先失敗的那一行」。要判斷執行順序，必須有 runtime 訊號。
+
+---
+
+## 第三輪修復（已實作）
+
+| # | 檔案 | 內容 |
+|---|---|---|
+| 6 | `pdf-converter.ts` | 三個內建模組改用 `process.getBuiltinModule('node:module'／'node:url'／'node:path')` —— 它不是 import/require 語法，打包器不會介入 |
+
+編譯產物確認：
+
+```js
+static async loadPdfjs(){
+  let {createRequire:a}=process.getBuiltinModule("node:module"),
+      {pathToFileURL:b}=process.getBuiltinModule("node:url"),
+      {join:c}=process.getBuiltinModule("node:path"),
+      d=a(c(process.cwd(),"package.json")),
+      e=d.resolve("pdfjs-dist/legacy/build/pdf.mjs",{paths:[d.resolve("pdf-to-img")]});
+  return Function("specifier","return import(specifier)")(b(e).href)
+}
+```
+
+`process.getBuiltinModule` 原樣保留 3 處、無 `c.t.bind` 包裝、無 stub。同一 chunk 內 `paintAnnotations` 的 `c.t.bind(c,28183,23)` 仍在，正好是對照組 —— 只有改過的三處脫離了 webpack 包裝。
+
+環境支援：本地 Node v25.2.1、映像 Node 26 皆有 `process.getBuiltinModule`（Node 22.3+），`@types/node` 20.19.27 已含型別。
+
+### 這一輪多做了一件事：用編譯產物的逐字形式做 runtime 實測
+
+前兩輪的教訓是「產物看起來對」不等於「執行起來對」。所以這次把編譯後的 minified 形式逐字複製成獨立腳本，在真實 Node 中執行：
+
+```
+resolved path = ...\node_modules\pdf-to-img\node_modules\pdfjs-dist\legacy\build\pdf.mjs
+getDocument   = function
+numPages      = 2
+  page 2: "RCIM-25-0111" rot=90
+  page 2: "RCIM-25-0113" rot=90
+```
+
+整條鏈（取內建模組 → resolve → 原生 import → 讀註解）都通。
+
+驗證：`type-check` ✅、`test` 392 通過 / 2 跳過 ✅、`build` ✅、`lint` 無 error。
+
+### 下一輪部署後要確認
+
+1. 容器 log **不再**出現 `[pdf-converter] collectPageHints failed:`
+2. `FILE_PREPARATION.data.annotationCount` = **2**
+3. `rotatedPages` 非空（第 2 頁 90 度）
+4. `gpt_prompt` 含 `Shipment Group Candidates` 段落
+5. `groupSourceRef` 變成 10 位（`8365573366` / `2407071774`）
 
 ---
 
