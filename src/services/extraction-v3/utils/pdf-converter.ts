@@ -791,12 +791,21 @@ export class PdfConverter {
     const pdfjsPath = req.resolve('pdfjs-dist/legacy/build/pdf.mjs', {
       paths: [req.resolve('pdf-to-img')],
     });
-    return import(pathToFileURL(pdfjsPath).href) as Promise<{
+    // FIX-146: 最後這一步必須是「打包器看不見的」原生 import。
+    // 直接寫 `import(變數)` 時 webpack 判定無法靜態分析，會把整個呼叫替換成
+    // missing-module stub（`__webpack_require__(54385)`），它對任何傳入路徑
+    // 無條件拋 MODULE_NOT_FOUND —— 上面的 req.resolve 仍然成功，只有載入這一步
+    // 失效，而錯誤又被 collectPageHints 的 catch 收成 warning，於是 A1/A2/A3
+    // 三項一起靜默失效。dev 模式保留原生 import，所以此缺陷只在 next build 後出現。
+    const nativeImport = new Function('specifier', 'return import(specifier)') as (
+      specifier: string
+    ) => Promise<{
       getDocument: (params: {
         data: Uint8Array;
         verbosity: number;
       }) => { promise: Promise<unknown> };
     }>;
+    return nativeImport(pathToFileURL(pdfjsPath).href);
   }
 
   /**

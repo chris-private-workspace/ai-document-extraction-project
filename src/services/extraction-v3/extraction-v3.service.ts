@@ -357,6 +357,12 @@ export class ExtractionV3Service {
           // CHANGE-113 階段一：註解與轉正是否生效需可事後查證，否則只能靠重新渲染比對
           annotationCount: conversionResult.annotations?.length ?? 0,
           rotatedPages: conversionResult.rotatedPages ?? [],
+          // FIX-146: 轉檔 warning 一併落地。collectPageHints 失敗時只 push warning
+          // 而不拋錯（轉檔本身仍成功），先前這則訊息只存在記憶體，是 FIX-146 那個
+          // 缺陷得靠拉映像讀編譯產物才定位的直接原因。
+          ...(conversionResult.warnings?.length
+            ? { warnings: conversionResult.warnings }
+            : {}),
         },
         durationMs: stepTimings['FILE_PREPARATION'],
       });

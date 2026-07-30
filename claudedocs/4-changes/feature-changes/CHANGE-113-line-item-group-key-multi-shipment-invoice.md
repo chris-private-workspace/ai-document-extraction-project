@@ -1,7 +1,7 @@
 # CHANGE-113: 一份發票對應多個 Shipment —— 註解可見性、行項目分組鍵與模板三模式輸出
 
 > **日期**: 2026-07-29
-> **狀態**: 🚧 進行中（階段一 A1/A2/A3 + B、階段二全部完成，本地端到端 + 穩定度 + 燃油映射 2026-07-29 通過。待辦：**Azure 部署**。`EXPAND` 模式未實作，見 §階段二實作範圍）
+> **狀態**: 🚧 進行中（階段一 A1/A2/A3 + B、階段二全部完成，本地端到端 + 穩定度 + 燃油映射 2026-07-29 通過。Azure 部署 2026-07-30 已執行但 **A2/A3 未生效** → 見 §Azure 部署執行結果 + **FIX-146**。`EXPAND` 模式未實作，見 §階段二實作範圍）
 > **優先級**: High
 > **類型**: Feature Enhancement
 > **影響範圍**: PDF 轉換層、提取層（LineItemV3、Stage 3 Schema）、模板匹配引擎、DataTemplate Model、DataTemplate UI
@@ -138,7 +138,10 @@ express_worldwide_nondoc → freight           (DIRECT)
 
 - 保守設計，**寧可不轉不可轉錯**：方向混雜、可用字元太少、斜排一律回 0（維持原樣）
 - 新增 `autoRotatePages` 旗標（預設 true）—— Azure 為手動重建映像，誤判時沒有旗標就得改碼
-- 轉正結果記入 `FILE_PREPARATION` 步驟資料（`rotatedPages`），可事後查證
+- 轉正結果寫入 `FILE_PREPARATION` 步驟資料（`rotatedPages`）
+  > 🔴 **更正（2026-07-30）**：原文寫「可事後查證」是**錯的**。`processing-result-persistence.service.ts`
+  > 的兩個步驟轉換函式都不保留 `data`，故 `annotationCount` / `rotatedPages` **從未寫進資料庫**。
+  > 這使 A2/A3 在 Azure 未生效的問題只能繞道 Kudu 猜測。已開 **FIX-146** 追此事。
 
 三者搭配的理由：A1 給 GPT **看得見的內容**，A3 給 GPT **看得懂的方向**，A2 給 GPT **合法值域**。缺任何一項本案都不成立 —— 見 §階段一實測結果。
 
@@ -566,7 +569,8 @@ DHL 欄位定義集有 3 個 `lineItem` 欄位，原本只映射了 1 個，另�
 | — ✅ | **檢查點：本地重跑 DHL 文件，確認分組正確** | 已完成 —— 但**先前那次「三次一致」的結論不成立**（Prompt 範例污染，見 §階段一結論的重大更正） |
 | 二 ✅ | Prisma 欄位 + 分組展開 + 組層級回填 + UI/i18n | 程式碼完成，單元測試涵蓋驗收 9-12、14 |
 | — ✅ | **本地端到端：模板實例產出兩列、金額正確** | 已完成 2026-07-29 —— 2 列、rowKey `RCIM250111` / `RCIM250113`、freight 247.5 / 2310 |
-| — ⏳ | Azure 部署 | 見 §Azure 部署準備。腳本與旗標已就緒（2026-07-30），尚未執行 |
+| — ⚠️ | Azure 部署 | **已執行但未達標**（2026-07-30）：映像與五項資料庫設定都上線了，但 A1/A2/A3 三項在 production build 全部失效（webpack 改寫 pdfjs 動態 import）→ 已開 **FIX-146**。見 §Azure 部署執行結果 |
+| — 🔴 | **補驗：三項機制在 production build 上有效** | 未做 —— 階段一只在 `npm run dev` 驗證過，這是 FIX-146 的成因。修復後必須 `npm run build && npm start` 重驗 |
 
 ---
 
@@ -624,6 +628,47 @@ DHL 欄位定義集有 3 個 `lineItem` 欄位，原本只映射了 1 個，另�
 > ⚠️ 重啟退避約 35 分鐘 —— `az webapp restart`、`stop`+`start`、改 app setting、`config container set` 都可能無法強制立即重啟，常需等下一次自然重試才生效。**別誤判「設定沒生效」**。
 
 階段一若因風險 #2、#3 無法達標，**不進入階段二** —— 改回報並重新評估（例如升級為座標對應的確定性方案）。
+
+---
+
+## Azure 部署執行結果（2026-07-30）—— ⚠️ 未達標
+
+### 已完成的部分
+
+| 項目 | 結果 |
+|---|---|
+| 映像 | `dev-change113-20260730100145`（build run `ck1k`，08:33 完成）已切換 |
+| Schema drift | 21 條全數套用、0 失敗（含 CHANGE-113 的 `line_item_mode`） |
+| 五項資料庫設定 | `write` 模式全數成功；旗標事後已清空 |
+| Stage 3 prompt | 新版（移除真實號碼範例）已在 Azure 生效 |
+
+### 未達標的部分
+
+**A1、A2、A3 三項全部未生效**（不只 A2/A3 —— 初判漏了 A1）。
+
+| 機制 | Azure 實測 | 判讀 |
+|---|---|---|
+| A1 註解補畫 | 無法從輸出分辨，但根因確認後可知同樣失效 | **未生效** |
+| A2 候選清單注入 | `extraction_results.gpt_prompt`（實際送出的 prompt）無候選清單段落 | **未生效** |
+| A3 側躺頁轉正 | GPT 收到側躺圖，AWB 讀成 8 位（`88557336`／`24097724`，正確為 10 位 `8365573366`／`2407071774`） | **未生效** |
+| 模板列產出 | 該文件 `template_instance_id` 為 **null** —— 沒有模板實例、沒有列 | **無法驗證**（Azure 上 DHL 未設預設模板，與本地同樣的設定缺口） |
+
+提取層的分組資料仍是**正確的**：groupKey `RCIM-25-0111` / `RCIM-25-0113`、2 組、4 筆行項目、金額 247.5 + 69.92 / 2310 + 652.58。
+
+但這正是問題所在 —— **groupKey 的正確性目前沒有任何機制保障**（A2 就是那個保障），模型只是自行從圖上讀對了。換一份文件可能就編造。
+
+### 根因已確認：webpack 把 pdfjs 的動態 import 換成必然拋錯的 stub
+
+`loadPdfjs()` 的 `import(pathToFileURL(url).href)` 在 `next build` 後被 webpack 改寫為 `__webpack_require__(54385)(url)`，而 module 54385 是 webpack 的 missing-module stub —— 對任何路徑無條件拋 `MODULE_NOT_FOUND`。`collectPageHints` 是 A1/A2/A3 的共同上游，其 catch 只 push warning，於是三者一起靜默失效。
+
+🔴 **這不是 Azure 特有問題，而是 production build 特有。** 本地驗證走 `npm run dev`（原生 `import()` 保留）故三者皆有效 —— 階段一的驗證盲點就在這裡：**三項機制從未在 production build 上驗證過**。詳見 **FIX-146**。
+
+### 兩個先前的錯誤推論（已更正）
+
+1. 「A3 未生效，因為 AWB 與轉正前值相同」—— 結論對，但理由不成立（AWB 讀錯是側躺誤讀，轉正後也可能錯）。真正的證據是編譯產物。
+2. 「A1 必定生效，否則模型看不到 RCIM」—— **錯**。在映像內渲染該頁確認：**pdfjs 自己就會繪製 FreeText 註解**，RCIM 紅字紅框清楚可見。模型讀到 groupKey 與 A1 無關。
+
+> 🔴 **不可把本次部署記為成功。** 映像與設定上線 ≠ 功能生效。
 
 ---
 
