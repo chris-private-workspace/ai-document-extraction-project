@@ -45,6 +45,8 @@ import { PROCESSING_STEP_ORDER_V3_1 } from '@/types/extraction-v3.types';
 import { Stage1CompanyService } from './stage-1-company.service';
 import { Stage2FormatService } from './stage-2-format.service';
 import { Stage3ExtractionService } from './stage-3-extraction.service';
+// CHANGE-113 階段一 A: PDF 註解透傳至 Stage 3
+import type { PdfAnnotationInfo } from '../utils/pdf-converter';
 
 // ============================================================================
 // Types
@@ -60,6 +62,11 @@ export interface OrchestratorInput {
   imageBase64Array: string[];
   /** 頁數 */
   pageCount: number;
+  /**
+   * PDF FreeText 註解（FILE_PREPARATION 步驟產出）
+   * @description CHANGE-113 階段一 A：供 Stage 3 作為 `groupKey` 候選清單
+   */
+  annotations?: PdfAnnotationInfo[];
 }
 
 /**
@@ -264,6 +271,8 @@ export class StageOrchestratorService {
           },
           // CHANGE-042 Phase 3: pass documentId for feedback recording
           documentId: input.input.fileId,
+          // CHANGE-113 階段一 A: 分組鍵候選清單
+          annotations: input.annotations,
         });
 
         stepResults.push({

@@ -1,7 +1,7 @@
 # CHANGE-113: 一份發票對應多個 Shipment —— 註解可見性、行項目分組鍵與模板三模式輸出
 
 > **日期**: 2026-07-29
-> **狀態**: 🚧 進行中（階段一 A + B 完成並通過本地實測；階段二程式碼完成、待本地端到端驗證 2026-07-29。`EXPAND` 模式未實作，見 §階段二實作範圍）
+> **狀態**: 🚧 進行中（階段一 A1/A2/A3 + B、階段二全部完成，本地端到端 + 穩定度 + 燃油映射 2026-07-29 通過。待辦：**Azure 部署**。`EXPAND` 模式未實作，見 §階段二實作範圍）
 > **優先級**: High
 > **類型**: Feature Enhancement
 > **影響範圍**: PDF 轉換層、提取層（LineItemV3、Stage 3 Schema）、模板匹配引擎、DataTemplate Model、DataTemplate UI
@@ -98,7 +98,7 @@ express_worldwide_nondoc → freight           (DIRECT)
 
 ## 變更內容
 
-### 階段一 A：讓分組資訊變成模型看得到的內容（待實作）
+### 階段一 A：讓分組資訊變成模型看得到的內容（✅ 已完成 2026-07-29）
 
 #### A1. 渲染時補畫無 appearance 的 FreeText 註解
 
@@ -111,14 +111,36 @@ express_worldwide_nondoc → freight           (DIRECT)
 
 > 這是**通用修正**而非 DHL 專屬 —— 任何以註解形式補充資訊的文件都受益。原本被靜默丟失的補註資訊，此後都會進入模型視野。
 
-#### A2. 將註解對應到的主檔號碼注入 Prompt 作為候選清單
+#### A2. 將註解注入 Prompt 作為候選清單（✅ 已完成 2026-07-29）
 
-抽出全部 FreeText 註解 → 去除非英數字元 → 丟給 `findMatchesInText()` 對主檔 → 把命中的**標準格式號碼**作為候選清單注入 Stage 3 Prompt。
+抽出全部 FreeText 註解 → 去空白去重 → 作為封閉候選清單注入 Stage 3 systemPrompt，並附四條約束規則（逐字複製／判斷不出留空／全標或全不標／單一候選一律留空）。
 
-- **不在程式中寫死前綴白名單**：`RCIM` / `RHIM` / `RCEX` 全部拿去對主檔，對得到就是合法候選。主檔已是權威來源且已區分 type，日後新增前綴不需要改程式（使用者 2026-07-29 決定）
-- GPT 因此**只能從合法清單中選**，不會自行編造或原樣寫回 `RCIM/25/0246` 這類非標準格式
+實作：`buildGroupCandidateSection()`（`stage-3-extraction.service.ts`），透傳鏈為
+`PdfConverter.convertToBase64` → `extraction-v3.service` → `StageOrchestrator` → `Stage3.execute`。
 
-兩者搭配的理由：A1 給 GPT **視覺位置**（判斷哪個框對應哪一列），A2 給 GPT **合法值域**（保證輸出格式正確）。單靠任一項都不夠。
+> 🔴 **與原規劃的兩點差異**（2026-07-29 實作時決定）
+>
+> 1. **不在注入前對主檔比對**。原規劃是「丟給 `findMatchesInText()` 對主檔 → 注入標準格式號碼」。改為直接注入註解原文，理由有二：
+>    - `findMatchesInText()` 會遞增主檔的 `matchCount` / `lastMatchedAt`。提取可重跑，套用它會污染參考編號的匹配統計（與階段二 `resolveGroupReferenceNumbers` 不用它是同一個理由）
+>    - **正規化在模板層做已經足夠**。`buildRowUnits` 本來就會把分組鍵正規化後對主檔換成標準號碼；在提取層再做一次是重複，且會讓「GPT 讀到的字串」與「使用者實際寫的字串」不一致，反而不利於除錯
+>
+>    實測結果相同：註解 `RCIM-25-0111` → 模板列 rowKey `RCIM250111`（主檔標準格式）。
+>
+> 2. **不過濾候選內容**。參考編號格式因區域而異，任何正則都可能濾掉真的號碼。無關註解留在清單中的代價很小（規則 2 要求判斷不出就留空；模板層對不到主檔時仍以原值成列）。
+
+#### A3. 側躺頁面自動轉正（✅ 已完成 2026-07-29）
+
+**這一項不在原規劃中** —— 是階段一實測發現 A1 補畫「有效但無用」之後追加的（使用者 2026-07-29 核准）。
+
+實作：`detectTextRotation()`（文字層變換矩陣）+ `detectAnnotationRotation()`（掃描件備援）
+→ `PdfConverter` 以 sharp 旋轉。順序為**補畫 → 轉正 → 壓縮**：補畫必須在轉正前（座標基準），
+轉正必須在壓縮前（`maxWidth` 要套在最終方向上）。
+
+- 保守設計，**寧可不轉不可轉錯**：方向混雜、可用字元太少、斜排一律回 0（維持原樣）
+- 新增 `autoRotatePages` 旗標（預設 true）—— Azure 為手動重建映像，誤判時沒有旗標就得改碼
+- 轉正結果記入 `FILE_PREPARATION` 步驟資料（`rotatedPages`），可事後查證
+
+三者搭配的理由：A1 給 GPT **看得見的內容**，A3 給 GPT **看得懂的方向**，A2 給 GPT **合法值域**。缺任何一項本案都不成立 —— 見 §階段一實測結果。
 
 ### 階段一 B：提取層帶分組鍵（✅ 已完成 2026-07-29）
 
@@ -317,6 +339,47 @@ lineItemMode String @default("PIVOT") @map("line_item_mode")
 
 **設計影響**：`groupSourceRef` 若用於分組，同一份文件每次重跑會分出不同的組，比不分組更糟。因此階段二的分組只依 `groupKey`，缺失時整份視為一組。`groupSourceRef` 僅保留供人工核對。
 
+---
+
+## 🔴 階段一結論的重大更正（2026-07-29 晚間）
+
+上一節「三次讀對 `groupKey`」的結論**不成立**，且據以推導的「補畫已足夠」也不成立。以下三點是後續實測釘死的：
+
+### 更正 1：三次讀對是「複製 Prompt 範例」，不是讀圖
+
+當時的 DHL Stage 3 Prompt（`change113-dhl-stage3-001`）把**真實號碼寫進了範例**：
+
+```
+groupKey: ... (e.g. "RCIM-25-0111", "RCIM/25/0246")
+```
+
+GPT 第一組抄第一個範例（碰巧與正解相同），第二組直接抄第二個 —— 而 `RCIM/25/0246` 屬於**另一份文件**。`groupSourceRef` 同理。移除範例後（僅描述格式、不給具體值），GPT 隨即改為**按格式編造**：`HKG-2405-0001`、`HKG-2405-0002` —— 兩個號碼不存在於任何地方。
+
+> **通用教訓**：Prompt 裡用真實資料當範例，模型會複製它，而且複製出來的結果**看起來完全正確**，因而無法從結果分辨「讀對」與「抄對」。範例一律用明顯虛構的值。
+
+### 更正 2：補畫生效了，但**整頁側躺**使它無用
+
+裁切渲染圖確認：`RCIM-25-0111` 以 40px 紅色粗體清晰畫在框內，補畫本身完全正常。但**第 2 頁整頁內容旋轉 90 度**（`p.rotate = 0`、頁面 612×792 直向，是製作文件時把橫向表格側著放進直向頁面）。pdfjs 照 PDF 描述渲染完全正確，無從得知該轉正。
+
+GPT 讀側躺的頁面不準 —— 這同時解釋了 AWB 為何六次只對一次。
+
+### 更正 3：文字方向法對這份文件取不到訊號 —— 改用註解旋轉角
+
+原本要用 `getTextContent()` 的變換矩陣判斷方向。實測發現該 PDF **兩頁都是純掃描圖**，`items: []`，完全沒有文字層。
+
+改以 pdfjs 暴露的 FreeText `rotation`（此例為 `90`）作為備援：使用者在側躺頁面上補註時，會把文字方塊轉到與內容同向才寫得下去，**那個角度就是內容的方向**。文字層優先、註解角度備援。
+
+### 更正後的實測結果（A1 + A2 + A3 全部到位）
+
+| groupKey | groupSourceRef (AWB) | 費用組成 | 合計 | 期望值 |
+|---|---|---|---|---|
+| `RCIM-25-0111` | `8365573366` ✅ | 247.50 + 69.92 | **317.42** | 317.42 ✅ |
+| `RCIM-25-0113` | `2407071774` ✅ | 2310.00 + 652.58 | **2962.58** | 2962.58 ✅ |
+
+`Stage 3` 日誌：`Injected 2 PDF annotation(s) as groupKey candidates` → `built 2 line item group(s) covering 4/4 line item(s)`。
+
+**AWB 也一併讀對了** —— 轉正把「六次只對一次」變成正確。這推翻了更正前「AWB 因小字級而不可靠」的歸因：**真正的原因是頁面側躺，不是字級**。`groupSourceRef` 目前仍不用於分組（單次正確不足以推翻先前的不穩定觀察，需要多次重跑才能改結論）。
+
 ### 需要 DHL 專屬 Prompt —— §1.4 的問題已有答案
 
 只靠 structured output 的 schema `description`（未建 DHL Prompt 前）：
@@ -387,7 +450,7 @@ env 的 `FEATURE_EXTRACTION_V3_1=true` **不會**被這裡讀到 —— 生產�
 | 4 | 一A | 通用性不回歸 | 無註解的文件渲染結果與修改前逐位元組相同 | High |
 | 5 | 一B ✅ | 透傳 | `convertRawLineItems` 保留分組欄位；空字串收斂為 undefined | High |
 | 6 | 一 | 分組正確 | `stage3Result.lineItems` 每筆帶正確 `groupKey` 與 `groupSourceRef` | High |
-| 7 | 一 | 穩定度 | 同一文件連續處理 3 次，分組結果完全一致 | High |
+| 7 | 一 ✅ | 穩定度 | 同一文件連續處理 3 次，分組結果完全一致 | High |
 | 8 | 一 | 零回歸 | 非 DHL 文件重跑後輸出與先前完全相同 | High |
 | 9 | 二 | 分組展開 | `DHL_RCIM250111_28699.pdf` 產生 2 列，rowKey 為 `RCIM250111` 與 `RCIM250113` | High |
 | 10 | 二 | 組層級號碼 | 兩列的 `shipment_number` 分別為各自的號碼（驗證缺口 1 已解） | High |
@@ -396,14 +459,80 @@ env 的 `FEATURE_EXTRACTION_V3_1=true` **不會**被這裡讀到 —— 生產�
 | 13 | 二 | ~~EXPAND 模式~~ | **本次不實作** —— 見 §階段二實作範圍 修正 3 | Medium |
 | 14 | 全 ✅ | 型別 / 規範 / i18n | `type-check`、`lint`、`i18n:check` 通過 | High |
 
-驗收 9-12 的**單元測試層級**已於 2026-07-29 通過（`template-matching-group-expansion.test.ts` 15 案例 + `stage-3-line-item-group-key.test.ts` 追加 7 案例，全庫 362 通過 / 2 跳過）。**尚未做的是本地端到端驗證** —— 需重新處理 DHL 文件、把模板設為 `GROUP`、實際加進模板實例確認產出兩列。
+單元測試：`template-matching-group-expansion.test.ts` 15 案例 + `stage-3-line-item-group-key.test.ts` 追加 7 案例 + `pdf-text-rotation.test.ts` 18 案例（一A3）+ `stage-3-group-candidate-prompt.test.ts` 12 案例（一A2），全庫 **392 通過 / 2 跳過**。
 
-端到端驗證前必須先完成的資料設定（缺口 2，屬設定非程式碼）：
+**本地端到端已於 2026-07-29 通過**（`DHL_RCIM250111_28699.pdf`）：
 
-| # | 項目 | 說明 |
+| 驗收 | 實測 |
+|---|---|
+| 9 分組展開 | 2 列，rowKey `RCIM250111` / `RCIM250113` ✅ |
+| 10 組層級號碼 | `shipment_number` 各列不同 ✅ |
+| 11 組內金額 | freight 247.5 / 2310 + `fuel_surcharge_at_origin` 69.92 / 652.58 = 317.42 / 2962.58，與發票小計相符 ✅ |
+| 一A2 候選清單 | `Injected 2 PDF annotation(s) as groupKey candidates` ✅ |
+| 一A3 轉正 | `rotatedPages = [{pageNumber: 2, degrees: 90}]`，渲染圖目視確認正立 ✅ |
+
+### 燃油附加費映射目標 —— 使用者 2026-07-29 決定採選項 A
+
+原狀：DHL 映射配置只有 2 條規則（`freight ← express_worldwide_nondoc`、`shipment_number ← _ref_number`），提取出的 `fuel_surcharge` **無規則可接**，69.92 / 652.58 落空 —— 模板列金額是 247.50 而非發票的 317.42。
+
+模板 45 欄中沒有語意完全吻合的欄位：該模板是**貨運承攬**的三段成本結構（起運地／主運／目的地），而 DHL Express 是門到門快遞，其 FUEL SURCHARGE 按運費計百分比、不專屬起運地。
+
+| 選項 | 做法 | 取捨 |
 |---|---|---|
-| 1 | DHL 欄位定義集補燃油附加費欄位 | 現行僅 2 欄且無燃油，湊不出 317.42 |
-| 2 | `freight` 映射改為涵蓋「標準費用 + 燃油」 | 現為 `DIRECT`，需改 `FORMULA` 或組層級 `AGGREGATE` |
+| **A（採用）** | `fuel_surcharge_at_origin ← fuel_surcharge`（DIRECT） | 兩個金額各佔一欄、列加總正確；欄位標籤「at origin」與 DHL 語意不完全吻合 |
+| B | `freight` 改 FORMULA 合併兩者 | 報表看不到燃油單獨金額 |
+| C | GLOBAL 模板新增 `fuel_surcharge` 欄 | 語意最準但影響所有公司 |
+
+**採 A 的理由**：保留兩個獨立金額比欄位標籤精準更重要 —— 標籤日後可改，資料合併了拆不回來。屬**設定變更、不動程式碼**，隨時可改回（腳本 `add-dhl-fuel-mapping.js`，快照存於 `snapshots/`）。
+
+### `express_worldwide_doc` 也納入 freight —— 使用者 2026-07-30 核准
+
+DHL 欄位定義集有 3 個 `lineItem` 欄位，原本只映射了 1 個，另兩個的金額會落空（驗收發票剛好只有 nondoc，故未暴露；只要有一張含**文件類**運件的 DHL 發票就會出事）。最終配置：
+
+| 欄位 | 映射 |
+|---|---|
+| `express_worldwide_nondoc` | ✅ → `freight`（FORMULA 第一項） |
+| `express_worldwide_doc` | ✅ → `freight`（FORMULA 第二項） |
+| `fuel_surcharge` | ✅ → `fuel_surcharge_at_origin`（DIRECT） |
+
+`freight` 規則改為 `FORMULA: {express_worldwide_nondoc} + {express_worldwide_doc}`。
+
+**為何用 FORMULA 而非兩條 DIRECT 指向 freight**：`transformFields` 按 `order` 依序套用，同一目標欄位後者覆蓋前者，跳過條件只有 `undefined`。`DirectTransform` 原值回傳，因此結果取決於來源 key 是「缺席」還是「存在但為 null」：
+
+| 來源 key 狀態 | 第二條 DIRECT 的效果 |
+|---|---|
+| 缺席 | `undefined` → 被跳過 → 安全 |
+| 存在但為 null | 通過判斷 → **覆蓋掉已寫入的金額，且不報錯** |
+
+實測本文件的 `express_worldwide_doc` 在 `stage_3_result` 是 `null`、在 `mappedFields` 則是**缺席** —— 也就是說兩條 DIRECT 在這份文件上剛好安全，但那取決於持久化細節，不該依賴。FORMULA 對缺值與 null 一律視為 0（`formula.transform.ts:351`），不受此差異影響，也是專案既有 25 條「多來源 → 單欄」規則一致採用的寫法。
+
+> ⚠️ **副作用（非缺陷）**：`freight` 規則現在會在每列產生轉換診斷 `{"freight":["express_worldwide_doc"]}` —— FIX-128 的「來源 key 不在當次 row」提示。已建立對照組確認這是 FORMULA 慣例的既有常態：全庫 524 列中 **118 列本來就帶診斷**，其他公司的單列診斷多達 10 個目標欄位（DHL 這條只有 1 個）。列狀態仍為 `VALID`，屬資訊性提示。
+
+**驗收 7（穩定度）已於 2026-07-29 晚間重驗通過** —— 修正後（A1+A2+A3 全到位、Prompt 已無真實號碼範例）連跑 3 次：
+
+| 次數 | groupKey | groupSourceRef (AWB) | 組內合計 | 耗時 |
+|---|---|---|---|---|
+| 1 | `RCIM-25-0111` / `RCIM-25-0113` | `8365573366` / `2407071774` | 317.42 / 2962.58 | 25.0s |
+| 2 | 同上 | 同上 | 同上 | 19.9s |
+| 3 | 同上 | 同上 | 同上 | 18.0s |
+
+三次的 4 筆行項目、分組、金額、AWB **逐欄位完全相同**，每次都輸出 `Injected 2 PDF annotation(s) as groupKey candidates` 與 `built 2 line item group(s) covering 4/4 line item(s)`，無警告。
+
+> 這次的一致性與 §更正 1 的那次性質不同：當時 Prompt 帶著真實號碼範例，「一致」只證明模型穩定地複製同一段文字；現在 Prompt 無範例，一致代表**真的穩定讀對**。
+
+### `groupSourceRef` 的觀察更新（設計不變）
+
+轉正後 AWB **3 次 × 2 組 = 6/6 全部正確**（轉正前為 1/6）。這確認了 §更正 3 的歸因：先前的不穩定源於頁面側躺，與字級無關。
+
+但**分組依據維持只用 `groupKey`，不改**：`groupKey` 是使用者明確標註的意圖，`groupSourceRef` 只是文件原生內容；即使兩者現在同樣可靠，用前者才符合「使用者說了算」的語意。此處僅記錄觀察，不變更設計。
+
+端到端驗證前完成的資料設定（屬設定非程式碼）：
+
+| # | 項目 | 狀態 |
+|---|---|---|
+| 1 | DHL 欄位定義集補燃油附加費欄位 | ✅ 已補 `fuel_surcharge`（含快照） |
+| 2 | 燃油附加費的模板映射 | ✅ 已加 `fuel_surcharge_at_origin ← fuel_surcharge`（DIRECT，含快照）—— 見下方決策 |
+| 4 | 移除 DHL Stage 3 Prompt 的真實號碼範例 | ✅ 已移除（含快照） |
 | 3 | 重新處理 DHL 文件 | 分組資訊在提取時固化，舊結果沒有 `lineItemGroups` |
 
 ---
@@ -431,11 +560,13 @@ env 的 `FEATURE_EXTRACTION_V3_1=true` **不會**被這裡讀到 —— 生產�
 | 階段 | 內容 | 出口條件 |
 |---|---|---|
 | 一B ✅ | 型別 + Schema + 透傳 + 測試 | 已完成（驗收 5） |
-| 一A ✅ | 註解補畫 + 候選清單注入 | 已完成（驗收 1-4） |
-| — ✅ | **檢查點：本地重跑 DHL 文件，確認分組穩定度** | 已完成（連跑 3 次結果一致，驗收 6-8） |
+| 一A1 ✅ | 註解補畫 | 已完成（驗收 1-2、4） |
+| 一A2 ✅ | 候選清單注入 | 已完成 2026-07-29 晚間（驗收 3）。⚠️ 先前曾被誤標為已完成，實際當時**未實作** —— `PdfAnnotationInfo` 無任何呼叫端 |
+| 一A3 ✅ | 側躺頁面轉正 | 已完成 2026-07-29 晚間（原規劃無此項，實測後追加並經使用者核准） |
+| — ✅ | **檢查點：本地重跑 DHL 文件，確認分組正確** | 已完成 —— 但**先前那次「三次一致」的結論不成立**（Prompt 範例污染，見 §階段一結論的重大更正） |
 | 二 ✅ | Prisma 欄位 + 分組展開 + 組層級回填 + UI/i18n | 程式碼完成，單元測試涵蓋驗收 9-12、14 |
-| — ⏳ | **本地端到端：模板實例產出兩列、金額正確** | **未執行** —— 需先補 DHL 欄位定義與映射（見驗收表下方），使用者確認後才部署 |
-| — ⏳ | Azure 部署 | 需手動 `az acr build` + `RUN_SCHEMA_DRIFT_FIX=true` + 建立 DHL Stage 3 Prompt |
+| — ✅ | **本地端到端：模板實例產出兩列、金額正確** | 已完成 2026-07-29 —— 2 列、rowKey `RCIM250111` / `RCIM250113`、freight 247.5 / 2310 |
+| — ⏳ | Azure 部署 | 需手動 `az acr build` + `RUN_SCHEMA_DRIFT_FIX=true` + 建立 DHL Stage 3 Prompt（**且該 Prompt 不可含真實號碼範例**） |
 
 階段一若因風險 #2、#3 無法達標，**不進入階段二** —— 改回報並重新評估（例如升級為座標對應的確定性方案）。
 

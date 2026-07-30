@@ -23,7 +23,7 @@ import {
   useDataTemplate,
   useUpdateDataTemplate,
 } from '@/hooks/use-data-templates';
-import type { DataTemplateField } from '@/types/data-template';
+import type { DataTemplateField, LineItemMode } from '@/types/data-template';
 
 // ============================================================================
 // Types
@@ -35,6 +35,7 @@ interface FormValues {
   scope: 'GLOBAL' | 'COMPANY';
   companyId?: string | null;
   fields: DataTemplateField[];
+  lineItemMode?: LineItemMode;
   isActive?: boolean;
 }
 
@@ -67,6 +68,7 @@ export default function EditDataTemplatePage() {
             name: data.name,
             description: data.description ?? null,
             fields: data.fields,
+            lineItemMode: data.lineItemMode,
           },
         });
 

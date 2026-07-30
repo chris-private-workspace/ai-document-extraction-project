@@ -351,7 +351,13 @@ export class ExtractionV3Service {
       stepResults.push({
         step: 'FILE_PREPARATION' as ProcessingStepV3,
         success: true,
-        data: { pageCount: conversionResult.pageCount, imageCount: conversionResult.images.length },
+        data: {
+          pageCount: conversionResult.pageCount,
+          imageCount: conversionResult.images.length,
+          // CHANGE-113 階段一：註解與轉正是否生效需可事後查證，否則只能靠重新渲染比對
+          annotationCount: conversionResult.annotations?.length ?? 0,
+          rotatedPages: conversionResult.rotatedPages ?? [],
+        },
         durationMs: stepTimings['FILE_PREPARATION'],
       });
 
@@ -453,6 +459,8 @@ export class ExtractionV3Service {
           input,
           imageBase64Array: conversionResult.images,
           pageCount: conversionResult.pageCount,
+          // CHANGE-113 階段一 A: PDF 註解 → Stage 3 的 groupKey 候選清單
+          annotations: conversionResult.annotations,
         },
         {
           autoCreateCompany: input.options?.autoCreateCompany ?? true,

@@ -1,0 +1,22 @@
+{
+  "id": "aba35edd-fe26-4b46-bb18-01bd2594b157",
+  "name": "DHL Express - 自訂費用欄位集",
+  "fields": [
+    {
+      "key": "express_worldwide_doc",
+      "label": "Express Worldwide Doc",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "express_worldwide_nondoc",
+      "label": "Express Worldwide nondoc",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    }
+  ]
+}
