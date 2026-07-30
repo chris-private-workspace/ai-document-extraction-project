@@ -5,7 +5,7 @@
 > **根因確認方式**: 拉下線上映像，直接讀 `.next` 編譯產物
 > **影響範圍**: `src/services/extraction-v3/utils/pdf-converter.ts`（`loadPdfjs`）、`next.config.ts`、`src/services/processing-result-persistence.service.ts`
 > **優先級**: 高（CHANGE-113 階段一的三項機制在任何 production build 上都無效）
-> **狀態**: ⏳ 待實作
+> **狀態**: 🚧 已實作，待 Azure DEV 端到端驗證
 
 ---
 
@@ -90,45 +90,64 @@ webpack 無法靜態分析 `import(變數)`，於是把它換成 `__webpack_requ
 
 ---
 
-## 併修缺陷：`pipeline_steps` 持久化時丟棄 `data`
+## 併修缺陷：驗證訊號從未落地 —— 但這不是既有 bug
 
-CHANGE-113 為「可事後查證」而寫入的 `annotationCount` / `rotatedPages`（`extraction-v3.service.ts:354-360`）**從未落地**。兩條路徑的轉換函式都只保留 4-6 個欄位、不含 `data`：
+CHANGE-113 為「可事後查證」而寫入的 `annotationCount` / `rotatedPages`（`extraction-v3.service.ts:354-360`）**從未落地**。Azure 該筆的 `pipeline_steps` 證實了這點 —— 每個步驟只有 `step` / `success` / `durationMs`（`FILE_PREPARATION` 為 8365 ms）。
 
-- `processing-result-persistence.service.ts:217-224`（主路徑實際使用）
-- `processing-result-persistence.service.ts:528-534`（V3.1 路徑）
+🔴 **定性更正**：這不是既有缺陷。`convertStepResultsToJson` 的 JSDoc 原本就明確寫著「**不保存 data 屬性（step-specific 大資料，會造成 JSON 過大）**」—— 丟棄 `data` 是**刻意設計**，而且理由成立：三階段步驟的 `data` 是**完整**階段結果（`stage-orchestrator.service.ts` 的 `data: stage{1,2,3}Result`），已分別存於 `stage_{1,2,3}_result` 與 `stage_{1,2,3}_ai_details`（Azure 該筆分別 3446 / 7594 字元），重複寫入會讓 pipelineSteps 膨脹數倍。
 
-Azure 該筆的 `pipeline_steps` 實際內容證實了這點 —— 每個步驟只有 `step` / `success` / `durationMs`（`FILE_PREPARATION` 為 8365 ms）。
+**真正的問題是 CHANGE-113 誤用了一個明確標註不會持久化的欄位，並在文件聲稱「可事後查證」。**
 
-範圍比原先描述的更大：**任何步驟的 `data` 都不曾落地**，不限於 CHANGE-113 加的兩個欄位。`conversionResult.warnings` 同樣沒有持久化欄位 —— 那則本可直接指出根因的 warning，就是這樣消失的。
+因此修法不是「全部透傳」（那會踩進原設計要避開的坑），而是白名單：只對**沒有專屬欄位、且 data 是小型摘要**的步驟保留。
 
-診斷成本因此高昂：本次得拉下映像、逐一排除 7 個假設、最後讀編譯產物才定案。
+診斷成本因此高昂：本次得拉下映像、逐一排除 7 個假設、最後讀編譯產物才定案。`conversionResult.warnings` 也只存在記憶體 —— 那則本可直接指出根因的 warning 就是這樣消失的。
 
 ---
 
-## 修復方向（待評估）
+## 修復內容（已實作）
 
-### 缺陷一：讓 `import()` 不被 webpack 改寫
+### 1. `loadPdfjs` 改用打包器看不見的原生 import
 
-| 選項 | 做法 | 待確認 |
-|---|---|---|
-| A | `new Function('u', 'return import(u)')(url)` | webpack 無法分析 `new Function` 內容，最直接對症；需確認 ESM 載入在 standalone 正常 |
-| B | 加 `pdfjs-dist` 到 `serverExternalPackages` | 對**變數** specifier 的 `import()` 可能無效 —— webpack 看到的是變數，不是套件名。需實測 |
-| C | 改載 pdfjs 的 CJS build，用 `createRequire().require()` | 需確認該版本有可用的 CJS 入口 |
-| D | 改用 `pdf-to-img` 已載入的 pdfjs 實例 | 需確認它有對外導出 |
+`pdf-converter.ts` —— 把 specifier 藏進字串，webpack 無從靜態分析，便不會替換成 stub：
 
-選項 A 最可能有效，B 應一併加上（能讓 webpack 不把 pdfjs bundle 進 chunks，順帶消掉那 27 MB）。
+```typescript
+const nativeImport = new Function('specifier', 'return import(specifier)') as (...);
+return nativeImport(pathToFileURL(pdfjsPath).href);
+```
 
-### 缺陷二：讓步驟 `data` 與 `warnings` 落地
+### 2. 轉檔 warning 一併寫入 `FILE_PREPARATION` 的 data
 
-| 選項 | 說明 | 待確認 |
-|---|---|---|
-| A | 兩個轉換函式加入 `data` 透傳 | JSON 體積成長；`documents/[id]/route.ts:259` 的解析型別需同步 |
-| B | 只針對 `FILE_PREPARATION` 白名單透傳 | 較保守，但下次別的步驟要查證時又要再改 |
-| C | 另加欄位存 `warnings` | 屬 schema 變更，需走 `apply-schema-drift.js` 流程 |
+`extraction-v3.service.ts` —— `collectPageHints` 失敗時只 push warning 而不拋錯，那則訊息先前只存在記憶體。放進既有的 `data` 即可，**不需 schema 變更**。
 
-### 🔴 驗證要求
+### 3. 步驟 `data` 白名單持久化
 
-**必須用 production build 驗證，不可只用 `npm run dev`。** 這個缺陷在 dev 模式下完全不會出現 —— 用 dev 驗證等於沒驗證。最低標準：本地 `npm run build && npm start` 跑通同一份 DHL 文件，確認 `annotationCount` > 0 且 `rotatedPages` 非空。
+`processing-result-persistence.service.ts` —— 新增 `STEPS_WITH_PERSISTED_DATA`（`FILE_PREPARATION`、`REFERENCE_NUMBER_MATCHING`、`EXCHANGE_RATE_CONVERSION`），兩個轉換函式各加一行條件透傳，並更新 JSDoc 記錄白名單理由。
+
+### 刻意**不**做的兩件事
+
+| 項目 | 為何不做 |
+|---|---|
+| 加 `pdfjs-dist` 到 `serverExternalPackages` | 修復缺陷**不需要**它（改動 1 已解決）。它只能消掉那 27 MB 體積，屬副作用而非缺陷；而 `src/` 下無任何靜態 import `pdfjs-dist`，加了要另行驗證 react-pdf 的 SSR 路徑，且 Azure 映像**沒有頂層** `node_modules/pdfjs-dist`（只有 pdf-to-img 巢狀版），改 external 有踩空風險 |
+| 改 `documents/[id]/route.ts` 的解析型別 | 原先評估「需同步」是多餘的 —— 那是結構型別、只讀 5 個欄位，多出 `data` 不會壞。UI 目前也沒有顯示 data 的需求 |
+
+---
+
+## 驗證結果
+
+| 項目 | 結果 |
+|---|---|
+| `npm run type-check` | ✅ 通過 |
+| `npm run lint` | ✅ 無 error（`new Function` 未被規則攔下） |
+| `npm run test` | ✅ 392 通過 / 2 跳過（與基線一致，無回歸） |
+| `npm run build` | ✅ 通過 |
+| **編譯產物對照** | ✅ 修復前 `return c(54385)(b(f).href)`（stub）→ 修復後 `return Function("specifier","return import(specifier)")(b(f).href)`（原生 import）。minifier 把 `new Function` 簡化為 `Function`，語意相同 |
+| **生產映像內執行** | ✅ 在 `dev-change113-20260730100145` 內跑同一機制：載入成功、`getDocument` 可用、讀到第 2 頁 2 筆 FreeText、`rot=90`、`rect` 通過過濾、文字經 `??` 正確取到 `RCIM-25-0111`／`RCIM-25-0113`（`contents` 為 undefined，fallback 到 `contentsObj.str` 成立） |
+
+### 尚未驗證的一段
+
+**完整 pipeline 在正式建置下跑一遍**（orchestrator 透傳 → Stage 3 注入 → 持久化）尚未做。原因：正式建置為 `NODE_ENV=production`，dev bypass 失效（memory `feedback_local_login_dev_bypass_vs_build`），本地缺可用憑證；`/api/v1/extraction-v3/test/` 也已依 FIX-066 在 production 停用。
+
+該三段**不涉及 webpack 動態 import**（透傳鏈已靜態確認三處都接上、`buildGroupCandidateSection` 有單元測試涵蓋），但這仍是驗證缺口，須在 Azure DEV 部署後補上：確認 `pipeline_steps` 的 `FILE_PREPARATION.data.annotationCount = 2`、`rotatedPages` 非空、且 `gpt_prompt` 含候選清單段落。
 
 ---
 

@@ -195,11 +195,34 @@ function mapRoutingDecisionToProcessingPath(
 }
 
 /**
+ * `data` 會一併持久化的步驟白名單
+ *
+ * @description
+ *   原設計一律丟棄 `data`，理由是「step-specific 大資料會造成 JSON 過大」——
+ *   這個顧慮成立：三階段步驟的 `data` 是**完整**階段結果（見
+ *   `stage-orchestrator.service.ts` 的 `data: stage{1,2,3}Result`），且已分別存於
+ *   `stage_{1,2,3}_result` 與 `stage_{1,2,3}_ai_details`，重複寫入只會讓
+ *   pipelineSteps 膨脹數倍。
+ *
+ *   但名單內這三個步驟不同：它們的 `data` 是小型摘要（頁數、註解數、轉正頁、
+ *   匹配計數、跳過原因、轉檔 warning），而且**沒有任何專屬欄位**可放 —— 一律
+ *   丟棄等於完全查不到。CHANGE-113 曾把註解與轉正的訊號寫進 `data` 並在文件
+ *   聲稱「可事後查證」，實際從未落地，害 FIX-146 得靠拉映像讀編譯產物才定位。
+ *
+ * @since FIX-146
+ */
+const STEPS_WITH_PERSISTED_DATA: ReadonlySet<string> = new Set([
+  'FILE_PREPARATION',
+  'REFERENCE_NUMBER_MATCHING',
+  'EXCHANGE_RATE_CONVERSION',
+]);
+
+/**
  * 將 StepResult[] 轉換為可持久化的 JSON 格式
  *
  * @description
- *   只保留步驟元資料（step, success, error, durationMs, skipped），
- *   不保存 data 屬性（step-specific 大資料，會造成 JSON 過大）。
+ *   保留步驟元資料（step, success, error, durationMs, skipped），
+ *   並僅對 {@link STEPS_WITH_PERSISTED_DATA} 內的步驟保留 `data`。
  *
  * @param stepResults - 統一處理器的步驟結果列表
  * @returns 持久化用 JSON 陣列
@@ -213,6 +236,7 @@ function convertStepResultsToJson(
   durationMs: number;
   skipped?: boolean;
   retryAttempts?: number;
+  data?: Prisma.InputJsonValue;
 }> {
   return stepResults.map((sr) => ({
     step: sr.step,
@@ -221,6 +245,10 @@ function convertStepResultsToJson(
     durationMs: sr.durationMs,
     ...(sr.skipped ? { skipped: sr.skipped } : {}),
     ...(sr.retryAttempts ? { retryAttempts: sr.retryAttempts } : {}),
+    // FIX-146: 僅白名單步驟保留 data，見 STEPS_WITH_PERSISTED_DATA
+    ...(STEPS_WITH_PERSISTED_DATA.has(sr.step) && sr.data !== undefined
+      ? { data: sr.data as Prisma.InputJsonValue }
+      : {}),
   }));
 }
 
@@ -524,6 +552,7 @@ function convertV3_1StepResultsToJson(
   error?: string;
   durationMs: number;
   skipped?: boolean;
+  data?: Prisma.InputJsonValue;
 }> {
   return stepResults.map((sr) => ({
     step: sr.step,
@@ -531,6 +560,10 @@ function convertV3_1StepResultsToJson(
     ...(sr.error ? { error: sr.error } : {}),
     durationMs: sr.durationMs,
     ...(sr.skipped ? { skipped: sr.skipped } : {}),
+    // FIX-146: 僅白名單步驟保留 data，見 STEPS_WITH_PERSISTED_DATA
+    ...(STEPS_WITH_PERSISTED_DATA.has(sr.step) && sr.data !== undefined
+      ? { data: sr.data as Prisma.InputJsonValue }
+      : {}),
   }));
 }
 

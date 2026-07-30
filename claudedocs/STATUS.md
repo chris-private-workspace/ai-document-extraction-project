@@ -10,7 +10,7 @@
 | CHANGE | 111 | CHANGE-113 | **CHANGE-114** |
 | FIX | 148 | FIX-146 | **FIX-147** |
 
-## 📋 未開始（26）
+## 📋 未開始（25）
 
 > 完全未動工的規劃。
 
@@ -41,9 +41,8 @@
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 | [FIX-145](4-changes/bug-fixes/FIX-145-prompt-assembly-city-code-unknown-column.md) | prompt assembly city code unknown column | ⏳ 待實作 |
-| [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | ⏳ 待實作 |
 
-## 🚧 進行中 / 部分完成（22）
+## 🚧 進行中 / 部分完成（23）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -71,6 +70,7 @@
 | [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
 | [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通… |
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
+| [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | 🚧 已實作，待 Azure DEV 端到端驗證 |
 
 ## ❓ 狀態無法解析（2）
 
