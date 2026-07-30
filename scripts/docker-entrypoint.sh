@@ -119,5 +119,28 @@ if [ "$RUN_INVOICE_NUMBER_BACKFILL" = "true" ]; then
   node prisma/backfill-invoice-number.js || echo "[entrypoint] invoice_number backfill failed (non-fatal), continuing"
 fi
 
+# (選用)CHANGE-113 DHL 多 shipment 設定 —— 由
+# RUN_CHANGE113_DHL_SETUP=inspect|dryrun|write 觸發,非致命。
+# CHANGE-113 的程式碼隨映像上線,但**讓它生效的五項設定都在資料庫裡**:欄位定義集的
+# 燃油欄位、DHL Stage 3 prompt、兩條模板映射規則、模板 line_item_mode=GROUP。
+# 不套用則映像雖新、行為仍是舊的(分組鍵會被編造、燃油與文件類運費金額落空)。
+# inspect=唯讀印現況;dryrun=印將改什麼不寫入;write=冪等寫入。完成後把旗標**清空**。
+# 🔴 比照 FIX-140:本旗標是「三模式」非布林 —— **關閉方式是清空設定,設成 false 不會關閉**
+# (腳本自身的 mode 檢查會擋下,但旗標語意仍應明確)。有效值須與 prisma/change113-dhl-setup.js
+# 的 VALID_MODES 保持一致。
+# 前置:line_item_mode 欄位需先由 apply-schema-drift.js 建立(RUN_SCHEMA_DRIFT_FIX=true)。
+case "$RUN_CHANGE113_DHL_SETUP" in
+  inspect|dryrun|write)
+    echo "[entrypoint] (optional) CHANGE-113 DHL setup: mode=$RUN_CHANGE113_DHL_SETUP"
+    node prisma/change113-dhl-setup.js || echo "[entrypoint] CHANGE-113 DHL setup failed (non-fatal), continuing"
+    ;;
+  "")
+    : # 未設定 = 關閉(正常情況,不輸出)
+    ;;
+  *)
+    echo "[entrypoint] (optional) CHANGE-113 DHL setup skipped: mode=$RUN_CHANGE113_DHL_SETUP not recognised (expected inspect|dryrun|write; clear the app setting to disable)"
+    ;;
+esac
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js
