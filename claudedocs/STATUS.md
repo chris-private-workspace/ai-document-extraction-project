@@ -42,7 +42,7 @@
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 | [FIX-145](4-changes/bug-fixes/FIX-145-prompt-assembly-city-code-unknown-column.md) | prompt assembly city code unknown column | ⏳ 待實作 |
 
-## 🚧 進行中 / 部分完成（23）
+## 🚧 進行中 / 部分完成（21）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -55,7 +55,6 @@
 | [CHANGE-079](4-changes/feature-changes/CHANGE-079-city-scope-idor-unified-fix.md) | city scope idor unified fix | ✅ 已實作（程式碼層面，2026-06-10）：6 套用點全部完成；單元測試 + 執行期待驗證 |
 | [CHANGE-091](4-changes/feature-changes/CHANGE-091-template-instance-flow-ux-async-progress.md) | template instance flow ux async progress | 🚧 Phase 1 已完成（2026-06-26）／Phase 2 待實作 |
 | [CHANGE-095](4-changes/feature-changes/CHANGE-095-allow-editing-company-code.md) | allow editing company code | 🔬 待 E2E 驗證（實作完成、type-check/lint 通過；使用者自行測試中） |
-| [CHANGE-113](4-changes/feature-changes/CHANGE-113-line-item-group-key-multi-shipment-invoice.md) | line item group key multi shipment invoice | 🚧 進行中（階段一 A1/A2/A3 + B、階段二全部完成，本地端到端 + 穩定度 + 燃油映射 2026-07-29 通過。Azur… |
 | [FIX-065](4-changes/bug-fixes/FIX-065-mapping-api-auth-and-city-scope.md) | mapping api auth and city scope | 🔧 認證已修復（2026-06-10）；城市範圍 IDOR 留 WP-4 |
 | [FIX-067](4-changes/bug-fixes/FIX-067-v1-confidence-prompts-classified-auth.md) | v1 confidence prompts classified auth | 🔧 部分修復（2026-06-10）：confidence/prompts/classified 已修；`/api/v1` 留 WP-2… |
 | [FIX-069](4-changes/bug-fixes/FIX-069-redos-safe-regex-execution.md) | redos safe regex execution | ✅ 核心已完成（2026-06-11，程式碼層面；執行期 staging 驗證待部署） |
@@ -70,7 +69,6 @@
 | [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
 | [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通… |
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
-| [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | 🚧 已實作，待 Azure DEV 端到端驗證 |
 
 ## ❓ 狀態無法解析（2）
 
@@ -89,7 +87,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（206）
+## ✅ 已完成（208）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -173,6 +171,7 @@
 | [CHANGE-110](4-changes/feature-changes/CHANGE-110-internal-scheduler-stuck-processing-sweeper.md) | internal scheduler stuck processing sweeper | ✅ 已完成（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` 0 … |
 | [CHANGE-111](4-changes/feature-changes/CHANGE-111-gateway-enforce-allow-sensitive-data.md) | gateway enforce allow sensitive data | ✅ 已完成（2026-07-27；`type-check` / `lint` / `test` 237/237 通過。⚠️ 純政策攔截、無… |
 | [CHANGE-112](4-changes/feature-changes/CHANGE-112-pre-push-hook-docs-check.md) | pre push hook docs check | ✅ 已完成（2026-07-28） |
+| [CHANGE-113](4-changes/feature-changes/CHANGE-113-line-item-group-key-multi-shipment-invoice.md) | line item group key multi shipment invoice | ✅ 已完成（2026-07-30。階段一 A1/A2/A3 + B、階段二 `GROUP` 模式全部完成；本地端到端 + 穩定度 + 燃油… |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |
@@ -299,4 +298,5 @@
 | [FIX-142](4-changes/bug-fixes/FIX-142-template-field-mapping-excludes-pending-companies.md) | template field mapping excludes pending companies | ✅ 已修復（2026-07-29） |
 | [FIX-143](4-changes/bug-fixes/FIX-143-summary-area-vat-field-typed-as-lineitem.md) | summary area vat field typed as lineitem | ✅ 已修復並驗證（2026-07-29，Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`） |
 | [FIX-144](4-changes/bug-fixes/FIX-144-completed-documents-have-no-reprocess-entry.md) | completed documents have no reprocess entry | ✅ 已修復（2026-07-29） |
+| [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | ✅ 已完成（2026-07-30 第三輪部署，五項驗證訊號全部達標） |
 

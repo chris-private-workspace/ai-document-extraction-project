@@ -1,7 +1,7 @@
 # CHANGE-113: 一份發票對應多個 Shipment —— 註解可見性、行項目分組鍵與模板三模式輸出
 
 > **日期**: 2026-07-29
-> **狀態**: 🚧 進行中（階段一 A1/A2/A3 + B、階段二全部完成，本地端到端 + 穩定度 + 燃油映射 2026-07-29 通過。Azure 部署 2026-07-30 已執行但 **A2/A3 未生效** → 見 §Azure 部署執行結果 + **FIX-146**。`EXPAND` 模式未實作，見 §階段二實作範圍）
+> **狀態**: ✅ 已完成（2026-07-30。階段一 A1/A2/A3 + B、階段二 `GROUP` 模式全部完成；本地端到端 + 穩定度 + 燃油映射 2026-07-29 通過；Azure DEV production build 驗證 2026-07-30 通過 —— 首輪三項機制失效，經 **FIX-146** 三輪修復後達標，見 §Azure 部署執行結果。`EXPAND` 模式屬**定案排除**範圍，見 §階段二實作範圍 修正 3 與驗收 13）
 > **優先級**: High
 > **類型**: Feature Enhancement
 > **影響範圍**: PDF 轉換層、提取層（LineItemV3、Stage 3 Schema）、模板匹配引擎、DataTemplate Model、DataTemplate UI
@@ -569,8 +569,8 @@ DHL 欄位定義集有 3 個 `lineItem` 欄位，原本只映射了 1 個，另�
 | — ✅ | **檢查點：本地重跑 DHL 文件，確認分組正確** | 已完成 —— 但**先前那次「三次一致」的結論不成立**（Prompt 範例污染，見 §階段一結論的重大更正） |
 | 二 ✅ | Prisma 欄位 + 分組展開 + 組層級回填 + UI/i18n | 程式碼完成，單元測試涵蓋驗收 9-12、14 |
 | — ✅ | **本地端到端：模板實例產出兩列、金額正確** | 已完成 2026-07-29 —— 2 列、rowKey `RCIM250111` / `RCIM250113`、freight 247.5 / 2310 |
-| — ⚠️ | Azure 部署 | **已執行但未達標**（2026-07-30）：映像與五項資料庫設定都上線了，但 A1/A2/A3 三項在 production build 全部失效（webpack 改寫 pdfjs 動態 import）→ 已開 **FIX-146**。見 §Azure 部署執行結果 |
-| — 🔴 | **補驗：三項機制在 production build 上有效** | 未做 —— 階段一只在 `npm run dev` 驗證過，這是 FIX-146 的成因。修復後必須 `npm run build && npm start` 重驗 |
+| — ⚠️→✅ | Azure 部署 | 首次執行未達標（2026-07-30）：映像與五項資料庫設定都上線了，但 A1/A2/A3 三項在 production build 全部失效（webpack 改寫 pdfjs 的模組載入）→ 開 **FIX-146**，歷經三輪修復後**已達標**。見 §Azure 部署執行結果 |
+| — ✅ | **補驗：三項機制在 production build 上有效** | 已完成 2026-07-30 —— 由 FIX-146 第三輪部署（映像 `dev-fix146r3-20260730180535`）在 Azure DEV 上驗證，五項訊號全部達標 |
 
 ---
 
@@ -631,9 +631,15 @@ DHL 欄位定義集有 3 個 `lineItem` 欄位，原本只映射了 1 個，另�
 
 ---
 
-## Azure 部署執行結果（2026-07-30）—— ⚠️ 未達標
+## Azure 部署執行結果（2026-07-30）—— 首輪未達標 → FIX-146 三輪修復後 ✅ 達標
 
-### 已完成的部分
+> 本節按時序記錄。§首輪部署 保留當時的判讀（含兩個已更正的錯誤推論），§最終狀態 是收尾結論。
+
+---
+
+### 首輪部署（映像 `dev-change113-20260730100145`）—— ⚠️ 未達標
+
+#### 已完成的部分
 
 | 項目 | 結果 |
 |---|---|
@@ -642,7 +648,7 @@ DHL 欄位定義集有 3 個 `lineItem` 欄位，原本只映射了 1 個，另�
 | 五項資料庫設定 | `write` 模式全數成功；旗標事後已清空 |
 | Stage 3 prompt | 新版（移除真實號碼範例）已在 Azure 生效 |
 
-### 未達標的部分
+#### 未達標的部分
 
 **A1、A2、A3 三項全部未生效**（不只 A2/A3 —— 初判漏了 A1）。
 
@@ -655,20 +661,57 @@ DHL 欄位定義集有 3 個 `lineItem` 欄位，原本只映射了 1 個，另�
 
 提取層的分組資料仍是**正確的**：groupKey `RCIM-25-0111` / `RCIM-25-0113`、2 組、4 筆行項目、金額 247.5 + 69.92 / 2310 + 652.58。
 
-但這正是問題所在 —— **groupKey 的正確性目前沒有任何機制保障**（A2 就是那個保障），模型只是自行從圖上讀對了。換一份文件可能就編造。
+但這正是問題所在 —— **groupKey 的正確性當時沒有任何機制保障**（A2 就是那個保障），模型只是自行從圖上讀對了。換一份文件可能就編造。
 
-### 根因已確認：webpack 把 pdfjs 的動態 import 換成必然拋錯的 stub
+#### 根因已確認：webpack 破壞了 pdfjs 的模組載入
 
-`loadPdfjs()` 的 `import(pathToFileURL(url).href)` 在 `next build` 後被 webpack 改寫為 `__webpack_require__(54385)(url)`，而 module 54385 是 webpack 的 missing-module stub —— 對任何路徑無條件拋 `MODULE_NOT_FOUND`。`collectPageHints` 是 A1/A2/A3 的共同上游，其 catch 只 push warning，於是三者一起靜默失效。
+`loadPdfjs()` 在 `next build` 後有**兩處**被 webpack 改壞，且**先發生的那處當時沒被看見**：
+
+| 順序 | 原始碼 | 編譯後 | 後果 |
+|---|---|---|---|
+| 先 | `await import('node:module')` 等三個內建模組 | 換成 `c.t` 包裝的假 namespace | 具名解構取到 `undefined` → `createRequire(...)` 拋 `TypeError: a is not a function` |
+| 後 | `import(pathToFileURL(url).href)` | 換成 `__webpack_require__(54385)`（missing-module stub） | 對任何路徑無條件拋 `MODULE_NOT_FOUND` |
+
+`collectPageHints` 是 A1/A2/A3 的共同上游，其 catch 只 push warning，於是三者一起靜默失效。
+
+> 首輪只看到第二處（讀編譯產物的字面），修完仍失效；第二輪加了 `console.error` 才拿到 runtime 訊號、指出第一處。詳見 FIX-146 §真正的根因。
 
 🔴 **這不是 Azure 特有問題，而是 production build 特有。** 本地驗證走 `npm run dev`（原生 `import()` 保留）故三者皆有效 —— 階段一的驗證盲點就在這裡：**三項機制從未在 production build 上驗證過**。詳見 **FIX-146**。
 
-### 兩個先前的錯誤推論（已更正）
+#### 兩個先前的錯誤推論（已更正）
 
 1. 「A3 未生效，因為 AWB 與轉正前值相同」—— 結論對，但理由不成立（AWB 讀錯是側躺誤讀，轉正後也可能錯）。真正的證據是編譯產物。
 2. 「A1 必定生效，否則模型看不到 RCIM」—— **錯**。在映像內渲染該頁確認：**pdfjs 自己就會繪製 FreeText 註解**，RCIM 紅字紅框清楚可見。模型讀到 groupKey 與 A1 無關。
 
-> 🔴 **不可把本次部署記為成功。** 映像與設定上線 ≠ 功能生效。
+> 🔴 **不可把首輪部署記為成功。** 映像與設定上線 ≠ 功能生效。
+
+---
+
+### 最終狀態（映像 `dev-fix146r3-20260730180535`，10:17:42 Ready）—— ✅ 達標
+
+FIX-146 三輪修復後重新處理同一份 `DHL_RCIM250111_28699.pdf`（10:25:32），三項機制全部生效：
+
+| 機制 | 首輪 | 最終 | 判準 |
+|---|---|---|---|
+| A1 註解補畫 | 未生效 | ✅ 生效 | `annotationCount` = **2**（首輪 0） |
+| A2 候選清單注入 | 未生效 | ✅ 生效 | `gpt_prompt` 含 `Shipment Group Candidates` 段落；容器 log 出現 `[Stage3] Injected 2 PDF annotation(s) as groupKey candidates` |
+| A3 側躺頁轉正 | 未生效 | ✅ 生效 | `rotatedPages` = `[{ pageNumber: 2, degrees: 90 }]`（首輪 `[]`）；**AWB 從 8 位錯誤值變成正確的 10 位** |
+| 模板列產出 | 無法驗證（無預設模板） | ✅ 2 列、狀態 `VALID` | 見下表 |
+
+模板實例 `cms7db4ed000001pet7rkij70`（DHL 預設模板已於部署前另行設定，屬資料設定非程式改動）：
+
+| row_key | shipment_number | freight | fuel_surcharge_at_origin | status |
+|---|---|---|---|---|
+| `RCIM250111` | RCIM250111 | 247.5 | 69.92 | **VALID** |
+| `RCIM250113` | RCIM250113 | 2310 | 652.58 | **VALID** |
+
+**A3 的證據值得單獨指出**：AWB 從 `88557336`／`24097724`（8 位，側躺誤讀）變成 `8365573366`／`2407071774`（10 位，正確）。這是前三輪一直拿不到的**直接**證據 —— 首輪曾誤用「AWB 與轉正前相同」當理由，後來自行更正為間接推論不成立。
+
+**A2 的價值也在此輪才真正落地**：groupKey 自此有封閉值域約束（`MUST be copied verbatim from the candidate list above`），不再只是「模型剛好讀對」。
+
+本輪在 production build 上直接驗證到的驗收項：**3**（候選清單注入）、**6**（每筆分組正確）、**9**（2 列、rowKey 正確）、**10**（組層級號碼各異）、**11**（組內金額 317.42 / 2,962.58）。
+
+驗收 **1／2**（註解補畫的視覺位置）本輪未再目視 Azure 渲染圖 —— `annotationCount` = 2 只證明註解讀取鏈已通；補畫位置的驗證仍以 2026-07-29 本地渲染圖為據。驗收 **4／8**（零回歸）同為本地驗證，本輪未重跑非 DHL 文件。
 
 ---
 
