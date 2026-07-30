@@ -755,6 +755,10 @@ export class PdfConverter {
         }
       }
     } catch (error) {
+      // FIX-146: 同時寫 log。這個 catch 是 A1/A2/A3 的共同失效點，先前只 push
+      // warning，而 warning 的落地要經過多層透傳（曾在 UnifiedDocumentProcessor
+      // 被丟棄），導致失效時完全沒有可見訊號。log 是最短路徑，且帶 stack。
+      console.error('[pdf-converter] collectPageHints failed:', error);
       warnings.push(
         `讀取 PDF 註解／文字方向失敗（不影響轉檔）：${error instanceof Error ? error.message : '未知錯誤'}`
       );

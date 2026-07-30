@@ -355,6 +355,10 @@ export class UnifiedDocumentProcessorService {
           skipped: sr.skipped,
           durationMs: sr.durationMs,
           error: sr.error,
+          // FIX-146: data 必須透傳。此處漏接會讓步驟診斷資料（含 FILE_PREPARATION
+          // 的 annotationCount / rotatedPages / 轉檔 warning）在進入持久化層之前
+          // 就消失 —— 持久化層的白名單負責決定哪些真正落地。
+          data: sr.data,
         })),
         error: v3Result.error ?? 'V3 extraction failed',
         warnings: v3Result.warnings.map((w) => ({
@@ -441,6 +445,9 @@ export class UnifiedDocumentProcessorService {
         skipped: sr.skipped,
         durationMs: sr.durationMs,
         error: sr.error,
+        // FIX-146: 見上方失敗路徑的同一則註解 —— data 不透傳會讓診斷訊號在
+        // 持久化之前就消失，這是本 FIX 第一輪修錯層的原因。
+        data: sr.data,
       })),
       extractedData,
       // FIX-044: 將 V3.1 欄位轉為 V2 MappedFieldValue[] 填入 mappedFields

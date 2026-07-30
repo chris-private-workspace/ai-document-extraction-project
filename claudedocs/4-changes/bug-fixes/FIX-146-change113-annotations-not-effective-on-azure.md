@@ -143,11 +143,81 @@ return nativeImport(pathToFileURL(pdfjsPath).href);
 | **編譯產物對照** | ✅ 修復前 `return c(54385)(b(f).href)`（stub）→ 修復後 `return Function("specifier","return import(specifier)")(b(f).href)`（原生 import）。minifier 把 `new Function` 簡化為 `Function`，語意相同 |
 | **生產映像內執行** | ✅ 在 `dev-change113-20260730100145` 內跑同一機制：載入成功、`getDocument` 可用、讀到第 2 頁 2 筆 FreeText、`rot=90`、`rect` 通過過濾、文字經 `??` 正確取到 `RCIM-25-0111`／`RCIM-25-0113`（`contents` 為 undefined，fallback 到 `contentsObj.str` 成立） |
 
-### 尚未驗證的一段
+---
 
-**完整 pipeline 在正式建置下跑一遍**（orchestrator 透傳 → Stage 3 注入 → 持久化）尚未做。原因：正式建置為 `NODE_ENV=production`，dev bypass 失效（memory `feedback_local_login_dev_bypass_vs_build`），本地缺可用憑證；`/api/v1/extraction-v3/test/` 也已依 FIX-066 在 production 停用。
+## 第一輪部署結果（2026-07-30 07:07 UTC）—— ⚠️ 未達標
 
-該三段**不涉及 webpack 動態 import**（透傳鏈已靜態確認三處都接上、`buildGroupCandidateSection` 有單元測試涵蓋），但這仍是驗證缺口，須在 Azure DEV 部署後補上：確認 `pipeline_steps` 的 `FILE_PREPARATION.data.annotationCount = 2`、`rotatedPages` 非空、且 `gpt_prompt` 含候選清單段落。
+映像 `dev-fix146-20260730145447`（來源 `d688d6b`）已上線，平台 log 逐行確認容器跑的就是它：
+
+```
+07:07:38  Pulling image ...:dev-fix146-20260730145447
+07:07:45  Image ... is pulled from registry
+07:07:45  Creating container with image ...:dev-fix146-20260730145447
+07:07:46  Starting container: ee909446b484_...
+07:07:50  ✓ Ready in 1167ms
+```
+
+之後（07:16–08:00）處理了 11 份 DHL 文件，含 3 次同一份 `DHL_RCIM250111_28699.pdf`（5 份檔案全部 2,203,891 bytes，確認是同一份含註解版）。結果：
+
+| 訊號 | 實測 | 判讀 |
+|---|---|---|
+| `FILE_PREPARATION.data` | **不存在** | 持久化改動未生效 |
+| `gpt_prompt` 含候選清單 | **false** | A2 仍未注入 |
+| `groupSourceRef` | 仍是 8 位 `88557336`／`24097724` | A3 仍未生效 |
+| `templateInstanceId` | **全部有值** | DHL 預設模板設定成功（與本 FIX 無關的另一項工作） |
+
+### 🔴 第一輪修錯了層
+
+`data` 未落地是**持久化層以外**的問題。真正的斷點在 `unified-document-processor.service.ts`：
+
+```typescript
+// 442-448（成功路徑）與 352-358（失敗路徑）
+stepResults: v3Result.stepResults.map((sr) => ({
+  step: sr.step as unknown as ProcessingStep,
+  success: sr.success,
+  skipped: sr.skipped,
+  durationMs: sr.durationMs,
+  error: sr.error,          // ← 沒有 data
+})),
+```
+
+V3 的 stepResults 在轉成 `UnifiedProcessingResult` 時就把 `data` 丟了，**早於**持久化層。這是 FIX-092 同型漏接的**第三處**，而第一輪只查了持久化層就下手 —— 犯的正是本 FIX 記錄過的錯：只證明「可能」就當成「實際」。
+
+後果不只是少一個欄位：`collectPageHints` 的 warning 也走同一條路，所以第一輪部署後**仍然沒有任何可見訊號**能說明 A2/A3 為何失效。文件裡自己寫的「Step 1：先讓訊號可見」沒做完整。
+
+### A2/A3 為何仍失效 —— 目前無法回答
+
+已排除：容器跑舊映像（平台 log 否證）、檔案不同（5 份位元組數全同）。
+
+`FILE_PREPARATION.durationMs` 曾被考慮當替代訊號，但對照後**無法分辨**：
+
+| 映像 | durationMs |
+|---|---|
+| CHANGE-113（三項全失效） | 8365 |
+| FIX-146 第一輪 | 8398 / 9484 |
+
+差異落在噪音範圍內。（07-22 那兩次的 28140 / 32232 ms 不可比 —— 當時 App Service 還是 B1 規格，7/23 才升 B3。）
+
+---
+
+## 第二輪修復（已實作）
+
+| # | 檔案 | 內容 |
+|---|---|---|
+| 4 | `unified-document-processor.service.ts` | 兩處 `stepResults.map` 加入 `data: sr.data` 透傳（成功與失敗路徑） |
+| 5 | `pdf-converter.ts` | `collectPageHints` 的 catch 加 `console.error`（帶 stack）—— warning 的落地依賴多層透傳，log 是最短路徑 |
+
+改動 5 的用意：下一輪部署後，若 `collectPageHints` 仍失敗，容器 log 會**直接**顯示原因與 stack，不必再依賴 DB 落地、也不必再猜。
+
+驗證：`type-check` ✅、`test` 392 通過 / 2 跳過 ✅、`build` ✅、`lint` 無新增 error（`pdf-converter.ts:122` 的 `PageConversionResult` 未使用是 `2ae2bb8`／CHANGE-021 引入的既有 dead code，依 H3 不動）。
+
+### 下一輪要確認的
+
+1. 容器 log 是否出現 `[pdf-converter] collectPageHints failed:` —— 有則直接看錯誤，無則表示 pdfjs 載入已成功
+2. `FILE_PREPARATION.data.annotationCount` 是否為 2
+3. `rotatedPages` 是否非空
+4. `gpt_prompt` 是否含候選清單段落
+5. `groupSourceRef` 是否變成 10 位
 
 ---
 
