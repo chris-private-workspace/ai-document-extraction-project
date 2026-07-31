@@ -46,7 +46,7 @@ import { Stage1CompanyService } from './stage-1-company.service';
 import { Stage2FormatService } from './stage-2-format.service';
 import { Stage3ExtractionService } from './stage-3-extraction.service';
 // CHANGE-113 階段一 A: PDF 註解透傳至 Stage 3
-import type { PdfAnnotationInfo } from '../utils/pdf-converter';
+import type { ChargeTableHint, PdfAnnotationInfo } from '../utils/pdf-converter';
 
 // ============================================================================
 // Types
@@ -67,6 +67,11 @@ export interface OrchestratorInput {
    * @description CHANGE-113 階段一 A：供 Stage 3 作為 `groupKey` 候選清單
    */
   annotations?: PdfAnnotationInfo[];
+  /**
+   * PDF 文字層費用表（FILE_PREPARATION 步驟產出）
+   * @description FIX-147 C：供 Stage 3 作為費用列邊界的基準，取代從圖上判讀
+   */
+  chargeTables?: ChargeTableHint[];
 }
 
 /**
@@ -273,6 +278,8 @@ export class StageOrchestratorService {
           documentId: input.input.fileId,
           // CHANGE-113 階段一 A: 分組鍵候選清單
           annotations: input.annotations,
+          // FIX-147 C: 文字層費用表（行邊界基準）
+          chargeTables: input.chargeTables,
         });
 
         stepResults.push({

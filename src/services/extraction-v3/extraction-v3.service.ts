@@ -357,6 +357,13 @@ export class ExtractionV3Service {
           // CHANGE-113 階段一：註解與轉正是否生效需可事後查證，否則只能靠重新渲染比對
           annotationCount: conversionResult.annotations?.length ?? 0,
           rotatedPages: conversionResult.rotatedPages ?? [],
+          // FIX-147 C：偵測到的費用表列數需可事後查證 —— 否則「有沒有注入」
+          // 只能靠重跑比對，正是 FIX-146 踩過的坑
+          chargeTableRows: (conversionResult.chargeTables ?? []).map((t) => ({
+            page: t.pageNumber,
+            rows: t.rows.length,
+            total: t.documentTotal,
+          })),
           // FIX-146: 轉檔 warning 一併落地。collectPageHints 失敗時只 push warning
           // 而不拋錯（轉檔本身仍成功），先前這則訊息只存在記憶體，是 FIX-146 那個
           // 缺陷得靠拉映像讀編譯產物才定位的直接原因。
@@ -467,6 +474,8 @@ export class ExtractionV3Service {
           pageCount: conversionResult.pageCount,
           // CHANGE-113 階段一 A: PDF 註解 → Stage 3 的 groupKey 候選清單
           annotations: conversionResult.annotations,
+          // FIX-147 C: PDF 文字層費用表 → Stage 3 的行邊界基準
+          chargeTables: conversionResult.chargeTables,
         },
         {
           autoCreateCompany: input.options?.autoCreateCompany ?? true,

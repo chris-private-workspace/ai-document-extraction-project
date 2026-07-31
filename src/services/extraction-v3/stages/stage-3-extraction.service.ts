@@ -80,7 +80,7 @@ import {
   type LabelMatchKind,
 } from '../utils/classify-normalizer';
 // CHANGE-113 階段一 A: PDF 註解作為分組鍵候選清單
-import type { PdfAnnotationInfo } from '../utils/pdf-converter';
+import type { ChargeTableHint, PdfAnnotationInfo } from '../utils/pdf-converter';
 
 // ============================================================================
 // Constants
@@ -126,6 +126,12 @@ export interface Stage3Input {
    * @description 使用者手寫補註的內容，作為 `groupKey` 的候選清單注入 Prompt
    */
   annotations?: PdfAnnotationInfo[];
+
+  /**
+   * PDF 文字層費用表（FIX-147 C）
+   * @description 已通過合計自證的費用列，作為行邊界基準注入 Prompt
+   */
+  chargeTables?: ChargeTableHint[];
 }
 
 /**
@@ -241,6 +247,85 @@ export function buildGroupCandidateSection(
     // 因此「只標一部分」會讓其餘費用整筆從報表消失。全標或全不標都安全。
     '3. Either set `groupKey` on every line item that belongs to a shipment, or leave it unset on all of them. Never tag only some of them.',
     '4. If the list contains exactly one candidate, this invoice covers a single shipment — leave `groupKey` unset on all line items.',
+  ].join('\n');
+}
+
+// ============================================================================
+// Charge Table Injection (FIX-147 C)
+// ============================================================================
+
+/**
+ * 控制費用表注入的環境變數
+ *
+ * @description
+ *   設為 `'false'` 即停用注入（偵測仍會執行並記錄，供診斷用）。Azure 上若發現
+ *   注入造成迴歸，改一個 app setting 重啟即可關閉，不必回滾映像。
+ */
+const CHARGE_TABLE_HINT_FLAG = 'EXTRACTION_CHARGE_TABLE_HINTS';
+
+/** 描述過長時截斷（單列描述異常長多半是版面判讀出錯，不該把 Prompt 撐爆） */
+const MAX_CHARGE_DESCRIPTION_LENGTH = 300;
+
+/**
+ * 由 PDF 文字層費用表建立行邊界基準段落
+ *
+ * @description
+ *   FIX-147 C。**這段存在的理由是：模型看不到它需要用來遵守規則的那個資訊。**
+ *
+ *   管線把 PDF rasterize 成 200 DPI 圖片才交給 GPT Vision，文字層與精確座標在那一刻
+ *   全被丟棄。CEVA_RCIM260069_37388.pdf 的 5 筆費用佔 8 個視覺行，續行與新列的唯一
+ *   差別是行距 8.6pt 對 10.2pt —— 在圖上只剩約 4 像素。先前試過在 Prompt 加「不可
+ *   合併兩列、不可漏列」的規則（FIX-147 A），完全無效：模型並非明知兩列還去合併，
+ *   而是**它認為那本來就是一列**。對看錯的人重申規則不會有任何作用。
+ *
+ *   這段給的是分好的列本身。GPT 的工作因此從「判斷行邊界」變成「把已知的列對應到
+ *   欄位」，後者它做得很好。
+ *
+ *   **列表已通過合計自證**（見 {@link detectChargeTable}），因此措辭是「以此為準」
+ *   而非「參考」—— 語氣保留餘地會讓模型在與圖片觀感衝突時倒回自己的判讀，那正是
+ *   要修的行為。但金額與描述以外的欄位（幣別、分類、日期）仍要求從圖片讀取，
+ *   文字層只負責它有把握的那部分。
+ *
+ * @param chargeTables - 各頁偵測結果；空陣列或未啟用時回空字串
+ * @returns Prompt 段落；不注入時為空字串
+ *
+ * @since FIX-147
+ */
+export function buildChargeTableSection(
+  chargeTables: ChargeTableHint[] | undefined
+): string {
+  if (process.env[CHARGE_TABLE_HINT_FLAG] === 'false') return '';
+  if (!chargeTables || chargeTables.length === 0) return '';
+
+  // 發票的費用表通常只在一頁；多頁時取列數最多的那頁，避免拼接不同表格
+  const table = [...chargeTables].sort((a, b) => b.rows.length - a.rows.length)[0];
+  if (!table || table.rows.length === 0) return '';
+
+  const lines = table.rows.map((row, index) => {
+    const description =
+      row.description.length > MAX_CHARGE_DESCRIPTION_LENGTH
+        ? `${row.description.slice(0, MAX_CHARGE_DESCRIPTION_LENGTH)}…`
+        : row.description;
+    return `${index + 1}. ${description} — ${row.amount}`;
+  });
+
+  return [
+    `Charge Table (extracted from this PDF's text layer, page ${table.pageNumber}):`,
+    ...lines,
+    `Sum: ${table.documentTotal} (verified against the invoice total)`,
+    '',
+    'Rules for `lineItems`:',
+    '1. The list above is the authoritative row structure of the charge table. It was read from the PDF text layer using exact coordinates, not from the rendered image.',
+    '2. Produce exactly one line item per row above — no more, no fewer. Rows whose description wraps onto several visual lines are already joined into a single entry.',
+    // 幣別必須講死。實測（2026-07-31，CEVA_RCIM250170_43397.pdf）此處原本只寫
+    // 「copy verbatim」、規則 5 又說「currency 仍從圖片讀」，模型在描述本身印著
+    // `THB 7,105.00 @ 0.248019` 的列上，三次有兩次把 amount 填成原幣 7105 而非
+    // 結算幣別 1762.17 —— 不注入時同一份文件兩次都正確。歧義是這段自己製造的。
+    '3. Copy each `amount` verbatim from the list. These figures are already converted to the invoice settlement currency and already reconcile to the invoice total. Never replace one with a foreign-currency figure printed beside the description, never re-read amounts from the image, and do not merge two rows into one.',
+    // 描述允許調整是刻意的：文字層的續行拼接可能夾帶排版碎片，而模型看得到完整版面。
+    // 但「有幾列、每列多少錢」不容它改 —— 那正是它做不到的部分。
+    '4. Use each description above to identify which field the row maps to. You may normalise the wording, but never split one row into two or drop one.',
+    '5. Everything other than the row structure and these amounts (dates, classification) must still be read from the image.',
   ].join('\n');
 }
 
@@ -391,7 +476,8 @@ export class Stage3ExtractionService {
       const prompt = this.buildExtractionPrompt(
         config,
         variableContext,
-        input.annotations
+        input.annotations,
+        input.chargeTables
       );
 
       // 3. 調用 GPT-5.2（精準提取）
@@ -973,7 +1059,8 @@ export class Stage3ExtractionService {
   private buildExtractionPrompt(
     config: ExtractionConfig,
     variableContext?: VariableContext,
-    annotations?: PdfAnnotationInfo[]
+    annotations?: PdfAnnotationInfo[],
+    chargeTables?: ChargeTableHint[]
   ): {
     system: string;
     user: string;
@@ -1045,6 +1132,19 @@ Respond in valid JSON format matching the provided schema.`;
       console.log(
         `[Stage3] Injected ${annotations?.length ?? 0} PDF annotation(s) as groupKey candidates`
       );
+    }
+
+    // FIX-147 C: 注入文字層費用表。同樣放在最後 —— 這是對 lineItems 行邊界的
+    // 硬約束，前面任何「從圖片讀取」的指示都不該覆蓋它。
+    const chargeSection = buildChargeTableSection(chargeTables);
+    if (chargeSection) {
+      systemPrompt = systemPrompt + '\n\n' + chargeSection;
+      const injected = [...(chargeTables ?? [])].sort((a, b) => b.rows.length - a.rows.length)[0];
+      console.log(
+        `[Stage3] Injected charge table from text layer: ${injected?.rows.length ?? 0} row(s), total ${injected?.documentTotal ?? 0}`
+      );
+    } else if (chargeTables?.length) {
+      console.log('[Stage3] Charge table detected but injection disabled by env flag');
     }
 
     return {
