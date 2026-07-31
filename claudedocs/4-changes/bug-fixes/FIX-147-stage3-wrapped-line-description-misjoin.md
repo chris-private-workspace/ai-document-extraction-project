@@ -5,7 +5,7 @@
 > **根因確認方式**: 從 Azure Blob 取回原始 PDF，用 pdfjs 抽取**帶座標**的文字層，與三次提取結果逐筆對照
 > **影響範圍**: `src/services/extraction-v3/stages/stage-3-extraction.service.ts`、`src/services/extraction-v3/confidence-v3-1.service.ts`、`src/services/extraction-v3/utils/pdf-converter.ts`
 > **優先級**: 高（金額分類錯誤直接影響成本歸屬；且存在**靜默漏帳**路徑）
-> **狀態**: 🚧 已實作（本地端到端驗證通過：目標文件三輪穩定 5 列、12 份迴歸語料零退步），待 Azure DEV 驗證
+> **狀態**: ✅ 已完成（2026-07-31 Azure DEV 端到端驗證通過，映像 `dev-fix147r3-20260731130840`）
 > **相關**: CHANGE-094（費用提取非確定性，同一缺陷家族）、FIX-108 / FIX-126 / FIX-127（backfill 比對規則累積）
 
 ---
@@ -379,6 +379,46 @@ DHL 是掃描件、**0 次注入**、prompt 逐字元不變。在**開關關閉*
 
 ---
 
+## Azure DEV 部署與驗證（2026-07-31）
+
+映像 `dev-fix147r3-20260731130840`（ACR run `ck1s`，建置 8:55）。部署前確認：線上落後 main 的範圍**只有 round 3 的 8 個檔案**（無意外累積變更）；round 3 **不需要任何新 app setting**（唯一的 env 讀取是 `=== 'false'` 才停用，未設即啟用，刻意避開 §16 那種「新 env 沒設 → 靜默 fallback」）；**未動 `prisma/`**，不需要 `apply-schema-drift.js` 條目。
+
+容器啟動乾淨，runbook 兩個歷史地雷都沒出現（無 `exec: ... not found`、無 `re2.wasm` ENOENT）：
+
+```
+05:23:14  [entrypoint] Step 1/3: bootstrap database schema (if needed)
+05:23:17  [entrypoint] Step 3/3: starting Next.js server
+05:23:19  Ready in 1181ms
+```
+
+### 注入生效（容器 log）
+
+```
+05:30:48  [Stage3] Injected 21 field definitions from FieldDefinitionSet
+05:30:48  [Stage3] Injected charge table from text layer: 5 row(s), total 14579.5
+05:30:54  [Stage3] FIX-108 backfill: set 4 charge field(s) from line items
+```
+
+### 最終資料（Azure DB 實查）
+
+| 項目 | 修復前（7/28） | 修復後 |
+|---|---|---|
+| 行項數 | 4 | **5** |
+| 行項合計 | 14,109.44 | **14,579.50** |
+| `destination_handling` | 3,078.15 | **3,548.21** |
+| `destination_thc` | 2,222.05 | **1,751.99** |
+| 470.06 的 `classifiedAs` | Destination Thc… | **Destination Handling** |
+| `reconciliation.difference` | −470.06 | **0** |
+| `processing_path` | AUTO_APPROVE（靜默放行錯誤資料） | **AUTO_APPROVE**（資料正確） |
+
+**使用者原始回報「470.06 HKD categorised wrong to THC, should be handling cost」至此解決。**
+
+> ⚠️ 驗證過程中的一個判讀陷阱：重啟後 `/api/health` **立刻**回 200，但 `uptime` 是 11,902 秒 —— 那是**舊容器**。部署前先取過健康基準（同樣是 200），才看得出這個 200 什麼也沒證明。改以 `uptime` 重置為就緒訊號後才是真的。
+
+> Kudu（SCM）在 App Service for Containers 上是**獨立容器**，看不到應用容器的檔案系統，因此無法用它查編譯產物；但它能連 VNet 內的私有 PG（`/home/node_modules/pg` 已就緒、`DATABASE_URL` 可用），上表即由此取得。
+
+---
+
 ## 驗收標準
 
 | # | 驗收項目 | 驗收標準 | 優先級 |
@@ -396,9 +436,9 @@ DHL 是掃描件、**0 次注入**、prompt 逐字元不變。在**開關關閉*
 | 11 ✅ | 自證閘（C） | 無文字層／找不到總額／合計對不上 → 回 `null`，prompt 不變 | High |
 | 12 ✅ | 功能開關（C） | `EXTRACTION_CHARGE_TABLE_HINTS=false` → 完全不注入，且 log 明示偵測到但停用 | High |
 | 13 ✅ | 迴歸（C） | 12 份本機語料重跑：目標修好、其餘無退步（DHL 差異已證明與本 FIX 無關） | High |
-| 14 🔬 | 端到端（Azure） | 部署後重新處理該文件，確認與本機一致 | High |
+| 14 ✅ | 端到端（Azure） | 部署後重新處理該文件，確認與本機一致 | High |
 
-> 驗收 1-13 已於本機驗證通過（單元測試 25 個 + 12 份實跑對照）。14 需部署至 Azure DEV 後驗證。
+> **全部 14 項驗收通過。** 1-13 於本機驗證（單元測試 25 個 + 12 份實跑對照），14 於 Azure DEV 驗證（見 §Azure DEV 部署與驗證）。
 
 > ⚠️ 驗收 8 現由 C 達成。**即使 C 在某份文件上未能生效，B 仍必須讓合計對不上的文件落入 `FULL_REVIEW`** —— 那是本 FIX 的底線，DHL 那份正是此底線生效的實例。
 
@@ -419,14 +459,14 @@ DHL 是掃描件、**0 次注入**、prompt 逐字元不變。在**開關關閉*
 
 ## 現存錯誤資料的處理
 
-Azure DEV 上該文件目前的模板列是錯的：
+✅ **已於 2026-07-31 部署後重新處理解決**（非直接改 `field_values` —— 那會掩蓋根因是否真的修好）：
 
-| 欄位 | 現值 | 正確值 |
+| 欄位 | 修復前 | 重新處理後 |
 |---|---|---|
-| `thc` | 2,222.05 | 1,751.99 |
-| `handling` | 3,078.15 | 3,548.21 |
+| `thc` | 2,222.05 | **1,751.99** |
+| `handling` | 3,078.15 | **3,548.21** |
 
-三筆 `documents` 記錄（`e2117ae9…` / `9822eaae…` / `2dfa7dc8…`）都源自同一次上傳的重複處理。修復部署後需重新處理並確認，**不建議直接改 `field_values`** —— 那會掩蓋根因是否真的修好。
+> 三筆 `documents` 記錄（`e2117ae9…` / `9822eaae…` / `2dfa7dc8…`）都源自同一次上傳的重複處理；本次驗證的是最新一筆。其餘兩筆若仍需正確資料，重新處理即可（根因已修，重跑即正確）。
 
 ---
 
