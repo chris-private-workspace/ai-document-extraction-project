@@ -208,6 +208,80 @@ y=314.5  x= 36.5  "1 40GP @ THB 774.00/CN"                                ← �
 
 ---
 
+## 第一輪 Azure 部署結果（2026-07-31 01:26 UTC）—— A 生效、B 偵測到但沒攔下
+
+映像 `dev-fix147-20260731090920`（ACR run `ck1q`）上線後重新處理同一份文件。
+
+### A（prompt 續行規則）：已送達，但沒解決問題
+
+`gpt_prompt` 四項檢查全 `true`，長度 7,119 → **7,927**。**驗收 7 通過。**
+
+但模型照樣讀錯，且錯法與 7/28 03:30 那次完全相同：
+
+```
+"DELIVERY ORDER FEE - 1 20GP @ THB 1128.00/CN + 1 40GP @ THB 774.00/CN"   597.34
+```
+
+470.06 那行的續行文字被接到**下方**的 `DELIVERY ORDER FEE` 上，整筆 470.06 消失，只剩 4 行。
+
+> 這在預期之內 —— 規劃時已寫明「A 只降低機率、不保證」。但也確認了一件事：
+> **A 對本案例幾乎沒有效果**，B 才是唯一可靠的防線。
+
+### 為何第一條 DESTINATION HANDLING 讀得到、第二條讀不到
+
+關鍵不在名稱，在**版面是否換行**：
+
+```
+y=354.3  "DESTINATION HANDLING - 3 TEU @ USD 130.00/TEU"      3,078.15   ← 單行
+y=341.9  "DESTINATION THC - TERMINAL HANDLING CHARGE - 1"     1,751.99
+y=333.3  "20GP @ THB 4350.00/CN + 1 40GP @ THB 2739.00/CN"                ← 續行
+y=323.1  "DESTINATION HANDLING - 1 20GP @ THB 1128.00/CN +"     470.06
+y=314.5  "1 40GP @ THB 774.00/CN"                                         ← 續行
+y=304.4  "DELIVERY ORDER FEE"                                   597.34   ← 單行
+```
+
+第一條**不換行**，第二條**換行**。規律：被吃掉的一定是換行的那一行，其續行會被併進相鄰的某一筆。單行費用不受影響。
+
+### B（對帳閘）：偵測正確，但結論被上游丟棄
+
+容器 log 證實偵測邏輯完全正確：
+
+```
+01:26:46  [Stage3] FIX-147 line item total mismatch:
+          sum=14109.44 vs total_amount=14579.5 (diff=-470.06, tolerance=0.05, items=4)
+```
+
+但 `documents.processing_path` 仍是 `AUTO_APPROVE`，`stage_3_result` 也沒有
+`lineItemTotalReconciliation`（只有 7 個 key）。
+
+🔴 **根因不在本 FIX 的邏輯，在 V3.1 管線**：`extraction-v3.service.ts` Step 7
+只用分數重推路由，把 `ConfidenceV3_1Service.calculate()` 算好的 `routingDecision`
+整個丟掉 —— 連帶讓 5 個既有降級機制與 Epic 23 per-model 閾值在該路徑上全部失效。
+**已另立 FIX-148 記錄。**
+
+### 這是我的實作缺陷，不是意外
+
+28 個單元測試全綠，但它們測的是**純函式**與**直接呼叫 `calculate()`**，兩者都繞過了真實管線。加完欄位就跑測試、沒有逐段查證透傳鏈 —— 這正是 FIX-146 記錄過的教訓（「能證明這一段對，不能證明整條鏈通」），又犯了一次。
+
+本專案已累積四次同型漏接：FIX-092（`referenceNumberMatch`）、CHANGE-113（`lineItemGroups`）、FIX-146（step `data`）、本次（`lineItemTotalReconciliation`）。
+
+---
+
+## 第二輪修復（2026-07-31，使用者決定採 C + B）
+
+使用者選擇：**FIX-147 用最小範圍繞過（B），路由丟棄缺陷另立 FIX-148 評估（C）**。
+
+| # | 檔案 | 內容 |
+|---|---|---|
+| 5 | `extraction-v3.service.ts` | Step 7 分數推導後，**只**額外套用 mismatch 一項強制 `FULL_REVIEW`，並寫入 `warnings`。刻意不改用 `confidenceServiceResult.routingDecision`（會一次啟用 5 個既有降級 → 行為變更，見 FIX-148），程式碼中已加註解指向 FIX-148 |
+| 6 | `extraction-v3.service.ts` | 回傳的 `result` 加上 `lineItemTotalReconciliation` 透傳 |
+| 7 | `unified-document-processor.service.ts` | `convertV3Result` 的 `stage3Result` 重建加上該欄位（此處逐欄位重建、未列出即丟棄 —— 已加註解警告後人） |
+| 8 | `unified-processor.ts` / `extraction-v3.types.ts` | 兩處型別補上該欄位（透傳鏈**共三個型別層**都要補，這正是它脆弱的證據） |
+
+驗證：`type-check` ✅、`test` **420 通過 / 2 跳過** ✅、`lint` 0 error ✅、`build` ✅。
+
+---
+
 ## 驗收標準
 
 | # | 驗收項目 | 驗收標準 | 優先級 |

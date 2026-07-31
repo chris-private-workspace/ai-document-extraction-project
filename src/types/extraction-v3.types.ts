@@ -417,6 +417,14 @@ export interface UnifiedExtractionResult {
   lineItemGroups?: LineItemGroupV3[];
   /** 額外費用（含術語預分類） */
   extraCharges?: ExtraChargeV3[];
+  /**
+   * FIX-147: 行項合計對帳結果
+   *
+   * @description
+   *   由 Stage 3 產生（見 {@link Stage3ExtractionResult.lineItemTotalReconciliation}），
+   *   須沿此結構一路傳遞到持久化層，否則事後查不到差額（FIX-092 / CHANGE-113 同型漏接）。
+   */
+  lineItemTotalReconciliation?: LineItemTotalReconciliation;
   /** 整體信心度（GPT 自評，0-100） */
   overallConfidence: number;
   /** 處理元數據 */

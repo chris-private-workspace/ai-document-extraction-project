@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 111 | CHANGE-113 | **CHANGE-114** |
-| FIX | 149 | FIX-147 | **FIX-148** |
+| FIX | 150 | FIX-148 | **FIX-149** |
 
-## 📋 未開始（25）
+## 📋 未開始（26）
 
 > 完全未動工的規劃。
 
@@ -41,6 +41,7 @@
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 | [FIX-145](4-changes/bug-fixes/FIX-145-prompt-assembly-city-code-unknown-column.md) | prompt assembly city code unknown column | ⏳ 待實作 |
+| [FIX-148](4-changes/bug-fixes/FIX-148-v31-pipeline-discards-routing-decision.md) | v31 pipeline discards routing decision | ⏳ 待實作（使用者 2026-07-31 決定：FIX-147 先以最小範圍繞過，本 FIX 另行評估） |
 
 ## 🚧 進行中 / 部分完成（22）
 

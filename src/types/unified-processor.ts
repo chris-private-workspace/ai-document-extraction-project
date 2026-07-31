@@ -569,6 +569,8 @@ export interface UnifiedProcessingResult {
     lineItems?: unknown[];
     /** CHANGE-113 階段二: 依 groupKey 切分的行項目分組（模板層 GROUP 模式展開依據） */
     lineItemGroups?: unknown[];
+    /** FIX-147: 行項合計對帳結果（差額供事後查證；mismatch 時已強制完整審核） */
+    lineItemTotalReconciliation?: unknown;
   };
 
   /** CHANGE-072: FX 換算結果（含原值/換算值/匯率，供持久化審計；覆蓋寫回後原值僅存於此） */
