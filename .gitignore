@@ -78,6 +78,7 @@ docs/Doc Sample/
 # Debug/Test scripts (temporary)
 scripts/analyze-*
 scripts/check-*
+!scripts/check-orphan-charge-keys.js
 scripts/debug-*
 scripts/test-*
 scripts/run-*

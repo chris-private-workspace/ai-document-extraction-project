@@ -1,0 +1,328 @@
+# FIX-150: Nippon 費用在模板上消失 —— 單一映射格位被兩種費用互搶
+
+> **建立日期**: 2026-07-31
+> **發現方式**: 使用者 Azure DEV 回測回報「之前修好的問題又出現了」（Nippon Inbound 四項）
+> **影響頁面/功能**: Template Field Mapping、Data Template 欄位定義 → 模板實例欄位值
+> **優先級**: 高（使用者回測受阻；且屬設定回歸，非提取缺陷）
+> **狀態**: 🚧 進行中（第一層防護腳本已完成並驗證；主體設定修正待使用者決策）
+
+---
+
+## 問題描述
+
+使用者回報四項，全部標記為未解決：
+
+| # | 回報 | 文件 |
+|---|------|------|
+| 1 | Seal fee、B/L fee、VGM 無法顯示 | `NEX_RCIM250001_7447.pdf` |
+| 2 | VAT 7% 取不到 | `NEX_RCIM250001_202.pdf` |
+| 3 | VGM、seal fee、B/L fee 取不到 | `NEX_RCIM250007_7642.pdf`、`NEX_RCIM250060_0400.pdf`、`NEX_RCIM250082_1222.pdf` |
+| 4 | 取到錯誤的欄位（NEHK DO FEE） | `NEX_RHIM250003_7632.pdf` |
+
+使用者補充：「明明之前 NEHK B/L FEE - FCL 這個 line item 是能夠被正常地提取的，但現在最新的處理又變成了 B/L fee」。
+
+---
+
+## 查證結果：提取層正常，問題在模板映射
+
+Azure DEV 實查（2026-07-31）。以 `NEX_RCIM250001_7447.pdf` 今日最新一次提取（`7766b50a`，06:25:58Z）為例：
+
+```
+LI: "NEHK B/L FEE - FCL"        680
+LI: "CONTAINER SEAL FEE - FCL"  110 + 330
+LI: "VGM ADMIN. CHARGE - FCL"   936
+FM nehk_bl_fee        = 680  src=unified
+FM container_seal_fee = 440  src=unified
+FM vgm_admin_charge   = 936  src=unified
+```
+
+三項費用**全部提取成功**，`description` 原文完整保留，欄位值皆已落地。VAT 亦然：`NEX_RCIM250001_202` 今日 06:19 那次 `vat_7 = 1617`，與 [FIX-143](FIX-143-summary-area-vat-field-typed-as-lineitem.md) 驗證時一致 —— **FIX-143 沒有失效**。
+
+使用者的用詞是 *cannot display*，指向下游。
+
+---
+
+## 根本原因
+
+### 主因：`docs_fee_at_origin` 的來源在 2026-07-25 被替換
+
+NEHK Inbound mapping 的 `updated_at` = **2026-07-25T06:50:33.721Z**。同一份 `NEX_RCIM250001_7447.pdf` 的模板實例值變化：
+
+| 實例產生時間 | `docs_fee_at_origin` | `transform_diagnostics` 記錄的缺失來源 |
+|---|---|---|
+| 07-24 14:59 / 15:08 | **680** ✓ | — |
+| 07-25 06:47:28 | 未填 | `["nehk_bl_fee"]` |
+| ← **06:50:33 mapping 被改** | | |
+| 07-25 06:50:46（7632） | **680** ✓ | — |
+| 07-30 / 07-31 | 未填 | `["nehk_do_fee"]` |
+
+改動內容為 `docs_fee_at_origin` 的 `sourceField`：`nehk_bl_fee` → `nehk_do_fee`。
+
+該改動使 `NEX_RHIM250003_7632.pdf`（有 NEHK DO FEE）得以正確取值。但 `docs_fee_at_origin` 只有一個格位，而 NEHK 發票的 **B/L fee** 與 **DO fee** 是兩種不同費用：換上 DO fee 之後，只有 B/L fee 的文件（7447 / 7642 / 1222 / 0400）失去唯一去處，`nehk_bl_fee` 不再被任何規則引用。
+
+> `docs_fee <- bl_fee` 這條規則一直存在，但接不住 —— NEHK 發票原文為 `NEHK B/L FEE - FCL`，會被 `nehk_bl_fee` 的 alias 精確命中，永遠填不到 `bl_fee`。
+
+### 次因：VAT 在 Inbound 模板沒有欄位可放
+
+`Logistics Cost - Inbound Template (Full List)` 的 45 個欄位中**沒有** VAT 欄位。現行規則只能把它併入他欄：
+
+```
+NEL  handling <- {handling_charge}+{empty_container_placement}+{vat_7}   → 2117 = 500 + 1617
+```
+
+數值在，但混在 handling 裡，使用者在模板上找不到獨立的 VAT 欄 —— 因而判定為「取不到」。
+
+---
+
+## 為什麼「已經處理並測試過」的問題會重現
+
+四條回報並非同一種情況，混在一起才顯得像「修好的又壞了」。拆開後是三種不同的機制：
+
+### 甲、真回歸 —— 修 A 的動作打破了 B（#1、#3）
+
+7/25 那次改動的時間序列（全部取自 Azure DEV 實際記錄）：
+
+```
+06:47:21  建立實例「NEX_RHIM250003_7632」
+06:47:28  該列 docs_fee_at_origin 未填，診斷記錄缺 nehk_bl_fee
+06:50:33  NEHK Inbound mapping 被改（updated_at）
+06:50:41  再次建立同名實例「NEX_RHIM250003_7632」
+06:50:46  該列 docs_fee_at_origin = 680  ✓
+```
+
+這是一次**針對 7632 的定點修復並當場驗證通過**的完整動作。問題在於驗證只跑了 7632 這一份 —— 而被換掉的那個來源 `nehk_bl_fee`，正是 7447 / 7642 / 1222 / 0400 唯一的落點。這四份沒有被重新檢查，所以「打破」這件事沒有在當下被看見。
+
+三個環節讓它得以無聲發生：
+
+| 環節 | 現況 |
+|------|------|
+| 改 mapping 時 | UI 不會警告「`nehk_bl_fee` 改完後將不再被任何規則引用」 |
+| 改完之後 | `template_field_mappings` 無 audit log，無法得知誰改、為何改（本節的改動意圖係由時間序列推斷，非系統記錄） |
+| 驗證時 | 只重跑當下那份文件，沒有跨文件回歸 |
+
+**結構性根因**：一個目標欄位只綁一組來源，但同一家公司的不同發票版面會產生不同的來源 key。兩種費用搶同一個格位時，無論怎麼設定都只能滿足一種。這與 [FIX-149](FIX-149-dhl-charge-field-mapping.md)（DHL doc / nondoc 互搶 freight）是同一型問題。
+
+### 乙、驗證層級落差 —— 修的是提取層，看的是模板層（#2）
+
+VAT 7% 這條「之前測試過」是真的，但驗的不是同一件事：
+
+| | FIX-143 當時驗證的 | 使用者現在看的 |
+|---|---|---|
+| 層級 | 提取結果 | 模板實例 |
+| 判準 | `vat_7 = 1617` ✓ | 模板上有沒有 VAT 欄 |
+| 結論 | 通過 | 看不到 |
+
+兩者都成立且互不矛盾 —— FIX-143 解決的是「提取不到」，而模板層從頭到尾就沒有 VAT 欄位可放。**這一條不是回歸，是修復範圍沒有涵蓋到模板層。**
+
+### 丙、從未損壞 —— VGM（#1、#3 的一部分）
+
+`vgm_at_origin <- vgm_admin_charge` 這條規則自始未變，值一直是 936 / 702。列入回報應是與同組的 B/L fee、Seal fee 一併觀察所致。
+
+### 小結
+
+| # | 之前是否真的修好過 | 修在哪一層 | 現在的狀況 |
+|---|---|---|---|
+| 1 · 3 B/L fee | **是**（7/24 模板上 = 680） | 模板層 | 被 7/25 改動打破 —— 真回歸 |
+| 1 · 3 VGM | 一直正常 | — | 未損壞 |
+| 1 · 3 Seal fee | 一直併在 `handling_at_origin` | — | 依使用者 7/31 決定，Inbound 不需獨立欄位 |
+| 2 VAT | **是**，但只在提取層 | 提取層 | 模板層從未有欄位 —— 範圍落差 |
+| 4 DO fee | 7/25 改動後修好 | 模板層 | 正常；它就是造成甲類回歸的那次改動 |
+
+---
+
+## 第一層防護（✅ 已完成並驗證，2026-07-31）
+
+> 依使用者 2026-07-31 指示，在動任何設定之前先建立防護網。
+
+### 全域風險盤點
+
+掃描 Azure DEV 全庫 775 份文件的最新提取結果、30 家有映射的公司。真正「已定義為費用欄位、提取有值、卻無任何啟用規則引用」的來源 key：
+
+| 公司 | 孤兒 key | 文件數 | 金額 | 該公司映射最後改動 |
+|---|---|---:|---:|---|
+| **Nippon Express Logistics** | `bl_fee`「B/L fee」 | 43 | **70,050.00** | 07-28 |
+| | `seal_charge`「Seal Charge」 | 43 | 16,000.00 | |
+| | `surrender_bl`「Surrender B/L」 | 5 | 7,500.00 | |
+| **Nippon Express (HK)** | `nehk_bl_fee`「NEHK B/L fee」 | 26 | 17,680.00 | 07-25 |
+| **RICOH INTERNATIONAL** | `air_local_charge_usa_origin` | 10 | 16,172.25 | 07-22 |
+| | **合計** | | **127,402.25** | |
+
+其餘 27 家公司的已定義費用欄位全部都有規則接收（例：DSV 22 定義 / 22 引用、Toll 38/38、CEVA 21/21），可見掃描並非把所有欄位一律標為孤兒。
+
+> ⚠️ 使用者回報的 `nehk_bl_fee`（17,680）**不是最大的一筆**。同集團的 `bl_fee` 有 70,050 橫跨 43 份文件，在本次盤點前無人察覺 —— 正說明「靠使用者回報發現漏接」不可靠。
+
+### 交付的兩支腳本
+
+| 腳本 | 用途 |
+|---|---|
+| `scripts/check-orphan-charge-keys.js` | 掃描孤兒費用欄位；支援 `--company=` 篩選、`--save=` 存基線、`--baseline=` 比對 |
+| `scripts/snapshot-template-values.js` | `capture` 擷取模板欄位值快照、`diff` 前後對照，標示「有值變空白」 |
+
+兩者皆唯讀（後者唯一寫入為輸出 JSON），本機與 Azure 共用同一份程式碼（SSL 依連線目標自動判斷、dotenv 以 try/catch 包住）。
+
+### 改設定的標準流程
+
+```bash
+# 1. 動手前建立基線
+node scripts/check-orphan-charge-keys.js --save=before-orphans.json
+node scripts/snapshot-template-values.js capture before-values.json
+
+# 2. 改動映射 → 在介面重新匹配模板實例
+
+# 3. 事後比對：任一支回報 🔴 即代表打破了既有映射
+node scripts/check-orphan-charge-keys.js --baseline=before-orphans.json
+node scripts/snapshot-template-values.js capture after-values.json
+node scripts/snapshot-template-values.js diff before-values.json after-values.json
+```
+
+`diff` 的關鍵輸出是「欄位由有值變為空白」—— 那正是 7/25 那次改動未被察覺的損失形態。兩支腳本在偵測到問題時 exit code 皆為 `1`，可供自動化串接。
+
+### 驗證方式（雙向）
+
+在 Azure DEV 實機執行，同時驗證「不誤報」與「確實會報」：
+
+| 驗證項 | 方法 | 結果 |
+|---|---|---|
+| 掃描結果正確性 | 與先前臨時診斷腳本的獨立實作比對 | 數字完全一致（5 個孤兒 / 127,402.25）✓ |
+| 不誤報（負向） | 連續擷取兩次快照、期間不做任何改動 | 變空 0、值改變 0、新增 0；基線比對「與基線一致」✓ |
+| 確實會報（正向） | 竄改快照將 `thc=4300` 清空、從基線移除 `bl_fee` | 🔴 正確報出 `thc: 4300 → 空`、🔴 正確報出新增孤兒 `bl_fee` 70,050 ✓ |
+| exit code | 竄改情境 vs 乾淨情境 | `1` vs `0` ✓ |
+
+> 正向驗證是刻意加的：只證明「無變化時不響」不足以說明警報器有用，必須同時證明「有變化時會響」。
+
+四閘：`npm run lint` 通過、`npm run type-check` 通過。
+
+---
+
+## 修復方案
+
+> **使用者決定（2026-07-31）**：Seal fee 只需在 Outbound 模板呈現，Inbound **不需要**。故 Inbound 不新增 `seal_fee` 欄位，`handling_at_origin` 維持現行公式（seal 金額續併於其中）。
+
+### A. Inbound 模板新增一個欄位（🔴 影響共用模板）
+
+附加於現有 45 欄之後（**不動既有 `order`**，避免改變匯出欄序）：
+
+```json
+{"name":"vat","label":"VAT","order":46,"dataType":"number","isRequired":false}
+```
+
+> 刻意命名為 `vat` 而非 `vat_7`：FIX-143 已查證該發票 `1617 / 65323 ≈ 2.5%`，標籤與實際稅率並不一致，欄位名不宜綁定特定稅率。
+
+### B. NEHK Inbound mapping
+
+| 目標欄位 | 現行 | 修正後 |
+|---|---|---|
+| `docs_fee` | `bl_fee` [DIRECT] | `{bl_fee} + {nehk_bl_fee}` [FORMULA] |
+| `docs_fee_at_origin` | `nehk_do_fee` [DIRECT] | **維持不動** |
+| `handling_at_origin` | `{seal_charge}+{handling_charge}+{container_seal_fee}` | **維持不動** |
+
+改用 FORMULA 而非 DIRECT 的理由同 FIX-149：兩種 key 依發票寫法擇一出現，FORMULA 對缺值與 null 一律視為 0，不受「來源 key 缺席或存在但為 null」影響。B/L fee 與 DO fee 自此各有去處，不再互搶。
+
+### C. NEL Inbound mapping
+
+| 目標欄位 | 現行 | 修正後 |
+|---|---|---|
+| `vat` | （無此規則） | `vat_7` [DIRECT] |
+| `handling` | `{handling_charge}+{empty_container_placement}+{vat_7}` | `{handling_charge}+{empty_container_placement}` |
+
+> NEHK 欄位集無 `vat_7`，故 NEHK 不需 VAT 規則。
+
+### 預期數值變化
+
+`NEX_RCIM250001_7447.pdf`（NEHK 規則）：
+
+```
+docs_fee            空    → 680
+handling_at_origin  540   → 540   (不變)
+vgm_at_origin       936   → 936   (不變)
+```
+
+`NEX_RCIM250001_202.SIGNED..pdf`（NEL 規則）：
+
+```
+vat       —     → 1617
+handling  2117  → 500
+```
+
+---
+
+## 影響範圍
+
+| 項目 | 數量 | 說明 |
+|---|---:|---|
+| 綁定 Inbound 模板的 mapping | 13 | 跨 12 家公司：CEVA×3、DHL、DSV、Nippon×3、RICOH、SBS、Toll、Wang Kay×2 |
+| 使用該模板的實例 | 113 | — |
+| 既有實例列 | 474 | 不會自動取得新欄位，需重新匹配 |
+| 本次改動的 mapping | 2 | NEHK Inbound、NEL Inbound |
+
+**新增模板欄位會讓所有 12 家公司的匯出多出 `VAT` 一欄**（未設對應規則者值為空）。加空欄位向後相容、不破壞既有資料，但若下游有固定欄位的接收端，欄位數變化需先確認。
+
+改設定**不需重新提取**（提取結果皆正常），但需**重新匹配模板實例**才會反映。
+
+---
+
+## 執行方式
+
+比照 FIX-149：`scripts/fix-150/` 下的 gated 腳本，三段式 `inspect` / `dryrun` / `write`。node 14 相容 CommonJS（Azure runner 映像不含 tsx，見 memory `feedback_azure_runner_excludes_scripts_tsx`）。
+
+保護措施（`template_field_mappings` 與 `data_templates` 皆無 rollback 機制）：
+
+- **前置快照**：寫入前完整輸出現值，作為唯一還原依據
+- **數量閘**：模板最多 1 筆、mapping 最多 2 筆，超出即中止
+- **防呆**：目標欄位必須存在於模板 `fields`，否則靜默失效
+- **冪等**：已是目標狀態則跳過
+- **單一交易**：任一步失敗即 ROLLBACK
+
+在 Azure DEV 與本機各執行一次（兩環境設定資料獨立）。
+
+---
+
+## 驗收標準
+
+- [ ] `NEX_RCIM250001_7447.pdf` 重新匹配後：`docs_fee` = 680、`handling_at_origin` = 540、`vgm_at_origin` = 936
+- [ ] `NEX_RCIM250007_7642.pdf`、`NEX_RCIM250082_1222.pdf` 的 `docs_fee` 有值
+- [ ] `NEX_RHIM250003_7632.pdf` 的 `docs_fee_at_origin` 仍為 680（不因本次改動而退化）
+- [ ] `NEX_RCIM250001_202.SIGNED..pdf`：`vat` = 1617、`handling` = 500
+- [ ] `transform_diagnostics` 中不再出現 `nehk_bl_fee` 缺失
+- [ ] 其他 11 家公司的既有實例重新匹配後，原有欄位值不變（新增 `vat` 欄為空）
+
+---
+
+## 同型問題（未處理）
+
+### Outbound 的 `seal_fee` 可能接不住 NEHK 的實際寫法
+
+使用者確認 Seal fee 應在 Outbound 呈現。但現行 NEHK Outbound mapping 為：
+
+```
+seal_fee <- seal_charge [DIRECT]
+```
+
+而 NEHK 發票原文 `CONTAINER SEAL FEE - FCL` 會被 `container_seal_fee` 的 alias 精確命中，填入的是 `container_seal_fee` 而非 `seal_charge` —— 與 Inbound `docs_fee <- bl_fee` 接不住 `nehk_bl_fee` 是同一個成因。若 Outbound 需正確顯示 Seal fee，應一併改為 `{seal_charge} + {container_seal_fee}`。**待使用者確認是否納入本次範圍**（目前回報的四項皆屬 Inbound）。
+
+### 模板實例套用了非該文件公司的 mapping
+
+今日建立的兩個實例，同一份 `NEX_RCIM250001_7447.pdf`（公司為 NEHK）得到不同結果：
+
+```
+NEX - import to Inbound Template 1.0(06:19) → thc=8700, handling=100
+    診斷欄位出現 t_h_c / status_charge / empty_container_placement —— 皆為 NEL 專有 key
+NEX - import to Inbound Template 2.0(06:26) → terminal_fees_at_origin=8700,
+                                               handling_at_origin=540, vgm_at_origin=936
+    診斷欄位出現 container_seal_fee / vgm_admin_charge —— 皆為 NEHK 專有 key
+```
+
+1.0 實例中四份文件（其中三份屬 NEHK）**全部**套用 NEL 規則；該實例混入了一份 NEL 文件（`202`）。此為觀察到的現象，**機制尚未經代碼查證**，本次不處理 —— 但它意味著把兩家 Nippon 的文件混入同一實例，結果不可信。建議另開 FIX 追查 mapping 解析與實例的綁定關係。
+
+### NEHK Outbound mapping 的死 key 與公司歸屬錯置
+
+掛在 NEHK 公司下的 Outbound mapping，名稱為「Nippon Express **Logistics** - …」，且 `handling_charge <- {vat_7}+{handling_charge}` 引用了 NEHK 欄位集不存在的 `vat_7`。屬 [FIX-128](FIX-128-mapping-source-field-validation.md) 同型問題，本次不處理。
+
+---
+
+## 相關
+
+- [FIX-143](FIX-143-summary-area-vat-field-typed-as-lineitem.md) —— `vat_7` 改為 `standard` 型，本次確認其未失效
+- [FIX-149](FIX-149-dhl-charge-field-mapping.md) —— 同款「一個目標欄位被多種費用互搶」，gated 腳本模式來源
+- [FIX-130](FIX-130-existing-config-correction-checklist.md) —— Nippon 三筆公司並存、NEHK aliases 作為正面範例
+- [FIX-128](FIX-128-mapping-source-field-validation.md) —— mapping 死 key 掃描；`transform_diagnostics` 為本次診斷的關鍵證據
