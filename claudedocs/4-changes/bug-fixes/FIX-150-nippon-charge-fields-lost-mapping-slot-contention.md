@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 回測回報「之前修好的問題又出現了」（Nippon Inbound 四項）
 > **影響頁面/功能**: Template Field Mapping、Data Template 欄位定義 → 模板實例欄位值
 > **優先級**: 高（使用者回測受阻；且屬設定回歸，非提取缺陷）
-> **狀態**: 🚧 進行中（第一層防護腳本已完成並驗證；主體設定修正待使用者決策）
+> **狀態**: 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄皆已完成並驗證；待重新匹配實例驗收，Outbound seal fee 待使用者決定）
 
 ---
 
@@ -179,6 +179,8 @@ NEL 68 份文件中僅 6 份有差額、NEHK 41 份中 14 份，其餘全數吻�
 
 > ⚠️ 此數字包含「設定已改但實例尚未重新匹配」的過期快照（DHL 的 183,856 極可能屬此類，FIX-149 剛改完映射、106 列實例尚未重跑）。差額反映實例列當下的內容，不等於映射規則現在錯誤。
 
+**同日稍晚重跑的數字不同，成因即為上述限制**：08:51 建立 VAT 變更的基線時，總額為漏 645,645.42（NEL 由 6 份 / 148,238 上升為 12 份 / 157,888，`surrender_bl` 5 份 / 7,500 被標為可定位的漏接）。查證後並非新的破壞 —— NEL Outbound 映射於當日 08:29:39Z 被改為 `document_fee <- {nehk_do_fee} + {do_fee} + {bl_fee} + {surrender_bl}`，該 key **仍被引用**，只是實例列尚未重新匹配。引用本節數字時務必連同擷取時間一起看。
+
 逐份對帳精確命中本案目標：
 
 ```
@@ -259,13 +261,16 @@ node scripts/snapshot-template-values.js diff before-values.json after-values.js
 
 > **使用者決定（2026-07-31）**：Seal fee 只需在 Outbound 模板呈現，Inbound **不需要**。故 Inbound 不新增 `seal_fee` 欄位，`handling_at_origin` 維持現行公式（seal 金額續併於其中）。
 
-### A. Inbound 模板新增一個欄位（🔴 影響共用模板）
+### A. 兩張共用模板各新增一個欄位（✅ 已執行，2026-07-31）
 
-附加於現有 45 欄之後（**不動既有 `order`**，避免改變匯出欄序）：
+附加於現有欄位之後（**不動既有 `order`**，避免改變匯出欄序）：
 
-```json
-{"name":"vat","label":"VAT","order":46,"dataType":"number","isRequired":false}
-```
+| `data_templates` | 原欄位數 | 新增 |
+|---|---:|---|
+| `Logistics Cost - Inbound Template (Full List)` | 45 | `{"name":"vat","label":"VAT","order":46,"dataType":"number","isRequired":false}` |
+| `Logistics Cost - Outbound Template (Full List)` | 37 | 同上，`"order":38` |
+
+**為何兩張都要動**：帶 `vat_7` 的 89 份 NEL 文件分佈於兩張模板 —— Outbound 59 份、Inbound 13 份，另 17 份尚未加入任何實例。只加 Inbound 會漏掉較大的那一半。
 
 > 刻意命名為 `vat` 而非 `vat_7`：FIX-143 已查證該發票 `1617 / 65323 ≈ 2.5%`，標籤與實際稅率並不一致，欄位名不宜綁定特定稅率。
 
@@ -304,14 +309,57 @@ bl_fee.aliases       = ["B/L FEE","BL FEE"]
 docs_fee.sourceField = "bl_fee"
 ```
 
-### C. NEL Inbound mapping
+### C. NEL 的兩組 mapping（✅ 已執行，2026-07-31）
 
-| 目標欄位 | 現行 | 修正後 |
+| `template_field_mappings` | 目標欄位 | 現行 | 修正後 |
+|---|---|---|---|
+| NEL Inbound | `vat` | （無此規則） | `vat_7` [DIRECT] |
+| NEL Inbound | `handling` | `{handling_charge} + {empty_container_placement}+{vat_7}` | `{handling_charge} + {empty_container_placement}` |
+| NEL Outbound | `vat` | （無此規則） | `vat_7` [DIRECT] |
+| NEL Outbound | `handling_charge` | `{handling_charge} + {empty_container_placement}+{vat_7}` | `{handling_charge} + {empty_container_placement}` |
+
+**新增規則與自公式移除必須同一次完成**：只新增而不移除，同一筆 VAT 會在 `vat` 與 `handling` 兩處重複計算；只移除而不新增，VAT 金額會完全消失 —— 兩者都比現況更差。
+
+**為何只改 NEL**（使用者 2026-07-31 決定，並以資料驗證）：
+
+| 查證項 | 結果 |
+|---|---|
+| 帶 `vat_7` 的文件屬於哪家公司 | 89 份**全部**為 `Nippon Express Logistics`，NEHK 一份都沒有 |
+| 實際生效的是不是 NEL 名下那兩組映射 | 是 —— Inbound `handling = 2117 = 500 + 0 + 1617`、Outbound `handling_charge = 969 = 500 + 0 + 469`，算式吻合 NEL 公式 |
+| NEHK 名下 Outbound 的 `handling_charge <- {vat_7}+{handling_charge}` | NEHK 欄位集無 `vat_7`，屬 FIX-128 同型死 key，本次不處理 |
+
+> 第二列是刻意查的：本文件 §第一層防護 已記載「映射的 `company_id` 不決定套用對象」，掛在 NEHK 名下的 Outbound 映射實際服務 NEL 的出口文件。若不以數值反算，就無法排除「改了 NEL 名下那組卻不生效」的可能。VAT 這條經查證**不屬**該情況。
+
+#### 執行記錄
+
+以 gated 腳本 `scripts/fix-150/add-vat-column-nel.js`（`inspect` / `dryrun` / `write` 三段式）執行，帶前置快照、逐筆樂觀鎖（`WHERE updated_at = 讀取當下值`）、單一交易。
+
+| 環境 | 資料模板 | 映射 | 備註 |
+|---|---|---|---|
+| Azure DEV | ✅ 2 張 | ✅ 2 組 | 回查：Inbound 46 欄 / Outbound 38 欄、兩組映射各 14 條規則 |
+| 本機 | ✅ 2 張 | ✅ 1 組 | 本機**沒有** NEL Outbound 映射，腳本明確印出「跳過（該環境尚未建立）」；本機 `vat_7` 文件數為 0 |
+
+前置快照（唯一還原依據）：
+
+```
+Inbound  模板原有 45 欄、無 vat        → 還原方式：移除該欄位
+Outbound 模板原有 37 欄、無 vat        → 還原方式：移除該欄位
+NEL Inbound  handling.formula        = "{handling_charge} + {empty_container_placement}+{vat_7}"
+NEL Outbound handling_charge.formula = "{handling_charge} + {empty_container_placement}+{vat_7}"
+兩組映射皆無 vat 規則                  → 還原方式：移除該規則並還原上述公式
+```
+
+**數量閘的判準修正**：初版要求「剛好 2 組 NEL 映射」，在本機被擋下。真正危險的是**同一張模板有多組啟用映射**（無從得知哪組生效），而非少了一組 —— 兩環境的設定資料本來就獨立。已改為逐模板判斷「至多 1 組」，缺的那組明白印出而非靜默略過。
+
+#### 防護腳本前後比對
+
+| 檢查 | Azure DEV | 本機 |
 |---|---|---|
-| `vat` | （無此規則） | `vat_7` [DIRECT] |
-| `handling` | `{handling_charge}+{empty_container_placement}+{vat_7}` | `{handling_charge}+{empty_container_placement}` |
+| 對帳（`check-orphan-charge-keys.js --baseline=`） | 漏 645,645.42，**與基線一致** | 漏 2,627.42，**與基線一致** |
+| 模板值對照（`snapshot-template-values.js diff`） | 665 列：變空 0 / 值改變 0 / 新增 0 | 4 列：同上 |
+| 冪等（再跑一次 `inspect`） | 無待變更項目 | 無待變更項目 |
 
-> NEHK 欄位集無 `vat_7`，故 NEHK 不需 VAT 規則。
+> 差額與快照維持不變是**預期結果**：改設定不回溯既有實例列，數值要重新匹配後才會變動。此處驗的是「沒有打破任何既有落點」。
 
 ### 預期數值變化
 
@@ -323,25 +371,35 @@ handling_at_origin  540   → 540   (不變)
 vgm_at_origin       936   → 936   (不變)
 ```
 
-`NEX_RCIM250001_202.SIGNED..pdf`（NEL 規則）：
+`NEX_RCIM250001_202.SIGNED..pdf`（NEL Inbound 規則）：
 
 ```
 vat       —     → 1617
 handling  2117  → 500
 ```
 
+`NEX_RCEX240692,0692A,0692B_9898.pdf`（NEL Outbound 規則）：
+
+```
+vat              —    → 469
+handling_charge  969  → 500
+```
+
+> `handling` / `handling_charge` 數值變小是預期的 —— VAT 從公式移出、獨立成欄，不是漏接。
+
 ---
 
 ## 影響範圍
 
-| 項目 | 數量 | 說明 |
-|---|---:|---|
-| 綁定 Inbound 模板的 mapping | 13 | 跨 12 家公司：CEVA×3、DHL、DSV、Nippon×3、RICOH、SBS、Toll、Wang Kay×2 |
-| 使用該模板的實例 | 113 | — |
-| 既有實例列 | 474 | 不會自動取得新欄位，需重新匹配 |
-| 本次改動的 mapping | 2 | NEHK Inbound、NEL Inbound |
+| 項目 | Inbound 模板 | Outbound 模板 |
+|---|---:|---:|
+| 綁定該模板的 mapping | 13 組 | 30 組 |
+| 使用該模板的實例 | 113 個 | 54 個 |
+| 既有實例列 | 474 列 | 285 列 |
 
-**新增模板欄位會讓所有 12 家公司的匯出多出 `VAT` 一欄**（未設對應規則者值為空）。加空欄位向後相容、不破壞既有資料，但若下游有固定欄位的接收端，欄位數變化需先確認。
+本次改動的 mapping 共 3 組：NEHK Inbound（§B）、NEL Inbound、NEL Outbound（§C）。既有實例列不會自動取得新欄位，需重新匹配。
+
+**新增模板欄位會讓所有共用公司的匯出各多出 `VAT` 一欄**（未設對應規則者值為空）。加空欄位向後相容、不破壞既有資料，但若下游有固定欄位的接收端，欄位數變化需先確認。
 
 改設定**不需重新提取**（提取結果皆正常），但需**重新匹配模板實例**才會反映。
 
@@ -354,9 +412,10 @@ handling  2117  → 500
 保護措施（`template_field_mappings` 與 `data_templates` 皆無 rollback 機制）：
 
 - **前置快照**：寫入前完整輸出現值，作為唯一還原依據
-- **數量閘**：模板最多 1 筆、mapping 最多 2 筆，超出即中止
-- **防呆**：目標欄位必須存在於模板 `fields`，否則靜默失效
+- **數量閘**：公司剛好 1 間、模板各剛好 1 張、**每張模板至多 1 組啟用中的映射**（多於 1 組即中止，因為無從得知哪組生效）
+- **防呆**：引用 `vat_7` 的規則必須剛好 1 條且目標符合預期；公式只接受純加總語法（`^[\s{}\w+]+$`），出現其他運算子即拒絕字串手術；移除後仍殘留 token 即中止
 - **冪等**：已是目標狀態則跳過
+- **樂觀鎖**：每筆 `UPDATE ... WHERE updated_at = 讀取當下值`，`rowCount ≠ 1` 即拋錯
 - **單一交易**：任一步失敗即 ROLLBACK
 
 在 Azure DEV 與本機各執行一次（兩環境設定資料獨立）。
@@ -369,8 +428,9 @@ handling  2117  → 500
 - [ ] `NEX_RCIM250007_7642.pdf`、`NEX_RCIM250082_1222.pdf` 的 `docs_fee` 有值
 - [ ] `NEX_RHIM250003_7632.pdf` 的 `docs_fee_at_origin` 仍為 680（不因本次改動而退化）
 - [ ] `NEX_RCIM250001_202.SIGNED..pdf`：`vat` = 1617、`handling` = 500
+- [ ] `NEX_RCEX240692,0692A,0692B_9898.pdf`（Outbound）：`vat` = 469、`handling_charge` = 500
 - [ ] `transform_diagnostics` 中不再出現 `nehk_bl_fee` 缺失
-- [ ] 其他 11 家公司的既有實例重新匹配後，原有欄位值不變（新增 `vat` 欄為空）
+- [ ] 其他共用公司的既有實例重新匹配後，原有欄位值不變（新增 `vat` 欄為空）
 
 ---
 
