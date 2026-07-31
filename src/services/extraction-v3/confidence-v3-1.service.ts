@@ -443,6 +443,15 @@ export class ConfidenceV3_1Service {
       stage2Result.configSource === 'LLM_INFERRED';
     const configDowngradeReason = '格式由 LLM 推斷（無預設配置）';
 
+    // FIX-147: 行項合計對帳（由 Stage 3 產生）。舊資料無此欄位 → undefined → 不觸發。
+    const reconciliation = stage3Result.lineItemTotalReconciliation;
+    const lineItemTotalMismatch = reconciliation?.mismatch === true;
+    const lineItemTotalMismatchReason = lineItemTotalMismatch
+      ? `行項合計 ${reconciliation?.lineItemSum} 與${
+          reconciliation?.totalSource === 'subtotal' ? '小計' : '發票總額'
+        } ${reconciliation?.documentTotal} 不符（差 ${reconciliation?.difference}）`
+      : undefined;
+
     return this.applyRoutingStrategy(
       score,
       {
@@ -454,6 +463,8 @@ export class ConfidenceV3_1Service {
         stage1Success: stage1Result.success,
         stage2Success: stage2Result.success,
         stage3Success: stage3Result.success,
+        lineItemTotalMismatch,
+        ...(lineItemTotalMismatchReason ? { lineItemTotalMismatchReason } : {}),
       },
       thresholds
     );
@@ -470,6 +481,7 @@ export class ConfidenceV3_1Service {
    *   - **新公司 / 新格式 / 配置來源觸發降級**：AUTO_APPROVE → 降級為 QUICK_REVIEW
    *   - **>3 項需分類**：AUTO_APPROVE → 降級為 QUICK_REVIEW
    *   - **任一 Stage 失敗**：強制 FULL_REVIEW
+   *   - **行項合計與發票總額不符**：強制 FULL_REVIEW（FIX-147）
    *
    *   `shouldDowngradeByConfig` 是抽象旗標，由呼叫方根據自己的 configSource
    *   語義決定是否觸發。例如：
@@ -487,6 +499,15 @@ export class ConfidenceV3_1Service {
       stage1Success: boolean;
       stage2Success: boolean;
       stage3Success: boolean;
+      /**
+       * FIX-147: 行項合計與發票總額不符
+       *
+       * @description 只有「實際對過帳且對不上」才為 true。無從對帳（無行項目
+       *   或無總額欄位）必須為 false —— 否則所有無明細的發票都會被誤判降級。
+       */
+      lineItemTotalMismatch?: boolean;
+      /** FIX-147: 不符的詳情，寫進 `reasons` 供人工審核時判讀 */
+      lineItemTotalMismatchReason?: string;
     },
     thresholds: EffectiveRoutingThresholdsV3_1 = ROUTING_THRESHOLDS_V3_1
   ): RoutingDecisionV3_1 {
@@ -543,6 +564,16 @@ export class ConfidenceV3_1Service {
     if (!flags.stage3Success) {
       decision = 'FULL_REVIEW';
       reasons.push('Stage 3 欄位提取失敗');
+    }
+
+    // FIX-147: 行項合計對不上發票總額 → 強制 FULL_REVIEW
+    //   與 Stage 失敗同級（覆蓋而非降一級）：金額對不上代表明細本身不可信，
+    //   信心度再高也不能自動放行——實測有信心度 98 卻漏掉一整筆費用的案例。
+    if (flags.lineItemTotalMismatch) {
+      decision = 'FULL_REVIEW';
+      reasons.push(
+        flags.lineItemTotalMismatchReason ?? '行項合計與發票總額不符'
+      );
     }
 
     return {
@@ -616,6 +647,8 @@ export class ConfidenceV3_1Service {
    *   - `itemsNeedingClassification = 0`（簡化 API 無此資訊）
    *   - `stageNSuccess = true`（簡化 API 假設所有 stage 都成功；若 stage 失敗
    *     請使用 `generateRoutingDecision()` 透過 `calculate()` 取得完整結果）
+   *   - `lineItemTotalMismatch = false`（FIX-147；簡化輸入不含行項目與總額，
+   *     無從對帳。需要對帳請走 `calculate()` 主流程）
    *
    * @param input - 智能路由輸入
    * @returns 智能路由輸出（審核類型 + 原因 + 配置審核標記）

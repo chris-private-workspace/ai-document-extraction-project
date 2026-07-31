@@ -49,6 +49,7 @@ import type {
   FieldDefinition,
   PromptConfigScope,
   FieldDefinitionEntry,
+  LineItemTotalReconciliation,
 } from '@/types/extraction-v3.types';
 import { toFieldDefinition } from '@/types/extraction-v3.types';
 import {
@@ -243,6 +244,114 @@ export function buildGroupCandidateSection(
   ].join('\n');
 }
 
+/**
+ * FIX-147: 把 `FieldValue` 的金額取成數字
+ *
+ * @description 值可能是數字，也可能是帶千分位或貨幣符號的字串。
+ *   無法解析時回 `null`（代表「沒有這個值」）—— **不可回 0**，
+ *   0 會被當成一個有效的總額而讓對帳誤判成「差額等於行項合計」。
+ *
+ * @param field - 欄位值
+ * @returns 金額；無值或無法解析時為 `null`
+ * @since FIX-147
+ */
+function toReconcilableAmount(field: FieldValue | undefined): number | null {
+  const raw = field?.value;
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+
+  const cleaned = raw.replace(/[^0-9.-]/g, '');
+  if (!cleaned || cleaned === '-' || cleaned === '.') return null;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * FIX-147: 行項合計對帳
+ *
+ * @description 比對「行項目金額合計」與「發票總額」，偵測 Stage 3 漏行或重複計列。
+ *
+ *   **為何需要**：Stage 3 對「被換行截斷的費用描述」會錯拼。實測同一份 CEVA 發票
+ *   （`CEVA_RCIM260069_37388.pdf`）三次處理得到 5 / 4 / 5 筆行項目 —— 其中一次整筆
+ *   470.06 消失，而 `total_amount` 三次都正確讀到 14,579.50。系統同時握有正確總額
+ *   與短少的明細卻從不相比，於是那次以信心度 98 / `AUTO_APPROVE` 走完全程。
+ *
+ *   **為何用容差**：各行金額多為外幣乘匯率後四捨五入，逐行誤差會累積。容差取
+ *   `0.01 × 行項數`（下限 0.05），足以吸收捨入誤差，又遠小於任何真實的漏行金額。
+ *
+ *   **無從對帳 ≠ 對不上**：沒有行項目、或 `total_amount` 與 `subtotal` 皆缺時回
+ *   `checked: false`，呼叫端**不得**據此降級 —— 否則所有無明細的發票都會被誤判。
+ *
+ *   **雙向比較**：行項合計大於總額（重複計列）與小於總額（漏行）同樣要攔下。
+ *
+ * @param fields - 已完成回填的動態欄位（優先來源）
+ * @param standardFields - 標準欄位（`fields` 缺 total 時的後備來源）
+ * @param lineItems - 解析後的行項目
+ * @returns 對帳結果
+ * @since FIX-147
+ */
+export function reconcileLineItemTotal(
+  fields: Record<string, FieldValue> | undefined,
+  standardFields: Pick<StandardFieldsV3, 'totalAmount' | 'subtotal'> | undefined,
+  lineItems: LineItemV3[] | undefined
+): LineItemTotalReconciliation {
+  const lineItemCount = lineItems?.length ?? 0;
+  const tolerance = Math.max(0.05, Number((0.01 * lineItemCount).toFixed(2)));
+
+  const notChecked: LineItemTotalReconciliation = {
+    checked: false,
+    mismatch: false,
+    lineItemSum: 0,
+    documentTotal: null,
+    totalSource: null,
+    difference: 0,
+    tolerance,
+    lineItemCount,
+  };
+
+  if (!lineItems || lineItemCount === 0) return notChecked;
+
+  const lineItemSum = Number(
+    lineItems
+      .reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+      .toFixed(2)
+  );
+
+  // total_amount 優先；缺值才退到 subtotal。subtotal 在含稅發票上不等於行項合計，
+  // 但誤報的代價只是多一次人工審核，漏報的代價是漏帳 —— 兩者不對等。
+  const candidates: ReadonlyArray<
+    readonly ['total_amount' | 'subtotal', number | null]
+  > = [
+    [
+      'total_amount',
+      toReconcilableAmount(fields?.total_amount ?? standardFields?.totalAmount),
+    ],
+    [
+      'subtotal',
+      toReconcilableAmount(fields?.subtotal ?? standardFields?.subtotal),
+    ],
+  ];
+  const hit = candidates.find(([, value]) => value !== null);
+  if (!hit) return { ...notChecked, lineItemSum };
+
+  const [totalSource, documentTotal] = hit as readonly [
+    'total_amount' | 'subtotal',
+    number,
+  ];
+  const difference = Number((lineItemSum - documentTotal).toFixed(2));
+
+  return {
+    checked: true,
+    mismatch: Math.abs(difference) > tolerance,
+    lineItemSum,
+    documentTotal,
+    totalSource,
+    difference,
+    tolerance,
+    lineItemCount,
+  };
+}
+
 // ============================================================================
 // Service Class
 // ============================================================================
@@ -320,6 +429,24 @@ export class Stage3ExtractionService {
         config.fieldDefinitions
       );
 
+      // 4d. FIX-147: 行項合計對帳 — 偵測漏行/重複計列。
+      //     不符時由路由層強制 FULL_REVIEW（不在此處攔截，提取結果仍完整回傳）。
+      const lineItemTotalReconciliation = reconcileLineItemTotal(
+        parsed.fields,
+        parsed.standardFields,
+        parsed.lineItems
+      );
+      if (lineItemTotalReconciliation.mismatch) {
+        console.warn(
+          `[Stage3] FIX-147 line item total mismatch: ` +
+            `sum=${lineItemTotalReconciliation.lineItemSum} vs ` +
+            `${lineItemTotalReconciliation.totalSource}=${lineItemTotalReconciliation.documentTotal} ` +
+            `(diff=${lineItemTotalReconciliation.difference}, ` +
+            `tolerance=${lineItemTotalReconciliation.tolerance}, ` +
+            `items=${lineItemTotalReconciliation.lineItemCount})`
+        );
+      }
+
       // 計算 overallConfidence（優先使用動態 fields，fallback 到 standardFields）
       const overallConfidence = parsed.overallConfidence > 0
         ? parsed.overallConfidence
@@ -346,6 +473,7 @@ export class Stage3ExtractionService {
         fields: parsed.fields,
         lineItems: parsed.lineItems,
         ...(lineItemGroups ? { lineItemGroups } : {}),
+        lineItemTotalReconciliation,
         extraCharges: parsed.extraCharges,
         overallConfidence,
         fieldDefinitionSetId: config.fieldDefinitionSetId,
@@ -1129,6 +1257,28 @@ Respond in valid JSON format matching the provided schema.`;
     );
     lines.push(
       '- Each field value MUST be an object with "value" and "confidence" properties.'
+    );
+
+    // FIX-147: 費用名稱換行時的歸屬規則。
+    //   實測 CEVA 發票有兩筆相鄰費用的續行格式幾乎相同（皆為
+    //   "20GP @ THB ****/CN + 1 40GP @ THB ***/CN"），模型把上一筆的名稱前綴
+    //   接到了下一筆的續行上，導致 DESTINATION HANDLING 被誤標為 THC。
+    //   ⚠️ 這只降低發生率，不保證正確 —— 真正的防線是行項合計對帳（見
+    //   reconcileLineItemTotal），任何漏行/錯拼都會由那裡攔下並強制人工審核。
+    lines.push(
+      '\nLine item rows that wrap onto multiple visual lines:'
+    );
+    lines.push(
+      '- A charge name MUST be taken from the SAME horizontal row as its amount. Text on the following line(s) is a continuation of that same charge — never borrow a name or name-prefix from a different row.'
+    );
+    lines.push(
+      '- When two adjacent charges have near-identical continuation text (e.g. both end with "@ <CUR> <rate>/CN"), the amount column is what decides which charge a continuation belongs to. Do not merge them.'
+    );
+    lines.push(
+      '- Produce EXACTLY ONE line item per row that has a number in the amount column — never merge two rows into one, never drop a row, never invent one.'
+    );
+    lines.push(
+      '- The line item amounts you return should account for the invoice total. If your line items do not add up to the stated total, you have merged or missed a row — re-read the charge table before answering.'
     );
 
     // CHANGE-094: 強制 line item 費用回填指示（消除「fields vs lineItems」非確定性）

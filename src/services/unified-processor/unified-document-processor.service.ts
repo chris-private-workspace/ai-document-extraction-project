@@ -521,6 +521,10 @@ export class UnifiedDocumentProcessorService {
         lineItems: result.lineItems ? [...result.lineItems] : undefined,
         // CHANGE-113 階段二: 分組結果須一併寫入，模板層 GROUP 模式據此展開多列
         lineItemGroups: result.lineItemGroups ? [...result.lineItemGroups] : undefined,
+        // FIX-147: 行項合計對帳結果。此處是逐欄位重建（非整個物件複製），
+        //   未列出的欄位一律被丟棄 —— FIX-092（referenceNumberMatch）與
+        //   CHANGE-113（lineItemGroups）都在此漏接過，新增 Stage 3 欄位務必補這裡。
+        lineItemTotalReconciliation: result.lineItemTotalReconciliation,
       } : undefined,
       // CHANGE-072: 帶上 FX 換算結果，使 persistProcessingResult 能持久化審計原值
       //（覆蓋寫回後，原始金額僅存於 fxConversionResult.conversions[]）

@@ -417,6 +417,14 @@ export interface UnifiedExtractionResult {
   lineItemGroups?: LineItemGroupV3[];
   /** 額外費用（含術語預分類） */
   extraCharges?: ExtraChargeV3[];
+  /**
+   * FIX-147: 行項合計對帳結果
+   *
+   * @description
+   *   由 Stage 3 產生（見 {@link Stage3ExtractionResult.lineItemTotalReconciliation}），
+   *   須沿此結構一路傳遞到持久化層，否則事後查不到差額（FIX-092 / CHANGE-113 同型漏接）。
+   */
+  lineItemTotalReconciliation?: LineItemTotalReconciliation;
   /** 整體信心度（GPT 自評，0-100） */
   overallConfidence: number;
   /** 處理元數據 */
@@ -1267,6 +1275,37 @@ export interface Stage3ConfigUsed {
 }
 
 /**
+ * 行項合計對帳結果
+ *
+ * @description FIX-147: 比對「行項目金額合計」與「發票總額」。
+ *   Stage 3 的行項目提取可能漏行或錯拼描述（見 FIX-147 §缺陷二），
+ *   而 `total_amount` 通常讀得正確 —— 兩者相比即可偵測出漏帳。
+ *
+ *   `checked: false` 代表**無從對帳**（沒有行項目、或沒有總額欄位），
+ *   與「對過了且相符」是不同的狀態，不可混為一談。
+ *
+ * @since FIX-147
+ */
+export interface LineItemTotalReconciliation {
+  /** 是否實際執行了對帳（缺行項目或缺總額時為 false） */
+  checked: boolean;
+  /** 對帳是否不符（`checked` 為 false 時恆為 false） */
+  mismatch: boolean;
+  /** 行項目金額合計 */
+  lineItemSum: number;
+  /** 用於比對的發票總額（取自 total_amount，缺值時取 subtotal） */
+  documentTotal: number | null;
+  /** 比對來源欄位 */
+  totalSource: 'total_amount' | 'subtotal' | null;
+  /** 差額（lineItemSum − documentTotal），正值代表行項多出 */
+  difference: number;
+  /** 本次採用的容差 */
+  tolerance: number;
+  /** 參與計算的行項目數 */
+  lineItemCount: number;
+}
+
+/**
  * Stage 3: 欄位提取結果
  * @description GPT-5.2 精準提取的欄位信息
  * @since CHANGE-024
@@ -1298,6 +1337,14 @@ export interface Stage3ExtractionResult {
   lineItemGroups?: LineItemGroupV3[];
   /** 額外費用（含術語預分類） */
   extraCharges?: ExtraChargeV3[];
+  /**
+   * FIX-147: 行項合計對帳結果
+   *
+   * @description `mismatch` 為 true 時，路由強制降為 `FULL_REVIEW`
+   *   （見 `confidence-v3-1.service.ts` 的 `applyRoutingStrategy`）。
+   *   Stage 3 失敗時為 `undefined`。
+   */
+  lineItemTotalReconciliation?: LineItemTotalReconciliation;
   /** GPT 自評信心度 (0-100) */
   overallConfidence: number;
   /** CHANGE-042: 使用的 FieldDefinitionSet ID */

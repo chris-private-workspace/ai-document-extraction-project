@@ -637,6 +637,25 @@ export class ExtractionV3Service {
         routingPath = 'FULL_REVIEW';
       }
 
+      // FIX-147: 行項合計對不上發票總額 → 強制 FULL_REVIEW
+      //
+      // 🔴 為何不直接改用 `confidenceServiceResult.routingDecision.decision`：
+      //   上面這段只依分數推導路由，把 `ConfidenceV3_1Service.calculate()` 已算好的
+      //   `routingDecision` 整個丟棄 —— 連帶讓新公司／新格式／配置來源／>3 項需分類／
+      //   Stage 失敗這 5 個既有降級機制，以及 Epic 23 的 per-model 閾值，在本路徑上都失效。
+      //   改用它是正確的最終修法，但會一次改變大量文件的路由結果（審核量顯著上升），
+      //   屬行為變更，已另立 **FIX-148** 追蹤並待評估衝擊。
+      //   本次刻意只套用 mismatch 一項：範圍最小、可獨立驗證，且不觸及既有行為。
+      const reconciliation = threeStageResult.stage3?.lineItemTotalReconciliation;
+      if (reconciliation?.mismatch) {
+        routingPath = 'FULL_REVIEW';
+        warnings.push(
+          `行項合計 ${reconciliation.lineItemSum} 與${
+            reconciliation.totalSource === 'subtotal' ? '小計' : '發票總額'
+          } ${reconciliation.documentTotal} 不符（差 ${reconciliation.difference}），已強制完整審核`
+        );
+      }
+
       const routingDecision = {
         decision: routingPath, // 與 convertV3Result 期望的結構一致
         recommendedPath: routingPath, // 保持向後兼容
@@ -679,6 +698,9 @@ export class ExtractionV3Service {
           lineItems: threeStageResult.stage3.lineItems,
           // CHANGE-113 階段二: 分組結果須逐層透傳，否則模板層讀不到（FIX-092 同型漏接）
           lineItemGroups: threeStageResult.stage3.lineItemGroups,
+          // FIX-147: 對帳結果同樣須逐層透傳，否則事後查不到差額
+          lineItemTotalReconciliation:
+            threeStageResult.stage3.lineItemTotalReconciliation,
           // CHANGE-045: extraCharges removed from Stage 3 output
           overallConfidence: threeStageResult.stage3.overallConfidence,
           // FIX: V3.1 需要設定 resolvedCompanyId/resolvedFormatId
