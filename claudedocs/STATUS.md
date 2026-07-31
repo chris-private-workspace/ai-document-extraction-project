@@ -43,7 +43,7 @@
 | [FIX-145](4-changes/bug-fixes/FIX-145-prompt-assembly-city-code-unknown-column.md) | prompt assembly city code unknown column | ⏳ 待實作 |
 | [FIX-148](4-changes/bug-fixes/FIX-148-v31-pipeline-discards-routing-decision.md) | v31 pipeline discards routing decision | ⏳ 待實作（使用者 2026-07-31 決定：FIX-147 先以最小範圍繞過，本 FIX 另行評估） |
 
-## 🚧 進行中 / 部分完成（22）
+## 🚧 進行中 / 部分完成（21）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -70,7 +70,6 @@
 | [FIX-117](4-changes/bug-fixes/FIX-117-document-status-config-missing-approved-escalated.md) | document status config missing approved escalated | ✅ 已修復（type-check / lint / i18n:check 通過；UI 端到端待驗證） |
 | [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通… |
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
-| [FIX-147](4-changes/bug-fixes/FIX-147-stage3-wrapped-line-description-misjoin.md) | stage3 wrapped line description misjoin | 🚧 已實作（本地端到端驗證通過：目標文件三輪穩定 5 列、12 份迴歸語料零退步），待 Azure DEV 驗證 |
 
 ## ❓ 狀態無法解析（2）
 
@@ -89,7 +88,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（208）
+## ✅ 已完成（209）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -301,4 +300,5 @@
 | [FIX-143](4-changes/bug-fixes/FIX-143-summary-area-vat-field-typed-as-lineitem.md) | summary area vat field typed as lineitem | ✅ 已修復並驗證（2026-07-29，Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`） |
 | [FIX-144](4-changes/bug-fixes/FIX-144-completed-documents-have-no-reprocess-entry.md) | completed documents have no reprocess entry | ✅ 已修復（2026-07-29） |
 | [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | ✅ 已完成（2026-07-30 第三輪部署，五項驗證訊號全部達標） |
+| [FIX-147](4-changes/bug-fixes/FIX-147-stage3-wrapped-line-description-misjoin.md) | stage3 wrapped line description misjoin | ✅ 已完成（2026-07-31 Azure DEV 端到端驗證通過，映像 `dev-fix147r3-20260731130840`） |
 
