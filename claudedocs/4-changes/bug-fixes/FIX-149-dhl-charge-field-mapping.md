@@ -5,7 +5,7 @@
 > **根因確認方式**: 直接查 Azure DEV 的 `template_field_mappings`、`data_templates.fields`、`field_definition_sets` 與 3 份 DHL 文件的實際提取結果
 > **影響範圍**: 設定資料（DHL Express 的 `template_field_mappings`）——**不改任何程式碼**
 > **優先級**: 中（金額歸屬錯誤影響成本分類，但不造成金額遺失）
-> **狀態**: 🚧 已實作（Azure DEV 已寫入並驗證；本機待執行、既有 instance 列待重新匹配）
+> **狀態**: 🚧 已實作（本機與 Azure DEV 皆已寫入並驗證；既有 instance 列需重新匹配才會套用）
 > **相關**: CHANGE-101（批量建 template field mapping 的做法與 gated 腳本模式）、FIX-143（同為 CEVA/DHL 的設定資料修正）
 
 ---
@@ -159,9 +159,9 @@ Azure 執行方式：經 Kudu 上傳後 `env PG_MODULE_PATH=/home/node_modules/p
 | 環境 | 狀態 | 說明 |
 |---|---|---|
 | **Azure DEV** | ✅ 已更新（2026-07-31） | 單一交易寫入 2 筆，回查確認內容正確、`id`/`order`/`isRequired`/`description` 全保留、非 DHL mapping 零波及 |
-| **本機** | ⏳ 未更新 | 本機 DHL instance 僅 2 列（Azure 106 列）。`dryrun` 已驗證腳本可正常運作，待決定是否執行 `write` |
+| **本機** | ✅ 已更新（2026-07-31） | 同一支腳本執行 `write`，回查結果與 Azure **逐項一致**（含 `id`/`order` 結構），非 DHL mapping 零波及 |
 
-> 兩者是各自獨立的資料庫，Azure 的寫入**不會**同步到本機（見 `docs/07-deployment/local-vs-azure-differences.md`）。
+> 兩者是各自獨立的資料庫，Azure 的寫入**不會**同步到本機（見 `docs/07-deployment/local-vs-azure-differences.md`），必須各自執行一次。
 
 ### ⚠️ 覆寫陷阱（實作時差點踩到）
 
