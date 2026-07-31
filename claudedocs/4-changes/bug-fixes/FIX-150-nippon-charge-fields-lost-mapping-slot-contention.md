@@ -234,6 +234,27 @@ node scripts/snapshot-template-values.js diff before-values.json after-values.js
 
 ---
 
+## 費用命名的實際分佈（決定方案的關鍵事實）
+
+依發票**原文**（非依填入的 key）統計兩家公司所有文件：
+
+| 公司 | 發票印出的費用 | 份數 |
+|---|---|---:|
+| NEHK | `NEHK B/L FEE` | 33 |
+| NEHK | `NEHK DO FEE` | 8 |
+| NEL | `B/L FEE` | 44 |
+| NEL | `D/O FEE` | 24 |
+
+三項關鍵結論：
+
+1. **完全互斥** —— 沒有任何一張發票同時印出兩種以上，一份組合都沒有。
+2. **兩家公司各用一套命名，從不交叉**。NEHK 一律帶 `NEHK` 前綴，NEL 一律不帶。份數加總（41 / 68）與各自的文件總數完全吻合。
+3. 因此「三種費用配兩個格位」的困境**在單一公司內並不存在** —— 每家各自只有兩種，正好兩格。
+
+> 這也推翻了規劃初期的一項顧慮：「若 NEHK 出現純 `B/L FEE` 將無去處」。41 份文件中一份都沒有，且 NEHK 的命名規則就是一律帶前綴。NEHK 欄位集中的 `bl_fee`（3 份有值全為誤配）與 `do_fee`（0 份有值）對該公司屬多餘定義，其存在只製造混淆。
+
+---
+
 ## 修復方案
 
 > **使用者決定（2026-07-31）**：Seal fee 只需在 Outbound 模板呈現，Inbound **不需要**。故 Inbound 不新增 `seal_fee` 欄位，`handling_at_origin` 維持現行公式（seal 金額續併於其中）。
@@ -248,15 +269,40 @@ node scripts/snapshot-template-values.js diff before-values.json after-values.js
 
 > 刻意命名為 `vat` 而非 `vat_7`：FIX-143 已查證該發票 `1617 / 65323 ≈ 2.5%`，標籤與實際稅率並不一致，欄位名不宜綁定特定稅率。
 
-### B. NEHK Inbound mapping
+### B. NEHK 欄位定義集 + Inbound mapping（✅ 已執行，2026-07-31）
 
-| 目標欄位 | 現行 | 修正後 |
+**不採用**規劃初期的 `{bl_fee} + {nehk_bl_fee}` 加總 —— 使用者指出 `bl_fee`「B/L fee」與 `nehk_bl_fee`「NEHK B/L fee」經常混淆，加總會讓兩者永久無法分辨；且實測有 1 份文件同一筆 680 被同時填入兩個 key，加總將使其翻倍為 1360。改為斷絕誤配來源：
+
+| 對象 | 現行 | 修正後 |
 |---|---|---|
-| `docs_fee` | `bl_fee` [DIRECT] | `{bl_fee} + {nehk_bl_fee}` [FORMULA] |
-| `docs_fee_at_origin` | `nehk_do_fee` [DIRECT] | **維持不動** |
-| `handling_at_origin` | `{seal_charge}+{handling_charge}+{container_seal_fee}` | **維持不動** |
+| 欄位集 `bl_fee.aliases` | `["B/L FEE","BL FEE"]` | `[]` |
+| mapping `docs_fee` | `bl_fee` [DIRECT] | `nehk_bl_fee` [DIRECT] |
+| mapping `docs_fee_at_origin` | `nehk_do_fee` [DIRECT] | **維持不動** |
+| mapping `handling_at_origin` | `{seal_charge}+{handling_charge}+{container_seal_fee}` | **維持不動** |
 
-改用 FORMULA 而非 DIRECT 的理由同 FIX-149：兩種 key 依發票寫法擇一出現，FORMULA 對缺值與 null 一律視為 0，不受「來源 key 缺席或存在但為 null」影響。B/L fee 與 DO fee 自此各有去處，不再互搶。
+**為何收窄 alias 有效**：aliases 直接注入 Stage 3 prompt（`stage-3-extraction.service.ts:1279-1301`，格式為 `[Also known as: ...]`）。GPT 面對發票上的 `NEHK B/L FEE - FCL` 時，看到兩個都帶「B/L FEE」字樣的候選而搖擺 —— 28 份中 2 份錯填 `bl_fee`、1 份兩者都填，`source` 全為 `unified`（GPT 直填）。清空 `bl_fee` 的 aliases 後，只有 `nehk_bl_fee` 具備精確對應的別名。
+
+**確定性回填並非兇手**：`matchLabel`（`classify-normalizer.ts:161-173`）對子字串比對設有長度閘 `b.length >= 8`，而 `"B/L fee"` 正規化後為 `"bl fee"`（6 字元），不會命中 `NEHK B/L FEE - FCL`。該保護來自 FIX-126。
+
+> ⚠️ 殘留風險：`bl_fee` 的 **label 本身**仍是「B/L fee」且仍在 prompt 中，GPT 選錯的機率大幅下降但無法保證歸零。若日後仍見誤配，下一步是移除 NEHK 欄位集中的 `bl_fee` 定義（該公司用不到）。
+
+**兩項變更必須同一次完成**：僅收窄 alias 而不改 mapping，會使 `docs_fee` 完全空轉且 `nehk_bl_fee` 仍無去處，比現況更差。
+
+#### 執行記錄
+
+以 gated 腳本 `scripts/fix-150/narrow-nehk-blfee-alias.js`（`inspect` / `dryrun` / `write` 三段式）執行，帶前置快照、各 1 筆數量閘、樂觀鎖（`WHERE updated_at = 讀取當下值`）、單一交易。
+
+| 環境 | 結果 |
+|---|---|
+| Azure DEV | ✅ 已寫入，回查確認 `bl_fee.aliases=[]`、`docs_fee <- nehk_bl_fee` |
+| 本機 | ✅ 已寫入（兩環境設定資料獨立，比照 FIX-149 同步處理） |
+
+前置快照（唯一還原依據）：
+
+```
+bl_fee.aliases       = ["B/L FEE","BL FEE"]
+docs_fee.sourceField = "bl_fee"
+```
 
 ### C. NEL Inbound mapping
 
