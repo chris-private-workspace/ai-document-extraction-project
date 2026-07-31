@@ -3,9 +3,9 @@
 > **建立日期**: 2026-07-30
 > **發現方式**: 使用者回報 Azure DEV 個案（CEVA / Inbound / 7/28）—— 「470.06 HKD categorised wrong to THC, should be handling cost」
 > **根因確認方式**: 從 Azure Blob 取回原始 PDF，用 pdfjs 抽取**帶座標**的文字層，與三次提取結果逐筆對照
-> **影響範圍**: `src/services/extraction-v3/stages/stage-3-extraction.service.ts`、`src/services/extraction-v3/confidence-v3-1.service.ts`
+> **影響範圍**: `src/services/extraction-v3/stages/stage-3-extraction.service.ts`、`src/services/extraction-v3/confidence-v3-1.service.ts`、`src/services/extraction-v3/utils/pdf-converter.ts`
 > **優先級**: 高（金額分類錯誤直接影響成本歸屬；且存在**靜默漏帳**路徑）
-> **狀態**: 🚧 已實作（本地四閘通過），待 Azure DEV 端到端驗證
+> **狀態**: 🚧 已實作（本地端到端驗證通過：目標文件三輪穩定 5 列、12 份迴歸語料零退步），待 Azure DEV 驗證
 > **相關**: CHANGE-094（費用提取非確定性，同一缺陷家族）、FIX-108 / FIX-126 / FIX-127（backfill 比對規則累積）
 
 ---
@@ -282,6 +282,103 @@ y=304.4  "DELIVERY ORDER FEE"                                   597.34   ← 單
 
 ---
 
+## 第三輪修復（2026-07-31，使用者批准採 C）—— 治本
+
+### 為何 A 不可能有效（第二輪之後才想通）
+
+第二輪之後模型仍然只提取 4 列。把 PDF 文字層連座標抽出來看，才發現**問題不在模型，在管線**：
+
+```
+y=383.9  DESCRIPTION            CUR   AMOUNT    EX RATE    CHARGES IN HKD
+y=373.0  BASIC FREIGHT CHARGE - 1 40GP @ USD 730.00/CN + 1   USD  1,100.00  7.892691   8,681.96
+y=364.4    20GP @ USD 370.00/CN                                      ← 續行
+y=354.3  DESTINATION HANDLING - 3 TEU @ USD 130.00/TEU       USD    390.00             3,078.15
+y=341.9  DESTINATION THC - TERMINAL HANDLING CHARGE - 1      THB  7,089.00  0.247142   1,751.99
+y=333.3    20GP @ THB 4350.00/CN + 1 40GP @ THB 2739.00/CN            ← 續行
+y=323.1  DESTINATION HANDLING - 1 20GP @ THB 1128.00/CN +    THB  1,902.00  0.247142     470.06
+y=314.5    1 40GP @ THB 774.00/CN                                     ← 續行
+y=304.4  DELIVERY ORDER FEE                                  THB  2,417.00              597.34
+```
+
+**5 筆費用佔 8 個視覺行。** 續行與新列的唯一差別：
+
+| 從 → 到 | 間距 | 意義 |
+|---|---|---|
+| 373.0 → 364.4 / 341.9 → 333.3 / 323.1 → 314.5 | **8.6** | 續行 |
+| 333.3 → 323.1 / 314.5 → 304.4 | **10.2** | 新費用 |
+
+差 1.6 點。而管線是把 PDF 以 **200 DPI rasterize 成 PNG**（`pdf-converter.ts:462` → `gpt-caller.service.ts:406` 的 `image_url`）才交給 GPT Vision —— 1.6 點在圖上只剩 **約 4 像素**，模型端還會再縮。
+
+再疊上第 3、4 筆的文字同構（都是 `N 20GP @ THB x/CN + N 40GP @ THB y/CN`）、第 4 筆名稱行**以 `+` 結尾**，讀下來就是一條連貫的加法鏈：
+
+> `... + 1 40GP @ 2739.00/CN` **`+ 1 20GP @ 1128.00/CN + 1 40GP @ 774.00/CN`**
+
+這正是本機那次的實際輸出。**A 之所以無效，是因為模型並非明知兩列還去合併，而是它認為那本來就是一列** —— 對看錯的人重申規則不會有作用。答案一直在 PDF 裡，是管線在 rasterize 那一刻自己丟掉的。
+
+### 實作
+
+| # | 檔案 | 內容 |
+|---|---|---|
+| 9 | `pdf-converter.ts` | 新增導出純函式 `detectChargeTable()` + `ChargeTableRow` / `ChargeTableHint` 型別。金額依**右端 x** 分群（右對齊欄位的右端幾乎完全對齊），續行依「y 落在本列與下一列之間**且**左緣貼齊描述欄」歸屬 |
+| 10 | `pdf-converter.ts` | 在**既有**的 `collectPageHints` 迴圈呼叫 —— 該處已經在 `getTextContent()`，不增加任何 I/O。側躺頁面（`rotation !== 0`）跳過（x/y 軸不一致，會分錯） |
+| 11 | `pdf-converter.ts` | `PageHints` / `PdfConversionResult` 加 `chargeTable(s)`；`PdfjsTextItem` 補 `width`（算右端用） |
+| 12 | `extraction-v3.service.ts` → `stage-orchestrator` → `stage-3` | 沿 CHANGE-113 `annotations` **同一條既有透傳路徑**加平行欄位；`FILE_PREPARATION` 步驟資料記錄偵測到的列數與總額（FIX-146 教訓：機制是否生效必須可事後查證） |
+| 13 | `stage-3-extraction.service.ts` | 新增導出純函式 `buildChargeTableSection()`，緊接 `buildGroupCandidateSection` 之後注入 systemPrompt 尾端 |
+| 14 | `stage-3-extraction.service.ts` | 功能開關 `EXTRACTION_CHARGE_TABLE_HINTS=false` 停用注入（偵測仍執行並 log，供診斷）。Azure 上出問題改一個 app setting 重啟即可關閉，不必回滾映像 |
+
+### 三道防迴歸閘（設計重點）
+
+| 閘 | 條件 | 不通過時的行為 |
+|---|---|---|
+| 1 | 有文字層 | 掃描件 `items` 為空 → 回 `null`，**prompt 逐字元不變** |
+| 2 | **合計自證**：候選欄金額合計 == 文件標示總額（容差同對帳閘） | 回 `null`，不注入 |
+| 3 | 環境變數未設為 `false` | 回空字串 |
+
+第 2 道是關鍵。它**一條規則同時擋掉三種錯誤**：選錯欄（原幣欄合計不等於本位幣總額）、把總計列當費用列（合計變兩倍）、文字層與視覺不符的異常 PDF。**只有在能自證分列正確時才給模型看。**
+
+### 乾跑盤點（先量化影響面，未花任何 GPT 成本）
+
+對本機 101 份已提取文件跑偵測邏輯，其中 12 份的原始 PDF 仍在 Azurite：
+
+| 分類 | 份數 | 對既有提取的影響 |
+|---|---|---|
+| 無文字層（Nippon、DHL 掃描件）→ 閘 1 擋下 | 2 | **零** |
+| 通過自證，列數**與現有結果一致** | 9 | 等於替既有答案背書 |
+| 通過自證，與現有結果不同 | **1** | 只有目標文件，且偵測正確（5 列、14,579.50） |
+| 有文字層但自證失敗 | **0** | — |
+
+9 份 MATCH 涵蓋最複雜的 8 列那份，以及**另一家貨代**（Fairate，版面完全不同）。
+
+### 實跑驗證（A/B 對照，2026-07-31）
+
+**發現並修掉一個自己造成的迴歸。** 首輪實跑時 `CEVA_RCIM250170_43397.pdf` 的 `amount` 變成**原幣 THB**（7105 / 1906 / 1615）而非結算幣別（1762.17 / 472.72 / 400.55）：
+
+| 開關 | 輪次 | 結果 |
+|---|---|---|
+| 關閉 | 2 輪 | 12,476.98 ✅ ✅ |
+| 開啟（原措辭） | 3 輪 | ❌ ✅ ❌ |
+| 開啟（**修正措辭後**） | 3 輪 | ✅ ✅ ✅ |
+
+根因是**這段自己製造的歧義**：規則 5 原寫「currency 仍要從圖片讀」，而該文件的描述本身就印著 `THB 7,105.00 @ 0.248019`，模型把「幣別是 THB」誤連到「amount 該用 THB」。不注入時 USER prompt 只有一句 `amount (HKD only)`，反而沒有歧義。修法是規則 3 講死「已換算為發票結算幣別、不可被描述旁的原幣數字取代」，規則 5 移除 `currency`。
+
+> 教訓：**注入的每一句話都可能與既有指示互相干擾**。加約束不是只有「有沒有被遵守」一個結果，還有「有沒有攪亂原本對的部分」。
+
+**最終 12 份對照**（基線 → 修正措辭後全部重跑）：
+
+| 檔案 | 基線 | 之後 | |
+|---|---|---|---|
+| `CEVA_RCIM260069_37388.pdf` | 4 列 / 14,109.44 | **5 列 / 14,579.50** | ✅ 目標修好 |
+| 其餘 10 份 | — | 完全相同 | ✅ 零退步 |
+| `DHL_RCIM250111_28699.pdf` | 4 列 / 3,280 | 4 列 / 5,590 | ⚠️ **與本 FIX 無關**（見下） |
+
+DHL 是掃描件、**0 次注入**、prompt 逐字元不變。在**開關關閉**下重跑三輪仍是同樣的 5,590（`247.5 → 2557.5`，把第三列的 2310 加了進去），證明它是模型自身的行為漂移（CHANGE-094 家族），非本次改動所致。**FIX-147 B 的對帳閘正確攔下它**（`mismatch=true`、`FULL_REVIEW`），這反而是 B 的價值展現。
+
+**目標文件三輪穩定**：5 列、合計 14,579.50、`reconciliation.difference = 0`、`processing_path = AUTO_APPROVE`、`destination_handling = 3,548.21`（3,078.15 + 470.06 同分類正確加總）。
+
+驗證：`type-check` ✅、`test` **445 通過 / 2 跳過**（新增 25 個）✅、`lint` 0 error ✅、`docs:check` ✅。
+
+---
+
 ## 驗收標準
 
 | # | 驗收項目 | 驗收標準 | 優先級 |
@@ -292,13 +389,18 @@ y=304.4  "DELIVERY ORDER FEE"                                   597.34   ← 單
 | 4 ✅ | 缺值不誤判 | `total_amount` 與 `subtotal` 皆缺 → 不觸發、不報錯（無從對帳 ≠ 對不上） | High |
 | 5 ✅ | 路由強制降級 | mismatch 為真時，即使 score ≥ 90 也回 `FULL_REVIEW`，且 `reasons` 含差額 | High |
 | 6 ✅ | 零回歸 | 既有路由測試全數通過；無 mismatch 的文件路由結果與修復前完全相同 | High |
-| 7 🔬 | Prompt 續行規則 | 新規則出現在實際送出的 `gpt_prompt` 中 | Medium |
-| 8 🔬 | 端到端（Azure） | 重新處理 `CEVA_RCIM260069_37388.pdf`：470.06 落在 `destination_handling`、`thc` = 1,751.99、`handling` = 3,548.21 | High |
+| 7 ✅ | Prompt 續行規則 | 新規則出現在實際送出的 `gpt_prompt` 中 | Medium |
+| 8 ✅ | 端到端（本機） | 重新處理 `CEVA_RCIM260069_37388.pdf`：470.06 落在 `destination_handling`、`thc` = 1,751.99、`handling` = 3,548.21 | High |
 | 9 ✅ | 型別 / 規範 | `type-check`、`lint`、`test` 通過 | High |
+| 10 ✅ | 費用表偵測（C） | CEVA 真實座標抽出 5 列、金額取本位幣欄、續行歸屬正確、總計列不計入 | High |
+| 11 ✅ | 自證閘（C） | 無文字層／找不到總額／合計對不上 → 回 `null`，prompt 不變 | High |
+| 12 ✅ | 功能開關（C） | `EXTRACTION_CHARGE_TABLE_HINTS=false` → 完全不注入，且 log 明示偵測到但停用 | High |
+| 13 ✅ | 迴歸（C） | 12 份本機語料重跑：目標修好、其餘無退步（DHL 差異已證明與本 FIX 無關） | High |
+| 14 🔬 | 端到端（Azure） | 部署後重新處理該文件，確認與本機一致 | High |
 
-> 驗收 1-6、9 已由單元測試涵蓋並通過（見 §實作內容）。7、8 需部署至 Azure DEV 後以實機驗證。
+> 驗收 1-13 已於本機驗證通過（單元測試 25 個 + 12 份實跑對照）。14 需部署至 Azure DEV 後驗證。
 
-> ⚠️ 驗收 8 依賴 A 生效（模型要讀對名稱）。**若 A 未能穩定達成，B 仍必須讓該文件落入 `FULL_REVIEW`** —— 那是本 FIX 的底線，也是驗收 1/5 與 8 分開列的原因。
+> ⚠️ 驗收 8 現由 C 達成。**即使 C 在某份文件上未能生效，B 仍必須讓合計對不上的文件落入 `FULL_REVIEW`** —— 那是本 FIX 的底線，DHL 那份正是此底線生效的實例。
 
 ---
 
@@ -332,7 +434,9 @@ Azure DEV 上該文件目前的模板列是錯的：
 
 | 項目 | 說明 |
 |---|---|
-| Stage 3 改用 PDF 文字層（含座標）輔助視覺判讀 | 本案的 PDF **有可抽取的文字層**，名稱與金額的 y 座標對應關係是確定性的。若把文字層一併餵給模型（或用它做事後校驗），這類錯拼可根治。屬架構變更（H1），需另案評估影響面與成本 |
+| ~~Stage 3 改用 PDF 文字層輔助視覺判讀~~ | ✅ **已於第三輪實作**（C），使用者 2026-07-31 批准 H1 |
+| 掃描件（無文字層）仍無防線 | Nippon / DHL 的 PDF 是純影像，C 對它們完全不生效，只能靠 B 的對帳閘攔截。若要根治需引入 OCR 座標（Azure DI 已回傳 bounding box），屬另一個層級的改動 |
+| 模型自身的非確定性 | DHL 那份在**完全相同的 prompt** 下穩定產出錯誤結果（`247.5 → 2557.5`），與 CHANGE-094 同源。C 只治「管線丟棄資訊」，治不了「模型讀圖讀錯」 |
 | 重複上傳同一檔案未被偵測 | `documents.file_hash` 為 `null`；同一份 PDF 產生 3 筆文件記錄。與本 FIX 無關，但值得單獨追 |
 
 ---

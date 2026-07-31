@@ -114,6 +114,14 @@ export interface PdfConversionResult {
    *   否則轉正是否生效只能靠重新渲染比對。
    */
   rotatedPages?: Array<{ pageNumber: number; degrees: number }>;
+  /**
+   * 由文字層偵測到的費用表（FIX-147 C）
+   *
+   * @description
+   *   僅列出通過合計自證的頁；掃描件、側躺頁與自證失敗者不會出現在此。
+   *   供 Stage 3 把已分好的列附進 Prompt，取代 GPT 從圖上判斷行邊界。
+   */
+  chargeTables?: ChargeTableHint[];
 }
 
 /**
@@ -153,6 +161,11 @@ interface PageHints {
   annotations: CollectedAnnotation[];
   /** 內容文字方向（PDF 空間，逆時針角度）；0 代表已是正的 */
   rotation: PageRotation;
+  /**
+   * 由文字層偵測到的費用表（FIX-147 C）
+   * @description 只有通過合計自證才有值；掃描件與自證失敗一律 undefined
+   */
+  chargeTable?: ChargeTableHint;
 }
 
 /**
@@ -337,6 +350,225 @@ export function needsAnnotationPaint(params: {
   return params.height > params.width * 1.2;
 }
 
+// ============================================================================
+// Charge Table Detection (FIX-147 C)
+// ============================================================================
+
+/** 一列費用（描述已含續行） */
+export interface ChargeTableRow {
+  /** 費用描述，續行以空格接續 */
+  description: string;
+  /** 該列在合計欄的金額 */
+  amount: number;
+}
+
+/** 單頁偵測到的費用表 */
+export interface ChargeTableHint {
+  /** 頁碼（1-based） */
+  pageNumber: number;
+  rows: ChargeTableRow[];
+  /** 用來自證的文件總額（`rows` 金額合計等於它才會回傳） */
+  documentTotal: number;
+}
+
+/** 金額字樣：千分位可有可無，小數兩位，允許括號負數 */
+const CHARGE_AMOUNT_PATTERN = /^-?\(?\d{1,3}(,\d{3})*\.\d{2}\)?$/;
+
+/** 標示「這一列是總計」的字樣 */
+const CHARGE_TOTAL_KEYWORDS =
+  /\b(TOTAL|SUB-?TOTAL|GRAND|BALANCE|AMOUNT DUE|TO PAY)\b|合計|總計|总计/i;
+
+/** 非描述欄位的字樣（金額、純數字、三字母貨幣代碼）—— 掃到即視為描述結束 */
+const CHARGE_NON_DESCRIPTION_PATTERN = /^(-?\(?[\d,]+(\.\d+)?\)?%?|[A-Z]{3})$/;
+
+/** 金額右端 x 分群容差（右對齊欄位的右端幾乎完全對齊） */
+const CHARGE_COLUMN_TOLERANCE = 2.5;
+
+/** 同一視覺行的 y 容差（匯率等欄位常因 baseline 微差被拆成相鄰 y） */
+const CHARGE_ROW_Y_TOLERANCE = 1.5;
+
+/** 續行左緣與描述欄左緣的最大偏移（容許縮排） */
+const CHARGE_CONTINUATION_X_TOLERANCE = 20;
+
+/** 構成費用表的最少列數 */
+const CHARGE_MIN_ROWS = 2;
+
+/** 費用表列數上限（防止異常文件把 Prompt 撐爆） */
+const CHARGE_MAX_ROWS = 100;
+
+/** 解析金額字串；無法解析回 null（不可回 0 —— 會讓自證誤判通過） */
+function parseChargeAmount(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!CHARGE_AMOUNT_PATTERN.test(trimmed)) return null;
+  const negative = /^\(.*\)$/.test(trimmed);
+  const value = Number(trimmed.replace(/[(),]/g, ''));
+  if (!Number.isFinite(value)) return null;
+  return negative ? -value : value;
+}
+
+/** 自證容差：與 FIX-147 對帳閘同一套（每列 0.01，至少 0.05） */
+function chargeTolerance(rowCount: number): number {
+  return Math.max(0.05, 0.01 * rowCount);
+}
+
+/**
+ * 從 PDF 文字層偵測費用表
+ *
+ * @description
+ *   FIX-147 C。**這段存在的理由是：分行的答案本來就在 PDF 裡，是管線自己丟掉的。**
+ *
+ *   管線把 PDF 以 200 DPI rasterize 成圖片後才交給 GPT Vision，文字層與座標在那一刻
+ *   全部消失。實測（2026-07-31，CEVA_RCIM260069_37388.pdf）該份發票 5 筆費用佔 8 個
+ *   視覺行，續行與新列的唯一差別是行距 8.6pt 對 10.2pt —— 在 200 DPI 圖上只剩約 4 像素，
+ *   且第 3、4 筆的文字同構（都是 `N 20GP @ THB x/CN + N 40GP @ THB y/CN`）、第 4 筆的
+ *   名稱行還以 `+` 結尾。GPT 於是把兩列讀成一列，470.06 那筆整個消失。五次觀察中合併
+ *   方向還會左右擺動（有時併進上一列、有時併進下一列），可見這對模型是接近五五波的判斷。
+ *
+ *   在文字層裡同一件事是算術：y 差是精確數字，金額欄的 x 對齊也是。把分好的列附在
+ *   Prompt 裡，GPT 的工作就從「從圖上判斷行邊界」降級為「把已知的列對應到欄位」——
+ *   與 CHANGE-113 階段一 A 把「讀出號碼」降級為「在清單中選一個」是同一個手法。
+ *
+ *   **自證優先於覆蓋率**：只有在 `rows` 金額合計等於文件標示的總額時才回傳結果。
+ *   這一條同時擋掉三種錯誤 —— 選錯欄（原幣欄的合計不會等於本位幣總額）、把總計列
+ *   當成費用列（合計會變兩倍）、以及文字層與視覺不符的異常 PDF。對不上就回 null，
+ *   呼叫端不注入，行為與改動前完全一致。寧可少幫忙，不可給錯資訊。
+ *
+ *   實測（2026-07-31 乾跑，本機 12 份可取得原始 PDF 的文件）：10 份有文字層者
+ *   全數通過自證，其中 9 份的列數與模型現有結果一致（等於替既有答案背書），
+ *   唯一不一致的就是上述 CEVA 那份，且偵測結果（5 列、合計 14,579.50）是正確的。
+ *   2 份掃描件（Nippon、DHL）文字層為空，直接回 null。
+ *
+ * @param items - pdfjs `getTextContent()` 的文字項目
+ * @param pageNumber - 頁碼（1-based）
+ * @returns 費用表；無法自證時回 null
+ *
+ * @since FIX-147
+ */
+export function detectChargeTable(
+  items: Array<{ transform?: number[]; str?: string; width?: number }>,
+  pageNumber: number
+): ChargeTableHint | null {
+  const cells: Array<{ text: string; x: number; xRight: number; y: number }> = [];
+  for (const item of items) {
+    const text = (item.str ?? '').trim();
+    if (!text || !item.transform || item.transform.length < 6) continue;
+    const x = item.transform[4];
+    cells.push({ text, x, xRight: x + (item.width ?? 0), y: item.transform[5] });
+  }
+  if (cells.length === 0) return null;
+
+  /** 該 y 附近是否有總計字樣 */
+  const nearTotalWord = (y: number): boolean =>
+    cells.some(
+      (c) => Math.abs(c.y - y) <= CHARGE_ROW_Y_TOLERANCE && CHARGE_TOTAL_KEYWORDS.test(c.text)
+    );
+
+  const amounts = cells
+    .map((c) => ({ ...c, value: parseChargeAmount(c.text) }))
+    .filter((c): c is typeof c & { value: number } => c.value !== null && c.value !== 0);
+  if (amounts.length < CHARGE_MIN_ROWS) return null;
+
+  // 標示為總計的金額 —— 自證的比對基準
+  const totals = [...new Set(amounts.filter((a) => nearTotalWord(a.y)).map((a) => a.value))].sort(
+    (a, b) => b - a
+  );
+  if (totals.length === 0) return null;
+
+  // 依右端 x 分群：右對齊數字欄的右端幾乎完全對齊，是最穩定的分欄訊號
+  const columns: Array<{ xRight: number; members: typeof amounts }> = [];
+  for (const amount of [...amounts].sort((a, b) => a.xRight - b.xRight)) {
+    const current = columns[columns.length - 1];
+    if (current && Math.abs(amount.xRight - current.xRight) <= CHARGE_COLUMN_TOLERANCE) {
+      current.members.push(amount);
+      current.xRight =
+        (current.xRight * (current.members.length - 1) + amount.xRight) / current.members.length;
+    } else {
+      columns.push({ xRight: amount.xRight, members: [amount] });
+    }
+  }
+
+  for (const total of totals) {
+    for (const column of [...columns].sort((a, b) => b.members.length - a.members.length)) {
+      const picked = column.members
+        .filter((m) => !nearTotalWord(m.y))
+        .sort((a, b) => b.y - a.y);
+      if (picked.length < CHARGE_MIN_ROWS || picked.length > CHARGE_MAX_ROWS) continue;
+
+      const sum = picked.reduce((acc, m) => acc + m.value, 0);
+      if (Math.abs(sum - total) > chargeTolerance(picked.length)) continue;
+
+      const rows = buildChargeRows(cells, picked);
+      if (rows.length !== picked.length) continue;
+      return { pageNumber, rows, documentTotal: total };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 為每個費用金額組出描述文字（含續行）
+ *
+ * @description
+ *   描述取該列最左側起、直到遇上第一個數字／貨幣代碼為止的文字。續行的判定是
+ *   「y 落在本列與下一列之間，且左緣貼齊描述欄」—— 後者用來排除匯率這類被
+ *   baseline 微差拆到獨立 y、但橫向位置在右側欄的碎片。
+ *
+ * @since FIX-147
+ */
+function buildChargeRows(
+  cells: Array<{ text: string; x: number; y: number }>,
+  picked: Array<{ y: number; value: number }>
+): ChargeTableRow[] {
+  /** 取某個 y 上的描述文字 */
+  const describeAt = (y: number): { text: string; left: number } | null => {
+    const inRow = cells
+      .filter((c) => Math.abs(c.y - y) <= CHARGE_ROW_Y_TOLERANCE)
+      .sort((a, b) => a.x - b.x);
+    if (inRow.length === 0) return null;
+    const parts: string[] = [];
+    for (const cell of inRow) {
+      if (CHARGE_NON_DESCRIPTION_PATTERN.test(cell.text)) break;
+      parts.push(cell.text);
+    }
+    if (parts.length === 0) return null;
+    return { text: parts.join(' ').replace(/\s+/g, ' ').trim(), left: inRow[0].x };
+  };
+
+  // 最後一列沒有「下一列」可當下界，若不設限會把頁面下方所有左對齊文字（大寫金額、
+  // 付款條款、地址）全部吸成續行。用列間距中位數當下界，可自適應不同版面的行高。
+  const gaps: number[] = [];
+  for (let i = 0; i + 1 < picked.length; i++) gaps.push(picked[i].y - picked[i + 1].y);
+  const sortedGaps = [...gaps].sort((a, b) => a - b);
+  const medianGap = sortedGaps.length > 0 ? sortedGaps[Math.floor(sortedGaps.length / 2)] : 0;
+
+  const rows: ChargeTableRow[] = [];
+  for (let i = 0; i < picked.length; i++) {
+    const head = describeAt(picked[i].y);
+    if (!head) return [];
+
+    // 續行：y 嚴格落在本列與下一列之間，且左緣貼齊描述欄
+    const lowerBound =
+      i + 1 < picked.length ? picked[i + 1].y : picked[i].y - medianGap;
+    const continuations = cells
+      .filter(
+        (c) =>
+          c.y < picked[i].y - CHARGE_ROW_Y_TOLERANCE &&
+          c.y > lowerBound + CHARGE_ROW_Y_TOLERANCE &&
+          Math.abs(c.x - head.left) <= CHARGE_CONTINUATION_X_TOLERANCE
+      )
+      .sort((a, b) => b.y - a.y)
+      .map((c) => describeAt(c.y)?.text)
+      .filter((t): t is string => Boolean(t));
+
+    rows.push({
+      description: [head.text, ...continuations].join(' ').replace(/\s+/g, ' ').trim(),
+      amount: picked[i].value,
+    });
+  }
+  return rows;
+}
+
 /**
  * pdfjs 的最小介面
  *
@@ -371,6 +603,8 @@ interface PdfjsTextItem {
   /** 文字變換矩陣 [a, b, c, d, e, f]，`[a, b]` 為書寫方向向量 */
   transform?: number[];
   str?: string;
+  /** 文字寬度（FIX-147：與 transform[4] 相加得右端，用於分辨右對齊的金額欄） */
+  width?: number;
 }
 
 interface PdfjsTextContent {
@@ -457,6 +691,7 @@ export class PdfConverter {
       const images: string[] = [];
       const annotations: PdfAnnotationInfo[] = [];
       const rotatedPages: Array<{ pageNumber: number; degrees: number }> = [];
+      const chargeTables: ChargeTableHint[] = [];
       let pageCount = 0;
 
       const scale = mergedConfig.dpi / 72; // 72 DPI 是 PDF 基準
@@ -492,6 +727,9 @@ export class PdfConverter {
         const pageRotation = mergedConfig.autoRotatePages
           ? (hints?.rotation ?? 0)
           : 0;
+
+        // FIX-147 C：費用表與圖片處理無關，純粹隨頁收集後回傳給 Stage 3
+        if (hints?.chargeTable) chargeTables.push(hints.chargeTable);
 
         // CHANGE-113 階段一 A：補畫 pdfjs 渲染不出來的旋轉 FreeText 註解。
         // 必須在轉正與壓縮之前 —— 註解座標以未縮放、未旋轉的原始圖像為基準。
@@ -559,6 +797,7 @@ export class PdfConverter {
         warnings: warnings.length > 0 ? warnings : undefined,
         annotations: annotations.length > 0 ? annotations : undefined,
         rotatedPages: rotatedPages.length > 0 ? rotatedPages : undefined,
+        chargeTables: chargeTables.length > 0 ? chargeTables : undefined,
       };
     } catch (error) {
       // 之前此錯誤被靜默吞掉（只回傳 message），導致 Azure 上 PDF→圖片失敗時
@@ -716,9 +955,16 @@ export class PdfConverter {
         const rotation =
           detectTextRotation(textContent.items) || detectAnnotationRotation(freeTexts);
 
+        // FIX-147 C：側躺頁面的文字層 x/y 軸與版面不一致，依 y 分列會分錯。
+        // 這種頁面不做費用表偵測 —— 寧可不給，不可給錯。
+        const chargeTable =
+          rotation === 0 ? (detectChargeTable(textContent.items, pageNumber) ?? undefined) : undefined;
+
         if (freeTexts.length === 0) {
-          // 沒有註解但方向不正時仍要記錄 —— 轉正與註解是獨立的兩件事
-          if (rotation !== 0) result.set(pageNumber, { annotations: [], rotation });
+          // 沒有註解但方向不正／有費用表時仍要記錄 —— 三者是獨立的資訊
+          if (rotation !== 0 || chargeTable) {
+            result.set(pageNumber, { annotations: [], rotation, chargeTable });
+          }
           continue;
         }
 
@@ -750,8 +996,8 @@ export class PdfConverter {
           });
         }
 
-        if (collected.length > 0 || rotation !== 0) {
-          result.set(pageNumber, { annotations: collected, rotation });
+        if (collected.length > 0 || rotation !== 0 || chargeTable) {
+          result.set(pageNumber, { annotations: collected, rotation, chargeTable });
         }
       }
     } catch (error) {
