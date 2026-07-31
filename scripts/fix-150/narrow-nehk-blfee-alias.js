@@ -13,7 +13,12 @@
  *      收窄 alias 後 bl_fee 將不再有值，若不改這條規則，docs_fee 會完全空轉，而
  *      nehk_bl_fee（26 份 / 17,680）仍無去處 —— 比現況更差。
  *
- *   NEHK 是純進口公司（出口 0 份 / 進口 41 份），只用 Inbound 模板，故不動 Outbound。
+ *   目前 NEHK 的文件全數為進口（41 份），只用 Inbound 模板，故不動 Outbound。
+ *
+ *   ⚠️ 這是**當前樣本**的分佈，不代表母體。使用者 2026-07-31 指正：Nippon 的出口類
+ *      文件會出現無前綴的 `B/L fee`。故本腳本只清空 `bl_fee` 的 aliases、**保留其定義
+ *      與標籤**，讓無前綴的寫法照樣命中；絕不可據「該公司現有文件都帶前綴」推論
+ *      `bl_fee` 多餘而刪除它 —— 該欄位在 NEL 名下承載 70 筆 / 114,000。
  *
  *   ⚠️ 這兩張表都沒有 rollback 機制，故採三段式 gated 流程：
  *     node narrow-nehk-blfee-alias.js inspect   # 只讀，印出現況
