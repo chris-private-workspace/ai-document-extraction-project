@@ -464,7 +464,27 @@ NEX - import to Inbound Template 2.0(06:26) → terminal_fees_at_origin=8700,
     診斷欄位出現 container_seal_fee / vgm_admin_charge —— 皆為 NEHK 專有 key
 ```
 
-1.0 實例中四份文件（其中三份屬 NEHK）**全部**套用 NEL 規則；該實例混入了一份 NEL 文件（`202`）。此為觀察到的現象，**機制尚未經代碼查證**，本次不處理 —— 但它意味著把兩家 Nippon 的文件混入同一實例，結果不可信。建議另開 FIX 追查 mapping 解析與實例的綁定關係。
+1.0 實例中四份文件（其中三份屬 NEHK）**全部**套用 NEL 規則；該實例混入了一份 NEL 文件（`202`）。
+
+#### 機制（✅ 已查證，2026-07-31）
+
+`template-matching-engine.service.ts:177-181`：
+
+```ts
+const mappingConfig = await templateFieldMappingService.resolveMapping({
+  dataTemplateId: template.id,
+  companyId: options.companyId,      // ← 整批一次，不是逐份文件依各自公司解析
+  documentFormatId: options.formatId,
+});
+```
+
+**映射對整批文件只解析一次，用單一 `companyId`。** 一個實例混入多家公司的文件時，全部照那一個 companyId 的映射跑，與各文件自身的 `company_id` 無關。這是設計限制，不是 bug —— 也解釋了本文件 §第一層防護 所述「映射的 `company_id` 不決定套用對象」的另一半成因。
+
+延伸的操作事實：`POST /api/v1/template-matching/execute` 若不帶 `options.companyId`，會回 `MAPPING_NOT_FOUND` + `resolvedFrom: []`，訊息稱「至少需要 GLOBAL 級別配置」。**那不是設定缺失，是沒告訴它用哪家公司** —— 本專案的映射幾乎都是 COMPANY 範圍，沒有 GLOBAL 後備。2026-07-31 本機驗收時曾據此誤判為設定未同步。
+
+**影響驗收方式**：不同公司的文件必須放進**不同的模板實例**，否則結果不可信。2026-07-31 的本機驗收即依此拆成 A（NEHK 4 份）/ B（NEL 1 份）兩個實例，15 項判準全數通過。
+
+本次不修正此限制（需改為逐份文件解析，屬 H1 架構變更）。建議另開 CHANGE 評估。
 
 ### NEHK Outbound mapping 的死 key 與公司歸屬錯置
 
