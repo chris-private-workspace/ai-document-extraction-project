@@ -191,6 +191,49 @@ ai-document-extraction-project/
 
 ---
 
+## 🔒 不可逆資料操作紀律（🔴 必須遵守）
+
+> **來源**：本專案多數寫入路徑**無 audit log、無 rollback 機制**（`autoMergeCompanies`、`template_field_mappings`、`field_definition_sets` 皆是）。改壞了無從得知誰改、為何改，也無從還原。
+
+**適用**：對資料庫的寫入 / 更新 / 刪除，且**非** Prisma migration 者——設定調整、資料修正、批次 update、跨環境同步、清理測試資料。
+
+**一律採三段式 gated 腳本**，不可直接下 SQL 或一次到位：
+
+```bash
+node scripts/<name>.js inspect   # 只讀，印出現況
+node scripts/<name>.js dryrun    # 只讀，印出 before/after
+node scripts/<name>.js write     # 實際寫入
+```
+
+`write` 必備五項：
+
+| # | 措施 | 作用 |
+|---|------|------|
+| 1 | **前置快照** | 寫入前完整輸出現值到檔案，作為**唯一**還原依據 |
+| 2 | **單一交易** | `BEGIN` / `COMMIT`，任一步失敗即 `ROLLBACK` |
+| 3 | **數量閘** | 每筆 `rowCount !== 預期` 即拋錯中止（別只看「有沒有錯」） |
+| 4 | **樂觀鎖** | `WHERE updated_at = 讀取當下值`，防併發覆蓋 |
+| 5 | **冪等** | 已是目標狀態則跳過，重跑不產生副作用 |
+
+**動手前後各跑一次驗證**（涉及費用 / 映射時）：
+
+```bash
+node scripts/check-orphan-charge-keys.js --save=before.json   # 事後改 --baseline=before.json
+node scripts/snapshot-template-values.js capture before.json  # 事後 capture after + diff
+```
+
+`diff` 的關鍵輸出是「**欄位由有值變為空白**」——那是「修 A 打破 B」的形態，兩支腳本偵測到問題時 exit code 皆為 `1`。
+
+**三條容易忽略的前提**：
+
+- **跨環境搬資料前先查實際型別**（`information_schema.columns` 的 `udt_name`）。`text[]` 與 jsonb 陣列在 JSON 裡長得一樣，enum 需明確轉型。
+- **描述變更必須指名資料表與哪一筆**，禁用「加到 Inbound」這類簡稱——`data_templates`（影響全部共用公司）／`template_field_mappings`（僅該公司）／`field_definition_sets`（僅該公司，aliases 會進 Stage 3 prompt）三者影響範圍差極大。
+- **改設定不回溯**：既有提取結果與模板實例列不會自動更新，需重新處理 / 重新匹配才反映。⚠️ 但「重新處理」會**覆蓋**上一次的提取結果（`extraction_results` 對 document 有唯一約束），可能銷毀診斷用的唯一證據——建議使用者重新處理前先確認。
+
+> 📋 實例：FIX-150（四次套用此流程，三次靠它避免了誤寫）、`scripts/sync-template-mappings.js`
+
+---
+
 ## 🎯 編碼核心原則 — Karpathy Guidelines（🔴 必須遵守）
 
 > **來源**：`andrej-karpathy-skills:karpathy-guidelines` plugin（`alwaysApply: true`）
@@ -309,6 +352,7 @@ ai-document-extraction-project/
 - [ ] 涉及 console.log → 改用 logger？
 - [ ] 完成 CHANGE/FIX → 該檔的 `> **狀態**:` 行更新為 ✅ 已完成？
 - [ ] **新增或改動 CHANGE/FIX 狀態 → 執行 `npm run docs:status` 重新生成 `claudedocs/STATUS.md` 並一併提交？**（`npm run docs:check` 是 CI required gate，未同步會擋 PR）
+- [ ] 涉及資料庫寫入/刪除（非 migration）→ 走過 inspect/dryrun/write 三段式？前置快照 + 單一交易 + 數量閘齊備？（§不可逆資料操作紀律）
 - [ ] Commit message 符合 Conventional Commits？
 
 ---
@@ -564,9 +608,12 @@ AI Document Extraction — Strict Mode
 
 ## 📝 版本資訊
 
-- **CLAUDE.md 版本**：4.0.0
-- **最後更新**：2026-05-26
-- **本版重大變更**（v3.4.1 → v4.0.0）：
+- **CLAUDE.md 版本**：4.1.0
+- **最後更新**：2026-07-31
+- **本版變更**（v4.0.0 → v4.1.0）：
+  - **新增 §不可逆資料操作紀律**（使用者 2026-07-31 批准）：三段式 gated 腳本 + 五項必備措施（前置快照 / 單一交易 / 數量閘 / 樂觀鎖 / 冪等）+ 前後對帳驗證。來源為 FIX-150 —— 該 FIX 四次套用此流程，其中三次靠它擋下誤寫並乾淨回滾（型別錯誤 ×2、刪除範圍確認 ×1）
+  - **§Self-Verification Checklist** 新增一項：資料庫寫入/刪除是否走過三段式
+- **v4.0.0 重大變更**（v3.4.1 → v4.0.0）：
   - **大幅精簡**：~570 行 → ~500 行（規則密度從 ~40% 提升到 ~70%）
   - **移除記錄類內容**（全部 redirect 到 reference）：技術棧詳細列表 / 代碼規模統計 / Sub-CLAUDE.md 完整地圖 / 開發編排協議詳情 / 已修復差異記錄 / 重複 ClaudeDocs 表 / i18n 完整命名空間列表
   - **新增**：§Hard Constraints H1-H6（Strict Mode 結構化）
