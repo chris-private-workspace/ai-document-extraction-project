@@ -1,6 +1,7 @@
 # 已知差異與關鍵發現
 
 > **本文件為 CLAUDE.md §當前 Open 差異 的完整展開**。CLAUDE.md 只列 5 條精簡 open items，本文件含完整歷史 + 已修復項目（FIX-XXX 引用）+ 安全審計記錄。
+> 🔀 **找的若是「舊資料與新資料語義不同」**（例如某欄位在某次 FIX 後才改變意義，導致跨時間統計失真），看 [`data-semantic-breakpoints.md`](data-semantic-breakpoints.md) —— 本文件記的是「文檔聲稱 vs 代碼實際」，那份記的是「舊資料 vs 新資料」。
 > **最後更新**：2026-07-25（FIX-133 完成：#12 唯一約束問題已修復，改為部分唯一索引 `NULLS NOT DISTINCT WHERE is_active`，已移至「已修復項目」） | **來源**：`docs/06-codebase-analyze/` 驗證報告 R1-R15（44 份）
 
 ---

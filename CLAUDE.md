@@ -535,6 +535,7 @@ npm run docs:status      # 重新生成 claudedocs/STATUS.md，需一併 commit
 | 項目進度與歷史 | `claudedocs/reference/project-progress.md` |
 | Sub-CLAUDE.md 地圖 | `claudedocs/reference/sub-claude-md-map.md` |
 | 已知差異記錄（含已修復） | `claudedocs/reference/known-discrepancies.md` |
+| **歷史資料語義斷點**（跨時間統計前必讀） | `claudedocs/reference/data-semantic-breakpoints.md` |
 | 完整技術棧清單 | `claudedocs/reference/tech-stack.md` |
 | Open Questions 列表 | `docs/open-questions.md` |
 
@@ -618,9 +619,11 @@ AI Document Extraction — Strict Mode
 
 ## 📝 版本資訊
 
-- **CLAUDE.md 版本**：4.1.1
+- **CLAUDE.md 版本**：4.1.2
 - **最後更新**：2026-08-01
-- **本版變更**（v4.1.0 → v4.1.1）：
+- **本版變更**（v4.1.1 → v4.1.2）：
+  - **§按需查閱 新增一列**：`claudedocs/reference/data-semantic-breakpoints.md`（歷史資料語義斷點登記簿）。起因為 FIX-148 影響評估——初版拉全量 802 份資料算出的衝擊比真實值高 3 倍，因為 `isNewFormat` 的語義在 FIX-124（2026-07-21）改過，而舊值不會回填。跨時間統計前需先查該表
+- **v4.1.1 變更**（v4.1.0 → v4.1.1）：
   - **修正 §信心度路由機制 的降級描述**：原記「新公司 → 強制 FULL_REVIEW；新格式 → 強制 QUICK_REVIEW」與代碼不符 —— `applyRoutingStrategy` 對新公司 / 新格式 / 配置來源 / >3 項待分類**一律只降一級**（AUTO_APPROVE → QUICK_REVIEW），能覆蓋成 FULL_REVIEW 的只有「Stage 失敗」與「行項合計不符」兩類。依此改為表格
   - **新增 FIX-148 現況警示**：上述降級在 V3.1 管線中**全部未生效**（管線 Step 7 丟棄已算好的 `routingDecision`），線上唯一實際作用的降級是對帳閘；per-model 閾值同樣失效
   - **新增 FIX-151 對帳基準說明**：行項合計與 `subtotal` 精確吻合時改以 `subtotal` 為準，避免含 VAT 發票被誤判漏帳
