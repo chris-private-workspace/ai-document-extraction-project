@@ -369,6 +369,12 @@ function toReconcilableAmount(field: FieldValue | undefined): number | null {
  *
  *   **雙向比較**：行項合計大於總額（重複計列）與小於總額（漏行）同樣要攔下。
  *
+ *   **FIX-151 含稅發票例外**：`total_amount` 含稅、`lineItems` 不含稅（VAT 印在總結區，
+ *   見 FIX-143），故一律以 `total_amount` 為基準會使每張含 VAT 的發票必然誤判（實測
+ *   36 筆不符中 24 筆屬此類）。改為：行項合計與 `subtotal` **精確吻合**時以 `subtotal`
+ *   為準判定相符；否則沿用 `total_amount` 優先。精確吻合本身即明細完整的證據，故此
+ *   例外不削弱偵測 —— 漏行 / 重複計列都會使兩者不等而落回原邏輯。
+ *
  * @param fields - 已完成回填的動態欄位（優先來源）
  * @param standardFields - 標準欄位（`fields` 缺 total 時的後備來源）
  * @param lineItems - 解析後的行項目
@@ -402,8 +408,7 @@ export function reconcileLineItemTotal(
       .toFixed(2)
   );
 
-  // total_amount 優先；缺值才退到 subtotal。subtotal 在含稅發票上不等於行項合計，
-  // 但誤報的代價只是多一次人工審核，漏報的代價是漏帳 —— 兩者不對等。
+  // total_amount 優先；缺值才退到 subtotal。
   const candidates: ReadonlyArray<
     readonly ['total_amount' | 'subtotal', number | null]
   > = [
@@ -416,6 +421,39 @@ export function reconcileLineItemTotal(
       toReconcilableAmount(fields?.subtotal ?? standardFields?.subtotal),
     ],
   ];
+
+  // FIX-151: 含稅發票的例外 —— 行項合計與「不含稅小計」精確吻合時，以 subtotal 為準。
+  //
+  //   total_amount 是含稅的，而 lineItems 只有各項費用、不含稅（VAT 印在總結區，
+  //   不會出現在明細行 —— 見 FIX-143）。原本一律以 total_amount 為基準，使得每一張
+  //   含 VAT 的發票必然對不上，差額恆等於稅額：Azure DEV 實測 36 筆對帳不符中有
+  //   24 筆屬此類（全為 Nippon），行項合計與 subtotal 分毫不差。
+  //
+  //   原註解稱「subtotal 在含稅發票上不等於行項合計」，資料顯示恰恰相反 —— subtotal
+  //   正是對得上的那一個。因此不需要在「誤報」與「漏報」之間二選一。
+  //
+  //   ⚠️ 本例外只在**精確吻合**（容差內）時成立，那正是明細完整無誤的直接證據：
+  //   漏一行或多一行都會使 lineItemSum ≠ subtotal，立刻落回下方原邏輯被攔下。
+  //   實測 CEVA 漏行（差 470.06）、DHL 重複計列（差 18932.61）皆不受影響。
+  const subtotalOnly = toReconcilableAmount(
+    fields?.subtotal ?? standardFields?.subtotal
+  );
+  if (
+    subtotalOnly !== null &&
+    Math.abs(lineItemSum - subtotalOnly) <= tolerance
+  ) {
+    return {
+      checked: true,
+      mismatch: false,
+      lineItemSum,
+      documentTotal: subtotalOnly,
+      totalSource: 'subtotal',
+      difference: Number((lineItemSum - subtotalOnly).toFixed(2)),
+      tolerance,
+      lineItemCount,
+    };
+  }
+
   const hit = candidates.find(([, value]) => value !== null);
   if (!hit) return { ...notChecked, lineItemSum };
 
