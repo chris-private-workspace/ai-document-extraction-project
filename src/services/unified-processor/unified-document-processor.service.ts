@@ -508,6 +508,10 @@ export class UnifiedDocumentProcessorService {
         formatName: result.formatIdentification.formatName,
         confidence: result.formatIdentification.confidence,
         isNewFormat: result.formatIdentification.isNewFormat,
+        // FIX-153: 這裡漏填會讓 configSource 進不了 extraction_results.stage_2_result，
+        //   使「配置由 LLM 推斷 → 降級」永遠無從判斷（實測全庫 802/802 缺此 key）。
+        //   取 formatIdentification 的原始值，**不可**改用頂層 `v3Result.configSource`（已映射過）。
+        configSource: result.formatIdentification.configSource,
       } : undefined,
       // FIX-044: 保留完整 Stage 3 數據（原本只存摘要，導致事後無法回填）
       stage3Result: v3Result.result ? {

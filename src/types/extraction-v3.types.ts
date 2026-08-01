@@ -235,6 +235,17 @@ export interface FormatIdentificationResultV3 {
   confidence: number;
   /** 是否為新格式 */
   isNewFormat: boolean;
+  /**
+   * FIX-153: 格式配置來源（Stage 2 的原始值）
+   *
+   * @description 必須是 `FormatConfigSource` 的**原始值**（`COMPANY_SPECIFIC` /
+   *   `UNIVERSAL` / `LLM_INFERRED`），不可填 `ExtractionV3Output.configSource`
+   *   —— 後者已被映射成 `ConfigSourceType`（`FORMAT` / `GLOBAL` / `DEFAULT`），
+   *   而 `generateRoutingDecision` 比對的是 `=== 'LLM_INFERRED'`，填錯等於降級永不觸發。
+   *
+   *   設為可選：V3 單階段路徑無 Stage 2，且舊資料不具此欄位。
+   */
+  configSource?: FormatConfigSource;
 }
 
 /**

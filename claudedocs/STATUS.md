@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 112 | CHANGE-114 | **CHANGE-115** |
-| FIX | 154 | FIX-152 | **FIX-153** |
+| FIX | 155 | FIX-153 | **FIX-154** |
 
 ## 📋 未開始（28）
 
@@ -45,7 +45,7 @@
 | [FIX-148](4-changes/bug-fixes/FIX-148-v31-pipeline-discards-routing-decision.md) | v31 pipeline discards routing decision | ⏳ 待實作（使用者 2026-07-31 決定：FIX-147 先以最小範圍繞過，本 FIX 另行評估） |
 | [FIX-152](4-changes/bug-fixes/FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) | dhl multi shipment aggregate amount leak | 📋 規劃中（根因已確認、修復方案待拍板） |
 
-## 🚧 進行中 / 部分完成（24）
+## 🚧 進行中 / 部分完成（25）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -75,6 +75,7 @@
 | [FIX-149](4-changes/bug-fixes/FIX-149-dhl-charge-field-mapping.md) | dhl charge field mapping | 🚧 已實作（本機與 Azure DEV 皆已寫入並驗證；既有 instance 列需重新匹配才會套用） |
 | [FIX-150](4-changes/bug-fixes/FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) | nippon charge fields lost mapping slot contention | 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄皆已完成並驗證；待重新匹配實例驗收，Outbound seal fee … |
 | [FIX-151](4-changes/bug-fixes/FIX-151-reconcile-uses-tax-inclusive-total.md) | reconcile uses tax inclusive total | ✅ 已實作（2026-08-01，本地 `type-check` / `lint` / `test` 452 通過、對帳測試 25 項全過… |
+| [FIX-153](4-changes/bug-fixes/FIX-153-configsource-not-persisted-to-stage2-result.md) | configsource not persisted to stage2 result | ✅ 已實作（2026-08-01，本地 `type-check` / `lint` / `test` 452 通過零回歸；⏳ 待部署 Az… |
 
 ## ❓ 狀態無法解析（2）
 

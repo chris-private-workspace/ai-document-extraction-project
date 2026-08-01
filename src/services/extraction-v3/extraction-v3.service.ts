@@ -728,6 +728,11 @@ export class ExtractionV3Service {
             formatName: threeStageResult.stage2?.formatName || '',
             confidence: threeStageResult.stage2?.confidence || 0,
             isNewFormat: threeStageResult.stage2?.isNewFormat || false,
+            // FIX-153: 透傳 Stage 2 的**原始** configSource。
+            //   第 700-702 行輸出的頂層 `configSource` 是映射過的 ConfigSourceType
+            //   （FORMAT / GLOBAL / DEFAULT），不可用於此處 —— `generateRoutingDecision`
+            //   比對的是原始值 `=== 'LLM_INFERRED'`。
+            configSource: threeStageResult.stage2?.configSource,
           },
           validation: { isValid: true, errors: [], warnings: [] },
           jitCreated: {
