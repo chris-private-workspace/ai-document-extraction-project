@@ -127,16 +127,69 @@ lineItems 加總 = 500 + 1650 + 13950 + 2100 + 2100 + 2800 + 36191 + 6032 = 6532
 
 ---
 
-## 同型問題（未處理）
+## 🔴 「同型問題」的判斷已撤回（2026-08-01）
 
-CEVA 兩個欄位定義集的 `vat_7_percent` 同樣是 `fieldType: 'lineItem'`：
+### 原判斷（2026-07-29，本節初版）
 
-| 欄位集 | 公司狀態 | 欄位 |
-|--------|---------|------|
-| `CEVA Logistics - 自訂費用欄位集` | ACTIVE | `vat_7_percent[lineItem]` |
-| `CEVA Logistics Hong Kong Limited - 自訂費用欄位集` | MERGED | `vat_7_percent[lineItem]` |
+> CEVA 兩個欄位定義集的 `vat_7_percent` 同樣是 `fieldType: 'lineItem'`，屬同型問題，
+> 待確認該公司是否真有此欄位需求後比照修正。
 
-CEVA Inbound 映射的 `handling` 公式同樣引用了 `{vat_7_percent}`，`transform_diagnostics` 也同樣記錄它缺失。本次未動 —— CEVA 測試文件（HKD 計價，`subtotal` 等於 `total_amount`）本身可能就沒有 VAT，需先確認該公司是否真有此欄位需求再決定。
+**此判斷不成立，已撤回。** 依據只是「欄位設定長得一樣」，未查證 VAT 在文件上的實際位置 —— 而那正是本 FIX 的判準所在。
+
+### 查證結果（Azure DEV + 本機，唯讀）
+
+CEVA 與 Nippon 是**相反**的情況，不是同型：
+
+| | Nippon `vat_7`（本 FIX 的案例） | CEVA `vat_7_percent` / DSV `vat` / Toll `vat` |
+|---|---|---|
+| VAT 印在哪 | 總金額**下方**的 summary 區 | **明細行內** |
+| `lineItems` 是否含 VAT 項 | 無 | **有** |
+| `fieldType: 'lineItem'` 是否合適 | ❌ 錯（等於指示模型只在明細行找） | ✅ **正確** |
+| 修改前的取值狀況 | 恆為 `null` | **正在正常取值** |
+
+直接證據（Azure DEV）：
+
+```
+CEVA_RCEX250462_51143.pdf  lineItem "LOCAL VAT 7%" = 252.34            → vat_7_percent = 252.34
+DSV_RCEX250153_25559.pdf   lineItem "VAT - 7.00% of USD 267.38" = 18.72 → vat = 18.72
+```
+
+取到非零值的份數：CEVA `vat_7_percent` 1 份、**DSV `vat` 22 份**、**Toll `vat` 42 份**。
+
+CEVA 316 份文件幣別全為 HKD；265 份可判斷小計與總額，其中僅 2 筆有差額且均來自同一檔名的不同次提取（其一 `小計=1259.64 / 總額=12859.64` 為少讀一位數的提取錯誤，非稅額）。**CEVA 不存在「summary 區 VAT 取不到」的情形。**
+
+### 若照原判斷執行會造成的損害
+
+改為 `standard` 會使該欄位**退出** `backfillLineItemCharges` 的回填範圍（見上方 §修復方式 對照表第 4 列）—— 而那正是 CEVA / DSV / Toll 目前取到值的來源。等於為了修一個不存在的問題，弄壞三家公司共 65 份文件上運作正常的欄位。
+
+### 稅類欄位的 `fieldType` 現況（2026-08-01 全庫掃描，Azure DEV）
+
+| 欄位定義集 | 公司狀態 | 欄位 | `fieldType` | 判定 |
+|---|---|---|---|---|
+| `Nippon Express Logistics - 自訂費用欄位集` | ACTIVE | `vat_7` | `standard` | ✅ 本 FIX 已修，正確 |
+| `CEVA Logistics - 自訂費用欄位集` | ACTIVE | `vat_7_percent` | `lineItem` | ✅ 正確，**不應更動** |
+| `CEVA Logistics Hong Kong Limited - 自訂費用欄位集` | MERGED | `vat_7_percent` | `lineItem` | ✅ 同上 |
+| `DSV Air & Sea Ltd. - 自訂費用欄位集` | ACTIVE | `vat` | `lineItem` | ✅ 同上 |
+| `Toll Global Forwarder Limited - 自訂費用欄位集` | ACTIVE | `vat` | `lineItem` | ✅ 同上 |
+
+### 通用教訓
+
+**欄位設定的結構相似，不等於同一個問題。** 判斷 `fieldType` 是否設對，唯一依據是該費用在**文件版面上的實際位置**（明細行 vs 總結區），而這只能從提取結果的 `lineItems` 與 `field_mappings` 讀出來，無法從欄位定義本身推得。
+
+本節初版把「兩者都是 `lineItem`」當成同型的證據，是把**現象的相似**誤當**成因的相同**。對照 memory `feedback_code_shows_possible_data_shows_actual`：設定證明「可能」，資料證明「實際」。
+
+---
+
+## 環境漂移（附帶發現，未處理）
+
+本 FIX 只在 Azure DEV 執行（見 §執行方式），**本機未同步**：
+
+| 環境 | Nippon `vat_7` 的 `fieldType` |
+|---|---|
+| Azure DEV | `standard` ✅ |
+| 本機 | `lineItem` ❌ |
+
+目前無可見損害（本機該公司文件量少），但這是「一邊驗證通過、另一邊仍是舊行為」的來源。修正需走三段式 gated 腳本（§不可逆資料操作紀律）。
 
 ---
 
