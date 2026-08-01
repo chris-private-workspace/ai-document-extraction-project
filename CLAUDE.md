@@ -55,9 +55,19 @@ TIER 3: LLM Classification (AI 智能分類)     — 以上都無法匹配時用
 | 70-89% | QUICK_REVIEW | 快速確認 |
 | < 70% | FULL_REVIEW | 完整審核 |
 
-**V3.1 智能降級**：新公司 → 強制 FULL_REVIEW；新格式 → 強制 QUICK_REVIEW；DEFAULT 配置來源 → 降一級
+**V3.1 降級規則**（唯一策略核心 = `applyRoutingStrategy`，`confidence-v3-1.service.ts`）：
+
+| 觸發條件 | 效果 |
+|----------|------|
+| 新公司 / 新格式 / 配置來源需降級 / >3 項待分類 | AUTO_APPROVE → QUICK_REVIEW（**只降一級，不會到 FULL_REVIEW**） |
+| 任一 Stage 失敗 | **強制 FULL_REVIEW**（覆蓋分數） |
+| 行項合計與發票總額不符 | **強制 FULL_REVIEW**（覆蓋分數；FIX-147） |
+
+> 🔴 **上述降級目前在 V3.1 管線中未生效**（FIX-148 待實作）：管線 Step 7 只用分數重推路由、丟棄 `calculate()` 已算好的 `routingDecision`，僅額外套用行項對帳一項。**線上唯一實際作用的降級是對帳閘**；per-model 閾值（Epic 23 Story 23.3）在此路徑上同樣失效。修復是行為變更，需先評估審核量衝擊。
 
 > ✅ **閾值以代碼為準**（`confidence-v3-1.service.ts` 第 112-119 行）。舊版文檔曾誤記為 95%/80% —— 已於 2026-07-14 依 OQ-Q1 決議修正為 90%/70%（**改文檔、不改代碼**，以保持歷史資料的路由結果可比）。
+
+> ✅ **對帳基準**：`total_amount` 含稅、行項目不含稅，故行項合計與 `subtotal` 精確吻合時改以 `subtotal` 為準（FIX-151），避免每張含 VAT 的發票被誤判漏帳。
 
 ---
 
@@ -608,9 +618,13 @@ AI Document Extraction — Strict Mode
 
 ## 📝 版本資訊
 
-- **CLAUDE.md 版本**：4.1.0
-- **最後更新**：2026-07-31
-- **本版變更**（v4.0.0 → v4.1.0）：
+- **CLAUDE.md 版本**：4.1.1
+- **最後更新**：2026-08-01
+- **本版變更**（v4.1.0 → v4.1.1）：
+  - **修正 §信心度路由機制 的降級描述**：原記「新公司 → 強制 FULL_REVIEW；新格式 → 強制 QUICK_REVIEW」與代碼不符 —— `applyRoutingStrategy` 對新公司 / 新格式 / 配置來源 / >3 項待分類**一律只降一級**（AUTO_APPROVE → QUICK_REVIEW），能覆蓋成 FULL_REVIEW 的只有「Stage 失敗」與「行項合計不符」兩類。依此改為表格
+  - **新增 FIX-148 現況警示**：上述降級在 V3.1 管線中**全部未生效**（管線 Step 7 丟棄已算好的 `routingDecision`），線上唯一實際作用的降級是對帳閘；per-model 閾值同樣失效
+  - **新增 FIX-151 對帳基準說明**：行項合計與 `subtotal` 精確吻合時改以 `subtotal` 為準，避免含 VAT 發票被誤判漏帳
+- **v4.1.0 變更**（v4.0.0 → v4.1.0）：
   - **新增 §不可逆資料操作紀律**（使用者 2026-07-31 批准）：三段式 gated 腳本 + 五項必備措施（前置快照 / 單一交易 / 數量閘 / 樂觀鎖 / 冪等）+ 前後對帳驗證。來源為 FIX-150 —— 該 FIX 四次套用此流程，其中三次靠它擋下誤寫並乾淨回滾（型別錯誤 ×2、刪除範圍確認 ×1）
   - **§Self-Verification Checklist** 新增一項：資料庫寫入/刪除是否走過三段式
 - **v4.0.0 重大變更**（v3.4.1 → v4.0.0）：
