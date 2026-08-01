@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 112 | CHANGE-114 | **CHANGE-115** |
-| FIX | 153 | FIX-151 | **FIX-152** |
+| FIX | 154 | FIX-152 | **FIX-153** |
 
-## 📋 未開始（27）
+## 📋 未開始（28）
 
 > 完全未動工的規劃。
 
@@ -43,6 +43,7 @@
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
 | [FIX-145](4-changes/bug-fixes/FIX-145-prompt-assembly-city-code-unknown-column.md) | prompt assembly city code unknown column | ⏳ 待實作 |
 | [FIX-148](4-changes/bug-fixes/FIX-148-v31-pipeline-discards-routing-decision.md) | v31 pipeline discards routing decision | ⏳ 待實作（使用者 2026-07-31 決定：FIX-147 先以最小範圍繞過，本 FIX 另行評估） |
+| [FIX-152](4-changes/bug-fixes/FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) | dhl multi shipment aggregate amount leak | 📋 規劃中（根因已確認、修復方案待拍板） |
 
 ## 🚧 進行中 / 部分完成（24）
 
