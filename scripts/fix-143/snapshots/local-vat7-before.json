@@ -1,0 +1,183 @@
+{
+  "capturedAt": "2026-08-01T07:35:02.340Z",
+  "host": "localhost",
+  "fieldDefinitionSetId": "7a124db2-e84f-4d19-8b74-12ca081c098d",
+  "name": "Nippon Express Logistics - 自訂費用欄位集",
+  "updatedAt": "2026-07-15T00:12:37.634Z",
+  "restoreHint": "把 fields 整段寫回該 id 即可還原",
+  "fields": [
+    {
+      "key": "bl_fee",
+      "label": "B/L fee",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "seal_charge",
+      "label": "Seal Charge",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "thc",
+      "label": "THC",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "handling_charge",
+      "label": "Handling Charge",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "nehk_do_fee",
+      "label": "NEHK DO fee",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "nvo_freight",
+      "label": "NVO Freight",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "cfs_charge",
+      "label": "CFS Charge",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "low_sulphur_surchg",
+      "label": "Low Sulphur Surchg",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "port_security_charge",
+      "label": "Port Security Charge",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "o_local_truckage",
+      "label": "O. LOCAL TRUCKAGE",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "o_gate_io_or_parking_chg",
+      "label": "O. GATE I&O OR PARKING CHG",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "do_fee",
+      "label": "D/O Fee",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "status_charge",
+      "label": "Status Charge",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "facility_charge",
+      "label": "Facility Charge",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "cleaning_container",
+      "label": "Cleaning Container",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "empty_container_placement",
+      "label": "Empty Container Placement",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "ocean_freight",
+      "label": "Ocean Freight",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "t_h_c",
+      "label": "T.H.C",
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "other_charges",
+      "label": "Other Charge",
+      "aliases": [
+        "OTHER CHARGES"
+      ],
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "vat_7",
+      "label": "VAT 7%",
+      "aliases": [],
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    },
+    {
+      "key": "surrender_bl",
+      "label": "Surrender B/L",
+      "aliases": [],
+      "category": "charges",
+      "dataType": "currency",
+      "required": false,
+      "fieldType": "lineItem"
+    }
+  ]
+}

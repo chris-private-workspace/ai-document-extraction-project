@@ -301,7 +301,7 @@
 | [FIX-140](4-changes/bug-fixes/FIX-140-entrypoint-nonempty-flag-check-false-still-runs.md) | entrypoint nonempty flag check false still runs | ✅ 已修復並已部署 Azure DEV（2026-07-28，映像 `dev-fix140-20260728151614`；以保留 `fa… |
 | [FIX-141](4-changes/bug-fixes/FIX-141-main-branch-protection-never-applied.md) | main branch protection never applied | ✅ 已修復（2026-07-28） |
 | [FIX-142](4-changes/bug-fixes/FIX-142-template-field-mapping-excludes-pending-companies.md) | template field mapping excludes pending companies | ✅ 已修復（2026-07-29） |
-| [FIX-143](4-changes/bug-fixes/FIX-143-summary-area-vat-field-typed-as-lineitem.md) | summary area vat field typed as lineitem | ✅ 已修復並驗證（2026-07-29，Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`） |
+| [FIX-143](4-changes/bug-fixes/FIX-143-summary-area-vat-field-typed-as-lineitem.md) | summary area vat field typed as lineitem | ✅ 已修復並驗證（2026-07-29 Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`；2026-08-… |
 | [FIX-144](4-changes/bug-fixes/FIX-144-completed-documents-have-no-reprocess-entry.md) | completed documents have no reprocess entry | ✅ 已修復（2026-07-29） |
 | [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | ✅ 已完成（2026-07-30 第三輪部署，五項驗證訊號全部達標） |
 | [FIX-147](4-changes/bug-fixes/FIX-147-stage3-wrapped-line-description-misjoin.md) | stage3 wrapped line description misjoin | ✅ 已完成（2026-07-31 Azure DEV 端到端驗證通過，映像 `dev-fix147r3-20260731130840`） |

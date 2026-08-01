@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 測試回報「Nippon 的 VAT 7% 拿不到」（`NEX_RCIM250001_202.pdf`）
 > **影響頁面/功能**: Stage 3 欄位提取 → 模板實例欄位值
 > **優先級**: 中（該欄位在任何情況下都不可能有值，且下游公式靜默算成 0）
-> **狀態**: ✅ 已修復並驗證（2026-07-29，Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`）
+> **狀態**: ✅ 已修復並驗證（2026-07-29 Azure DEV 設定資料修正 + 實機重跑取得 `vat_7 = 1617`；2026-08-01 本機同步完成，兩環境一致。同日撤回本文原記載的 CEVA「同型問題」判斷 —— 查證後證實方向相反，見 §「同型問題」的判斷已撤回）
 
 ---
 
@@ -180,16 +180,43 @@ CEVA 316 份文件幣別全為 HKD；265 份可判斷小計與總額，其中僅
 
 ---
 
-## 環境漂移（附帶發現，未處理）
+## 環境漂移（✅ 已於 2026-08-01 修正）
 
-本 FIX 只在 Azure DEV 執行（見 §執行方式），**本機未同步**：
+本 FIX 原只在 Azure DEV 執行（見 §執行方式），本機未同步：
 
-| 環境 | Nippon `vat_7` 的 `fieldType` |
-|---|---|
-| Azure DEV | `standard` ✅ |
-| 本機 | `lineItem` ❌ |
+| 環境 | Nippon `vat_7` 的 `fieldType` | 2026-08-01 後 |
+|---|---|---|
+| Azure DEV | `standard` ✅ | 不變 |
+| 本機 | `lineItem` ❌ | **`standard`** ✅ |
 
-目前無可見損害（本機該公司文件量少），但這是「一邊驗證通過、另一邊仍是舊行為」的來源。修正需走三段式 gated 腳本（§不可逆資料操作紀律）。
+### 動手前的前提驗證（不因「Azure 改了」就照做）
+
+`lineItem` ↔ `standard` 是**會反轉方向**的修正：若 VAT 其實印在明細行內，改為 `standard` 會使該欄位退出 `backfillLineItemCharges` 的回填範圍，反而弄壞正常運作的欄位（CEVA / DSV / Toll 即屬此類，見上節）。故先以本機資料驗證：
+
+| 判準 | 結果 | 意義 |
+|---|---|---|
+| 明細行含 VAT 項 | **0 份**（共 5 份提取結果） | 改為 `standard` 不失去任何既有回填 |
+| `subtotal + vat = total` | **1 份完全閉合** | 證明 VAT 是總結區的獨立加項 |
+
+閉合樣本：`NEX_RCEX240705,0705A_008.signed..pdf` → `9750 + 682.5 = 10432.5`
+
+> 另一份 `NEX_RCIM250001_202.SIGNED..pdf` 本機的 `subtotal` 為 42323（`42323 + 1617 ≠ 66940`），正是 §意外收穫 所述「VAT 無處可歸時總結區數字互相擠壓」的徵狀；Azure 改後同一份為 `65323 + 1617 = 66940` 完全閉合。
+
+### 執行結果
+
+以 gated 腳本 `scripts/fix-143/sync-local-vat7-fieldtype.js`（`inspect` / `dryrun` / `write` 三段式）執行：
+
+```
+vat_7.fieldType : lineItem → standard      rowCount = 1
+回讀確認        : standard，lineItem 型欄位數 21 → 20（總數 21 不變）
+冪等驗證        : 再跑 inspect → 「已是 standard，無需變更」
+```
+
+保護措施：前置快照（`scripts/fix-143/snapshots/local-vat7-before.json`，**唯一還原依據**）、單一交易、數量閘（定義集剛好 1 個 / `vat_7` 剛好 1 個 / `rowCount` 必須為 1）、樂觀鎖（`WHERE updated_at = 讀取當下值`）、冪等。另加第六道：**偵測到明細行有 VAT 項即中止不寫**——本次為 0 份、未觸發。
+
+### 尚未反映
+
+改設定不回溯既有提取結果。本機那 5 份需**重新處理**才會取得 VAT——但重新處理會**覆蓋**上一次的提取結果（`extraction_results.document_id` 唯一約束，系統無提取歷史，見 [CHANGE-114](../feature-changes/CHANGE-114-extraction-result-version-history-and-file-hash.md)）。是否重跑由使用者決定。
 
 ---
 
