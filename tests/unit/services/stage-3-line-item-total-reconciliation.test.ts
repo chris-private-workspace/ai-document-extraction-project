@@ -251,6 +251,99 @@ describe('FIX-147: 行項合計對帳', () => {
     })
   })
 
+  describe('FIX-151: 含稅發票 —— 行項合計與不含稅小計吻合時不應誤判', () => {
+    /**
+     * Azure DEV 實測形狀（`NEX_RCEX240692,0692A,0692B_9898.pdf`）：
+     *   行項合計 6700 = subtotal 6700，total_amount 7169，差額 469 恰為 vat_7。
+     * VAT 印在總結區、不在明細行（FIX-143），故明細本身完全正確。
+     */
+    it('行項合計 = subtotal ≠ 含稅 total_amount → 相符，且以 subtotal 為基準', () => {
+      const result = reconcileLineItemTotal(
+        { total_amount: field(7169), subtotal: field(6700), vat_7: field(469) },
+        undefined,
+        [item(2500, 'OCEAN FREIGHT'), item(3000, 'THC'), item(1200, 'DOC FEE')]
+      )
+
+      expect(result.checked).toBe(true)
+      expect(result.mismatch).toBe(false)
+      expect(result.lineItemSum).toBe(6700)
+      expect(result.totalSource).toBe('subtotal')
+      expect(result.documentTotal).toBe(6700)
+      expect(result.difference).toBe(0)
+    })
+
+    it('容差內吻合（逐行捨入誤差）也適用', () => {
+      const result = reconcileLineItemTotal(
+        { total_amount: field(107.02), subtotal: field(100.0) },
+        undefined,
+        [item(33.34), item(33.34), item(33.34)]
+      )
+
+      expect(result.mismatch).toBe(false)
+      expect(result.totalSource).toBe('subtotal')
+    })
+
+    it('standardFields.subtotal 亦適用（fields 無 subtotal 時）', () => {
+      const result = reconcileLineItemTotal(
+        { total_amount: field(7169) },
+        { totalAmount: undefined, subtotal: field(6700) },
+        [item(6700)]
+      )
+
+      expect(result.mismatch).toBe(false)
+      expect(result.totalSource).toBe('subtotal')
+    })
+
+    it('🔴 零回歸：與 subtotal 也對不上 → 仍判為不符（CEVA 漏行案例）', () => {
+      // 明細短少 470.06，subtotal 與 total_amount 同為 14579.5
+      const result = reconcileLineItemTotal(
+        { total_amount: CEVA_TOTAL, subtotal: CEVA_TOTAL },
+        undefined,
+        CEVA_MISSING_ROW
+      )
+
+      expect(result.mismatch).toBe(true)
+      expect(result.difference).toBe(-470.06)
+      expect(result.totalSource).toBe('total_amount')
+    })
+
+    it('🔴 零回歸：重複計列且 subtotal 不吻合 → 仍判為不符', () => {
+      // DHL_RCIM250291_20411.pdf 的形狀：明細近乎小計兩倍
+      const result = reconcileLineItemTotal(
+        { total_amount: field(25947.21), subtotal: field(19997.85) },
+        undefined,
+        [item(19465.23), item(19465.23)]
+      )
+
+      expect(result.mismatch).toBe(true)
+      expect(result.totalSource).toBe('total_amount')
+    })
+
+    it('🔴 不得反向誤報：明細吻合 total_amount 但不吻合 subtotal → 判相符', () => {
+      // subtotal 被模型讀錯（少 100）而 total_amount 正確的情形
+      const result = reconcileLineItemTotal(
+        { total_amount: field(1000), subtotal: field(900) },
+        undefined,
+        [item(1000)]
+      )
+
+      expect(result.mismatch).toBe(false)
+      expect(result.totalSource).toBe('total_amount')
+    })
+
+    it('無 subtotal 時行為與修改前完全相同', () => {
+      const result = reconcileLineItemTotal(
+        { total_amount: CEVA_TOTAL },
+        undefined,
+        CEVA_MISSING_ROW
+      )
+
+      expect(result.mismatch).toBe(true)
+      expect(result.totalSource).toBe('total_amount')
+      expect(result.difference).toBe(-470.06)
+    })
+  })
+
   describe('金額字串解析', () => {
     it('帶千分位與貨幣符號的字串可解析', () => {
       const result = reconcileLineItemTotal(
