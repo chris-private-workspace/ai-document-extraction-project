@@ -4,7 +4,7 @@
 > **發現方式**: CHANGE-115 換模型後，使用者驗收 Nippon 模板實例時發現總額異常（83,690 vs 應為 66,940）
 > **影響頁面/功能**: Stage 3 費用回填（`backfillLineItemCharges`）→ 模板實例列金額
 > **優先級**: 高（**金額錯誤**：同一筆費用同時進入兩個欄位，模板加總後虛增。**未被對帳閘攔截** —— 行項合計本身正確，錯的是 `fields` 層的歸戶）
-> **狀態**: ✅ 已實作（方案 B + E 皆完成；本地 `type-check` / `lint` / `test` **458 通過**零回歸；⏳ 待實機重新處理文件驗證）
+> **狀態**: ✅ 已完成（方案 B + E 皆實作並**實機驗證通過** —— 模板實例合計由 83,690 修正為 66,940；本地 `type-check` / `lint` / `test` **458 通過**零回歸；⏳ 待部署 Azure DEV）
 > **相關**: [CHANGE-115](../feature-changes/CHANGE-115-switch-all-llm-stages-to-gpt56-luna.md)（換模型使問題顯現）、[FIX-108](FIX-108-stage3-lineitem-backfill-description-matching.md) / [FIX-126](FIX-126-charge-label-matching-fragility.md) / [FIX-127](FIX-127-stage3-misattribution-and-dual-source.md)（回填比對規則的歷次調整）、[FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md)（同一公司的費用歸戶問題）
 
 ---
@@ -263,8 +263,59 @@ cleaning_container = 2100
 - [x] 既有回填測試全數通過（CHANGE-094 / FIX-108 / FIX-126 / FIX-127 案例無回退）——**458 passed**（原 453，+5）
 - [x] `type-check` / `lint` 通過
 - [x] 方案 E 保留「優先取 HKD」該句，混幣發票的 `amount` 行為不變
-- [ ] ⏳ **實機驗證**：重新處理 `NEX_RCIM250001_202.SIGNED..pdf`，確認 `handling_charge` = 500、模板實例合計 = 66,940、行項對帳仍為 65,323 且 `mismatch: false`
+- [x] **實機驗證通過**（2026-08-02 12:06，見下方）
 - [ ] ⏳ Azure DEV 部署（代碼）+ 於該環境執行方案 E 腳本（資料庫）
+
+---
+
+## 實機驗證結果（2026-08-02 12:06）
+
+重新處理 `NEX_RCIM250001_202.SIGNED..pdf`（gpt-5.6-luna，19.4 秒，`AUTO_APPROVE`，信心度 0.983）。
+
+### 方案 E 生效：description 不再帶幣別後綴
+
+```
+修復前： "HANDLING CHARGE (THB)"  "THC (THB)"  "OCEAN FREIGHT (THB)"
+修復後： "HANDLING CHARGE"        "THC"        "OCEAN FREIGHT"
+```
+
+### 費用歸戶全部正確
+
+| 欄位 | 修復前 | 修復後 | 判定 |
+|---|---:|---:|---|
+| `handling_charge` | **17,250** | **500** | ✅ |
+| `thc` | 16,750 | 16,750 | ✅ |
+| `ocean_freight` | 42,223 | 42,223 | ✅ |
+| `do_fee` | 1,650 | 1,650 | ✅ |
+| `other_charges` | 2,100 | 2,100 | ✅ |
+| `cleaning_container` | 2,100 | 2,100 | ✅ |
+
+六個欄位這次**全部**帶 `[lineItem-backfill]` 標記 —— 修復前 `thc` 是模型自行填寫（無標記），現已由回填確定性產生。
+
+### 模板實例合計 = GRAND TOTAL
+
+新建驗證用實例 `FIX-154 verification - NEX_RCIM250001_202`（id `cmsbrbepj0000ckxgeocxhf2x`）：
+
+```json
+{ "thc": 16750, "vat": 1617, "freight": 42223, "docs_fee": 1650,
+  "handling": 500, "others_local_charge": 4200, "wh_container_facility_fee": 0 }
+數值欄位合計 = 66,940   ✅ 等於 GRAND TOTAL（修復前 83,690）
+```
+
+> 原實例（`cmsbo8wbe...`，合計 83,690）狀態為 `COMPLETED`，API 拒絕再寫入 —— 該保護使錯誤證據完整保留，未被覆蓋。驗證改用新建實例。
+>
+> ⚠️ 該驗證用實例仍在資料庫中，名稱已標明用途；如需清理請自行刪除（未擅自刪除資料）。
+
+### 一項與修復無關的變化
+
+本次提取的行項目為 **9 筆**（前次 8 筆），多出 `"VAT 7%"` 1,617。對帳因而改以 `total_amount` 為基準：
+
+```json
+{ "checked": true, "mismatch": false, "difference": 0,
+  "lineItemSum": 66940, "totalSource": "total_amount", "lineItemCount": 9 }
+```
+
+仍然 `mismatch: false`。這是模型輸出的差異（VAT 是否列為行項），非本次修復所致 —— FIX-151 的「行項合計與 `subtotal` 精確吻合時改以 `subtotal` 為準」在此正確地選了 `total_amount`。記錄於此以免日後誤讀為迴歸。
 
 ---
 
