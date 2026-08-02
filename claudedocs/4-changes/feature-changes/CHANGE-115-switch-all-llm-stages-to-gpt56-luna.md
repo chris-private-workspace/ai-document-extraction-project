@@ -97,6 +97,67 @@ gpt-5.4-nano-aidocprocessing  → 404 DeploymentNotFound
 
 ---
 
+## 本機資料庫目錄同步（2026-08-02，使用者授權後執行）
+
+### 為什麼需要：改常量**不會**讓後台出現新模型
+
+後台「LLM 模型設定」頁的下拉**不讀** `AVAILABLE_LLM_MODELS`，而是讀資料庫的 `llm_models`
+（Epic 23 Story 23.2 起改為 id-based，見 `model-settings/client.tsx:11-12`）。
+只改常量的結果是：
+
+| 層 | 狀態 |
+|---|---|
+| 執行期實際模型 | ✅ 已是 luna（`getStageModel` 的白名單過濾把 5.4 系列全擋掉 → 落 `DEFAULT_STAGE_MODELS`）|
+| 後台下拉顯示 | ❌ 仍是 4 個舊模型，且**選了完全不生效**（靜默落回 luna，無任何警示）|
+
+也就是說改動生效了，但介面在說謊。此次同步就是消除這個落差。
+
+### 執行方式：三段式 gated 腳本
+
+`scripts/epic-23/sync-llm-catalog.ts`（inspect / dryrun / write）。原
+`seed-llm-providers.ts` 是直接 upsert、無閘門，不符 CLAUDE.md §不可逆資料操作紀律，故另寫。
+五項必備措施齊備：前置快照（`.snapshots/`，已加入 `.gitignore`）、單一交易、
+每筆 `rowCount !== 1` 即中止回滾、四筆更新皆帶 `updated_at` 樂觀鎖、冪等（重跑為 0 動作）。
+
+### 實際寫入的 9 個動作
+
+| # | 動作 | 內容 |
+|---|---|---|
+| 1 | `provider.update` | `baseUrl` 由**舊 Azure 資源**改為 `.env` 的現行 endpoint |
+| 2 | `model.create` | 新增 gpt-5.6-luna（capability 取自白名單的實機探測值）|
+| 3-5 | `assignment.upsert` | stage1/2/3 由 5.4-mini / 5.4-nano / 5.4-mini 全部改指 luna |
+| 6-9 | `model.disable` | 4 個白名單外模型 `isEnabled = false`（使用者 2026-08-02 授權）|
+
+動作 1 是規劃時未預期的發現：`llm_providers.baseUrl` 仍指向
+`aiservices-raposcm-aidocprocessing-dev`，而程式碼早已改用新資源。目前無害
+（gateway 主開關關閉、無程式碼讀它），但 gateway 一旦啟用它就是實際請求位址。
+
+動作 6-9 採**停用而非刪除**：後台下拉過濾的就是 `isEnabled`，停用即達成目的，
+但保留列以便回復，也不破壞 `stage_model_assignments` 外鍵。與動作 3-5 同交易，
+確保不出現「舊模型已停用、指派卻還指著它」的中間狀態；`model.disable` 另在交易內
+重查有無環節仍引用該模型，有則中止。
+
+### 結果
+
+```
+llm_models：5 筆，僅 gpt-5.6-luna 啟用
+stage1/2/3 指派：全部 gpt-5.6-luna（白名單有效）
+後台下拉：只剩 gpt-5.6-luna 一個選項
+```
+
+### ⚠️ 只做了本機
+
+Azure DEV 的資料庫**未同步** —— 需在該環境另跑一次同一支腳本（先 inspect 確認現況，
+線上的 provider / 指派未必與本機相同）。
+
+### 仍然不一致的一處
+
+舊 `system_configs` 的 `extraction.model.stage1/2/3` 仍是 5.4 值。它是 fallback 鏈第 2 層，
+因第 1 層（`StageModelAssignment`）現已有效而永遠走不到，且值本身會被白名單過濾擋掉，
+故無實際影響。未一併清理是因為那是 CHANGE-099 的遺留鍵，清理範圍與風險需另行評估。
+
+---
+
 ## 未處理項目
 
 | 項目 | 原因 |
