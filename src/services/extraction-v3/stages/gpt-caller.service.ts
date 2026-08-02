@@ -42,7 +42,8 @@ import type { LlmOutputSpec } from '@/services/llm';
 /**
  * GPT 模型類型
  */
-export type GptModelType = 'gpt-5.4-mini' | 'gpt-5.4-nano';
+// CHANGE-115: 全面切換至 gpt-5.6-luna，白名單只剩單一模型
+export type GptModelType = 'gpt-5.6-luna';
 
 /**
  * 圖片詳情模式
@@ -173,8 +174,9 @@ const DEFAULT_CONFIG: Required<GptCallerConfig> = {
   // FIX-137：原 fallback 為 CHANGE-102 已移除的 `gpt-5-nano` / `gpt-5-2-vision`。
   // 這兩個欄位**不在提取路徑上**（實際呼叫走 resolveDeploymentName(modelOption)），
   // 只餵給 checkHealth 的部署可用性探測 —— 失效的名稱會讓健康檢查誤報「不可用」。
-  nanoDeploymentName: resolveDeploymentNameByKey('gpt-5.4-nano'),
-  fullDeploymentName: resolveDeploymentNameByKey('gpt-5.4-mini'),
+  // CHANGE-115: 兩者同指 gpt-5.6-luna（白名單已無 nano/full 之分）
+  nanoDeploymentName: resolveDeploymentNameByKey('gpt-5.6-luna'),
+  fullDeploymentName: resolveDeploymentNameByKey('gpt-5.6-luna'),
   maxTokens: 8192, // 預設使用較大的 token 限制
   temperature: 0.1,
   timeout: 300000, // 5 分鐘 - Stage 3 欄位提取處理多頁文件可能需要較長時間
@@ -509,7 +511,8 @@ export class GptCallerService {
 
   /**
    * 快速調用（輕量・Stage 1 & 2）
-   * CHANGE-102: 舊 gpt-5-nano key 已移除，改用 gpt-5.4-nano（實際 deployment 不變）
+   * CHANGE-115: 改用 gpt-5.6-luna。`imageDetailMode: 'low'` 由本方法硬編，
+   *   與模型白名單的 `defaultImageDetail` 無關 —— 切換模型不改變此處的解析度。
    */
   static async callNano(
     systemPrompt: string,
@@ -519,7 +522,7 @@ export class GptCallerService {
   ): Promise<GptCallResult> {
     const service = new GptCallerService(config);
     return service.call({
-      model: 'gpt-5.4-nano',
+      model: 'gpt-5.6-luna',
       systemPrompt,
       userPrompt,
       imageBase64Array,
@@ -529,7 +532,7 @@ export class GptCallerService {
 
   /**
    * 快速調用（高精度・Stage 3）
-   * CHANGE-102: 舊 gpt-5.2 key 已移除，改用 gpt-5.4-mini（實際 deployment 不變）
+   * CHANGE-115: 改用 gpt-5.6-luna
    * @param jsonSchema CHANGE-042 Phase 2: 可選 JSON Schema，啟用 structured output
    */
   static async callFull(
@@ -542,7 +545,7 @@ export class GptCallerService {
   ): Promise<GptCallResult> {
     const service = new GptCallerService(config);
     return service.call({
-      model: 'gpt-5.4-mini',
+      model: 'gpt-5.6-luna',
       systemPrompt,
       userPrompt,
       imageBase64Array,

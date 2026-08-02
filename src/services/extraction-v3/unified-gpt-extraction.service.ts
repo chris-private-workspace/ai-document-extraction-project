@@ -154,7 +154,7 @@ interface GptApiResponse {
  * 原先硬編 `gpt-5-2-vision`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
  * 本服務為文字+圖片的單次提取，對應到白名單的 mini（具 vision 能力）。
  */
-const DEFAULT_MODEL_KEY = 'gpt-5.4-mini';
+const DEFAULT_MODEL_KEY = 'gpt-5.6-luna';
 
 /** 預設配置 */
 const DEFAULT_CONFIG: Required<GptExtractionConfig> = {

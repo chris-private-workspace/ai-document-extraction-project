@@ -342,7 +342,7 @@ const getExtractionPrompt = (version?: string): string => {
  * 原先硬編 `gpt-5.2`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
  * 需 vision + json schema 能力，故對應到白名單的 mini。
  */
-const DEFAULT_MODEL_KEY = 'gpt-5.4-mini'
+const DEFAULT_MODEL_KEY = 'gpt-5.6-luna'
 
 /**
  * 預設配置

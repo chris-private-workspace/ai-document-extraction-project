@@ -65,7 +65,7 @@ const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || ''
  * 變數名少了 `_NAME`（其餘服務讀 `AZURE_OPENAI_DEPLOYMENT_NAME`，補設也讀不到），
  * fallback 的 `gpt-5.2` deployment 又已於 CHANGE-102 移除。改走白名單解析。
  */
-const DEFAULT_MODEL_KEY = 'gpt-5.4-mini'
+const DEFAULT_MODEL_KEY = 'gpt-5.6-luna'
 const AZURE_OPENAI_DEPLOYMENT = resolveDeploymentNameByKey(DEFAULT_MODEL_KEY)
 const AZURE_OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-02-15-preview'
 

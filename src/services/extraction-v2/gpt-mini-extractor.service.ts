@@ -121,7 +121,7 @@ export interface GptMiniExtractorConfig {
  * 原先硬編 `gpt-5-nano`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
  * 本服務為輕量純文字提取，對應到白名單的 nano。
  */
-const DEFAULT_MODEL_KEY = 'gpt-5.4-nano';
+const DEFAULT_MODEL_KEY = 'gpt-5.6-luna';
 
 const DEFAULT_CONFIG: Required<GptMiniExtractorConfig> = {
   endpoint: process.env.AZURE_OPENAI_ENDPOINT ?? '',
@@ -155,7 +155,14 @@ export function isReasoningModel(deploymentName: string): boolean {
     // 非錨定比對，故容納 Azure 部署名後綴（如 gpt-5.4-mini-aidocprocessing）。
     /gpt-5(\.\d+)?-nano/i,
     /gpt-5(\.\d+)?-mini/i,
+    // CHANGE-115：gpt-5.6-luna 既非 -nano 也非 -mini，上面兩條都漏判。
+    //   實機探測確認它同樣不支援 temperature（送 0.1 回 400 unsupported_value），
+    //   屬 reasoning 模型 —— 與 FIX-137 完全同型的漏判，只是換了個型號。
+    /gpt-5(\.\d+)?-luna/i,
   ];
+  // ⚠️ 這份清單是「用名字猜能力」，每出一個新型號就會再漏判一次（FIX-137 一次、
+  //    CHANGE-115 一次）。權威來源其實是 `llm-models.ts` 的 `capability.supportsTemperature`；
+  //    長期應改為查白名單而非比對名稱。此處維持 pattern 以免擴大本次變更範圍。
   return reasoningPatterns.some(pattern => pattern.test(deploymentName));
 }
 

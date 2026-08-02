@@ -54,41 +54,46 @@ export interface LlmModelOption {
  */
 export const AVAILABLE_LLM_MODELS: LlmModelOption[] = [
   {
-    // CHANGE-100: 部署名 = 模型名（gpt-5.4-mini），共用現有 endpoint + API key
-    // CHANGE-102: 舊 gpt-5.2 已移除（Azure deployment 不復存在、UI 誤導）；此為高精度主力
-    key: 'gpt-5.4-mini',
-    label: 'GPT-5.4 Mini（中階・平衡）',
-    deploymentEnvVar: 'AZURE_OPENAI_GPT54_MINI_DEPLOYMENT_NAME',
-    defaultDeploymentName: 'gpt-5.4-mini',
+    // CHANGE-115: 全面切換至 gpt-5.6-luna。
+    //
+    //   capability 全部經**實機探測**確認（2026-08-02，對 deployment `gpt-5.6-luna`
+    //   實呼叫 Azure，非查文件推測）：
+    //     - vision（圖片輸入）  → 支援（提取管線全靠它，必要條件）
+    //     - json_schema        → 支援（Stage 3 structured output 的必要條件）
+    //     - temperature        → **不支援**，送任何非預設值回 400
+    //       `Unsupported value: 'temperature' does not support 0.1 with this model.`
+    //     - max_completion_tokens 上限 → 128000（此處仍設 8192，見下）
+    //
+    //   maxTokens 沿用舊 mini 的 8192 而非拉到 128000：輸出上限不影響品質，
+    //   放大只在異常情況多燒 token。需要更長輸出時再單獨調整。
+    key: 'gpt-5.6-luna',
+    label: 'GPT-5.6 Luna（單一主力）',
+    deploymentEnvVar: 'AZURE_OPENAI_LUNA_DEPLOYMENT_NAME',
+    defaultDeploymentName: 'gpt-5.6-luna',
     capability: {
       maxTokens: 8192,
-      supportsTemperature: true,
-      temperature: 0.1,
+      supportsTemperature: false,
       defaultImageDetail: 'auto',
       supportsJsonSchema: true,
     },
   },
-  {
-    // CHANGE-100: 部署名 = 模型名（gpt-5.4-nano），共用現有 endpoint + API key；能力對標 gpt-5-nano
-    key: 'gpt-5.4-nano',
-    label: 'GPT-5.4 Nano（快速・低成本）',
-    deploymentEnvVar: 'AZURE_OPENAI_GPT54_NANO_DEPLOYMENT_NAME',
-    defaultDeploymentName: 'gpt-5.4-nano',
-    capability: {
-      maxTokens: 4096,
-      supportsTemperature: false,
-      defaultImageDetail: 'low',
-      supportsJsonSchema: false,
-    },
-  },
 ];
 
-/** 各 Stage 的預設模型 key（配置缺失/無效時的向後相容 fallback） */
+/**
+ * 各 Stage 的預設模型 key（配置缺失/無效時的向後相容 fallback）
+ *
+ * CHANGE-115: 三個 Stage 統一指向 gpt-5.6-luna。
+ *
+ *   圖片解析度**不受本次切換影響** —— 三個 Stage 都顯式傳入 `imageDetailMode`
+ *   （`stage-1-company.service.ts:856` 與 `stage-2-format.service.ts:715` 為 `'low'`，
+ *   Stage 3 為 `'auto'`），而 gpt-caller 取值是 `input.imageDetailMode ||
+ *   capability.defaultImageDetail`（呼叫端優先）。下方的 `defaultImageDetail`
+ *   只對「未指定 detail 的呼叫端」生效。
+ */
 export const DEFAULT_STAGE_MODELS: Record<ExtractionStage, string> = {
-  // CHANGE-102: 正名至 5.4（對應現有實際 deployment，行為零變）
-  stage1: 'gpt-5.4-mini',
-  stage2: 'gpt-5.4-nano',
-  stage3: 'gpt-5.4-mini',
+  stage1: 'gpt-5.6-luna',
+  stage2: 'gpt-5.6-luna',
+  stage3: 'gpt-5.6-luna',
 };
 
 /** 依 key 取得模型選項（找不到回 undefined） */
