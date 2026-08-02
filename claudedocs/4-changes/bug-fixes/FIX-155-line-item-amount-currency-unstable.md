@@ -1,0 +1,227 @@
+# FIX-155: 行項 amount 的幣別選取不穩定 —— 同一張發票被讀出 HKD／USD 兩種金額（相差 7.82 倍）
+
+> **建立日期**: 2026-08-02
+> **發現方式**: FIX-154 完成後盤點本地既有問題，追查 Fairate 模板列「多算」時，發現同一張發票存在兩種互斥的提取結果；再以全庫掃描確認並非單一文件現象
+> **影響頁面/功能**: Stage 3 提取（`stage3Result.fields` 全部金額欄 + `lineItems[].amount`）→ 下游模板實例、對帳、成本報表
+> **優先級**: 高（**金額錯誤 7.82 倍**。與 FIX-154 不同，本問題**連 `total_amount` 一起錯**，因此對帳閘驗不出來 —— 行項合計與總額同步縮放，兩者始終自洽）
+> **狀態**: 📋 規劃中 —— **傾向不修**（2026-08-02 以 gpt-5.6-luna 重跑 3 次，幣別全部正確且穩定，問題不重現；歷史錯誤資料的處置與 Azure DEV 的分佈待決）
+> **相關**: [FIX-154](FIX-154-currency-rule-pollutes-line-item-description.md)（同一條 GLOBAL Currency Rule 的另一個副作用）、[CHANGE-032](../feature-changes/CHANGE-032-pipeline-refnumber-fx-conversion.md)（系統匯率轉換，**目前未啟用**）、[FIX-151](FIX-151-reconcile-uses-tax-inclusive-total.md) / [FIX-147](FIX-147-stage3-wrapped-line-description-misjoin.md)（對帳閘）
+
+---
+
+## 問題描述
+
+同一張發票被處理多次時，`total_amount` 會落在兩個值之一，兩者比值**恆為 7.82**（HKD/USD 匯率）。
+
+以 `HKGAED-2503186`（Fairate Express）為例，本地有 11 份文件指向這張發票：
+
+| 幣別 | total_amount | 份數 | 模型 |
+|---|---:|---:|---|
+| HKD | 1,000.20 | 1 | gpt-5.4-mini |
+| USD | 127.90 | 10 | gpt-5.4-mini |
+
+`1,000.20 ÷ 127.90 = 7.8202`。**同一個模型、同一份 PDF、不同次處理，結果差 7.82 倍。**
+
+### 行項層的證據更直接
+
+USD 版的行項內部自相矛盾 —— `amount` 是 USD，`unitPrice` 卻留著 HKD 原值：
+
+```json
+{"amount": 1.92,  "quantity": 1,   "unitPrice": 15,   "description": "AIRLINE DOCUMENTATION CHARGE"}
+{"amount": 44.76, "quantity": 1,   "unitPrice": 350,  "description": "HANDLING CHARGE"}
+{"amount": 18.80, "quantity": 147, "unitPrice": 1,    "description": "X-RAY SCREENING CHARGE"}
+```
+
+`15 ÷ 1.92 = 7.813`、`350 ÷ 44.76 = 7.819`。HKD 版的同一批行項則是 `amount = 15 / 350 / 147`，且 `quantity = 1`、`unitPrice = amount`，完全自洽。
+
+> ⚠️ **一處先前的誤判已更正**：初稿曾寫「`quantity: 147` 是 X-RAY 那筆的金額被誤當數量」。**這是錯的** —— 147 是貨物重量（kg）。重跑取得的正確版本顯示 `TERMINAL CHARGE = 147 × 1.96 = 288.2`、`X-RAY = 147 × 1 = 147`，兩者都成立，`quantity: 147` 本來就對。錯的只有 `amount` 的幣別。
+
+---
+
+## 範圍（全庫掃描結果，非單一文件）
+
+掃描本地全部 179 份提取結果，以「同一 `invoice_number` 出現多種 `total_amount`」為判準：
+
+**9 張發票命中，比值全部是 7.82**，橫跨三家公司：
+
+| 發票號 | 公司 | HKD 值 | USD 值 | 份數（HKD／USD） |
+|---|---|---:|---:|---|
+| F260017865 | CEVA | 2,873.08 | 367.40 | 4 / 6 |
+| 253250005808 | CEVA | 23,761.53 | 3,038.56 | 2 / 4 |
+| 253250043397 | CEVA | 12,476.98 | 1,595.52 | 2 / 3 |
+| F250010168 | CEVA | 12,859.64 | 1,644.46 | 2 / 2 |
+| F260020874 | CEVA | 9,981.34 | 1,276.39 | 2 / 3 |
+| F260017866 | CEVA | 6,747.02 | 862.79 | 2 / 3 |
+| F260017864 | CEVA | 2,873.08 | 367.40 | 2 / 2 |
+| 25NEH-HJT-E8925 | Nippon Express (HK) | 10,856.00 | 1,388.24 | 2 / 3 |
+| HKGAED-2503186 | Fairate Express | 1,000.20 | 127.90 | 1 / 10 |
+
+**全部發生在 gpt-5.4-mini。** 換模型後是否仍存在，見下節重跑驗證。
+
+### ⚠️ 一個容易誤讀的訊號：83 份「amount ≠ quantity × unitPrice」大多不是問題
+
+掃描另有一項判準命中 83 份（CEVA 70／Fairate 10／Nippon 3），但**絕大多數是假陽性**，不可直接當成缺陷數。CEVA 的發票本身就印了原幣、匯率與 HKD 等值：
+
+```
+"Freight Charges USD 1,245.00 @ 7.904849"                    amount = 9,841.54
+"Terminal Handling Charge at Destination THB 7,105.00 @ 0.248019"   amount = 1,762.17
+```
+
+`1245 × 7.904849 = 9841.5`、`7105 × 0.248019 = 1762.2` —— `amount` 取 HKD、`unitPrice` 留原幣，這正是 Currency Rule 要的行為，**是對的**。`amount ≠ qty × unitPrice` 只是因為兩者本來就不同幣別。
+
+真正有問題的是**方向相反**的那種：`amount` 是 USD 而 `unitPrice` 是 HKD（Fairate 的形態）。撰寫修復與驗收時必須用「同一發票多種 total」這個判準，不能用「amount ≠ qty × unitPrice」。
+
+---
+
+## 重跑驗證（2026-08-02，gpt-5.6-luna）
+
+### 可重跑的樣本只有 1 份
+
+檢查 `HKGAED-2503186` 全部 14 份文件的 blob，**只有 1 份還在**（`67825c0f`，即唯一的 HKD 正確版）；其餘 13 份的 PDF 已從 Azurite 消失。想重跑「錯誤的 USD 版」看 luna 是否重蹈覆轍，**在本地已無此可能**。
+
+因此改為重跑僅存的那份，觀察 luna 是否維持正確。重跑前已針對性備份（`.snapshots/fix155-fairate-before-2026-08-02.json`）。
+
+### 結果：3 次全部正確且完全一致
+
+| 次數 | 幣別 | total | 對帳 | 路由 | 信心度 |
+|---|---|---:|---|---|---:|
+| 1 | HKD | 1,000.20 | `mismatch: false`, diff 0 | AUTO_APPROVE | 0.9915 |
+| 2 | HKD | 1,000.20 | `mismatch: false`, diff 0 | AUTO_APPROVE | 0.9915 |
+| 3 | HKD | 1,000.20 | `mismatch: false`, diff 0 | AUTO_APPROVE | 0.9915 |
+
+行項的 `amount` 與 `unitPrice` 幣別一致，數量關係全部成立：
+
+```json
+{"description": "TERMINAL CHARGE",        "amount": 288.2, "quantity": 147, "unitPrice": 1.96}
+{"description": "X-RAY SCREENING CHARGE", "amount": 147,   "quantity": 147, "unitPrice": 1}
+```
+
+### 附帶取得的關鍵證據：發票原始金額就是 HKD
+
+重跑日誌顯示系統從 PDF **文字層**抽出的費用表：
+
+```
+[Stage3] Injected charge table from text layer: 6 row(s), total 1000.2
+```
+
+文字層直接給出 1,000.20，與 HKD 版完全相符。這強烈指向 **USD 127.90 是模型自行換算的產物**，而非讀取發票上另一個 USD 欄位。（仍非鐵證 —— 文字層抽取有可能只覆蓋了其中一欄；若要完全排除，需人工檢視 PDF 版面。）
+
+### 一項須澄清的假訊號：`subtotal` 缺失與模型無關
+
+`diff` 標記本次重跑「`subtotal` 由 1,000.2 變為 null」為退步。進一步統計全庫後**否定了「luna 不提取 subtotal」的推論**：
+
+| 模型 | 份數 | 有 subtotal |
+|---|---:|---|
+| gpt-5.4-mini | 110 | 92（84%） |
+| gpt-5.6-luna | 19 | 16（**84%**） |
+
+兩者提取率相同。Fairate 這份的 subtotal 缺失是個案，不是模型層級的回歸。
+
+**但統計過程另外發現一件事（不屬本 FIX 範圍，建議另開）**：`subtotal` 的提取本身不穩定，同一份文件跑兩次會得到不同結果 ——
+
+| 文件 | 第一次 | 第二次 |
+|---|---|---|
+| `DHL_RCIM250246_94867.pdf` | sub = 11,484.60 | sub = **14,929.98** |
+| `DHL_RCIM250119_13447.pdf` | sub = 5,857.43 | sub = **null** |
+| `CEVA_RCIM260069_37388.pdf` | sub = null | sub = **14,579.50** |
+
+這會使 FIX-151 的對帳基準在 `subtotal` 與 `total_amount` 之間飄移（`NEX_RCIM250001_202` 兩次的 `totalSource` 確實不同）。對含 VAT 的發票，基準選錯會直接改變對帳結論。
+
+---
+
+## 根本原因（假說，尚未證實）
+
+### 已確立的事實
+
+1. `prompt_configs` 的 GLOBAL `V3.1 Stage 3 - Field Extraction`（id `cmo197zi9000cnsxgcjg5dh8v`）明訂：
+   ```
+   For every line item, populate the "amount" field with the HKD value ONLY.
+   ```
+   這條規則在 FIX-154 中被**刻意保留**（只刪了 fall back 分支的 description 註記後半句）。
+2. 這些發票**同時載有兩種幣別的金額**（CEVA 的 description 直接印出「原幣 + 匯率」可證）。
+3. 系統的匯率轉換（CHANGE-032）`fxConversionEnabled = false`，**從未啟用** —— 兩種金額都出自模型，不是系統換算的。
+
+### 假說
+
+模型面對「同一行同時有原幣與 HKD 兩個數字」時，`amount` 取哪一個**不穩定**：多數情況遵守規則取 HKD，部分情況取了原幣（或自行換算）。Fairate 那批 `unitPrice` 留 HKD 而 `amount` 給 USD，就是在同一行內混讀了兩欄。
+
+**為何說是假說**：目前只證明了「輸出不一致」，沒有證明「輸入長什麼樣」。Fairate 的 description 不含幣別註記，無法從既有資料判斷該發票版面究竟是「HKD 與 USD 併列」還是「只有 HKD」。這一項**必須調 PDF 或 OCR 原文才能定案**，在此之前不應該動 prompt。
+
+### 待排除的其他可能
+
+| # | 可能性 | 如何排除 |
+|---|---|---|
+| 1 | 發票確實有 USD 欄，兩種讀法都「有依據」，只是規則沒被遵守 | 調 PDF 版面確認 |
+| 2 | 模型自行換算（發票只有 HKD） | 同上；若發票無 USD 字樣即成立 |
+| 3 | 不同次處理套用了不同版本的 prompt config | 比對各次提取的 `gpt_prompt` 是否一致 |
+| 4 | 溫度／取樣造成的隨機性 | 同一份文件連續重跑 N 次，觀察分佈 |
+
+---
+
+## 影響評估
+
+| 面向 | 影響 |
+|---|---|
+| 金額正確性 | 取錯幣別時整張發票縮小 7.82 倍 |
+| 對帳閘 | **驗不出來** —— `lineItems` 與 `total_amount` 同步縮放，`mismatch: false` 照樣成立 |
+| 信心度路由 | 不受影響（USD 版的 confidence 同樣是 99），**不會**被降級到人工審核 |
+| 模板實例／成本報表 | 直接吃到錯誤金額 |
+| 已知波及 | 9 張發票、至少 30 份文件、3 家公司（本地樣本；Azure DEV 未查） |
+
+**最危險的一點**：這個錯誤「看起來完全正常」—— 金額自洽、對帳通過、信心度 99、不觸發任何降級。純靠系統訊號無法發現，只有把同一張發票的多次結果擺在一起才看得出來。
+
+---
+
+## 修復方案（待拍板，尚不建議動手）
+
+| 選項 | 做法 | 優點 | 風險 |
+|---|---|---|---|
+| **A** | 強化 prompt：要求 `amount` 與 `unitPrice` 必須同幣別，並在 `currency` 明確回報 amount 所用幣別 | 對症；不改代碼 | 改 GLOBAL prompt 影響所有公司，需重跑驗證 |
+| **B** | 加後置檢查：`amount / unitPrice` 落在已知匯率帶時視為幣別混用，標記待審 | 攔得住，且留下明確訊號 | 只偵測不修正；CEVA 那種正常形態會誤報，需先排除「發票自帶匯率」的情況 |
+| **C** | 啟用 CHANGE-032 的系統匯率轉換，統一由系統換算 | 根治幣別問題 | 範圍遠大於本 FIX，且 `fxConversionEnabled` 從未啟用過，須另案評估 |
+| **D** | 先不修，僅記錄 —— 待 gpt-5.6-luna 累積足夠樣本後再判斷是否仍存在 | 不冒改動風險 | 期間錯誤金額持續產生 |
+
+**2026-08-02 更新 —— 傾向選 D**：重跑驗證已完成，luna 3/3 正確且穩定，問題不重現。**不建議動 GLOBAL prompt**（選項 A）—— 那會影響所有公司，卻是為了一個目前無法重現的問題。
+
+剩下要決定的是**歷史錯誤資料如何處置**：本地 9 張發票、30+ 份文件仍帶著 7.82 倍的錯誤金額。可選：
+
+| | 做法 | 代價 |
+|---|---|---|
+| i | 重跑修正 | 多數文件的 blob 已消失（Fairate 14 份僅存 1 份），實際能修的比例可能很低 |
+| ii | 標記為不可信、排除於報表 | 需要一個標記機制，目前沒有 |
+| iii | 不處理，僅記錄 | 錯誤金額留在庫裡，日後查詢仍會取到 |
+
+---
+
+## 驗收標準（依 §Goal-Driven Execution，先定判準再動手）
+
+| # | 判準 | 結果 |
+|---|---|---|
+| 1 | 以 gpt-5.6-luna 重跑 3 次，記錄 `currency` 與 `total_amount` | ✅ 已執行（僅 1 份 blob 尚存，見上節） |
+| 2 | 3 次的 `total_amount` 必須一致，且與發票金額相符 | ✅ 3/3 皆 HKD 1,000.20 |
+| 3 | 行項 `amount` 與 `unitPrice` 幣別一致 | ✅ 數量關係全部成立 |
+| 4 | 以 `local-backup-extraction-results.js diff` 比對前後 | ✅ 已比對；唯一標記為 `subtotal` 缺失，已查明與模型無關 |
+| 5 | 若 luna 仍重現 → 依選項 A／B 修復 | ➖ 不適用（未重現） |
+
+**尚未涵蓋**：Azure DEV 的分佈、以及其餘 8 張發票（blob 多已不存在，無法重跑驗證）。
+
+---
+
+## 待確認事項（🔴 阻擋修復方案定案）
+
+| # | 事項 | 狀態 |
+|---|---|---|
+| 1 | Fairate `HKGAED-2503186` 的 PDF 版面：是否同時印 HKD 與 USD？ | 🟡 **大致回答** —— 文字層費用表 total = 1,000.2，指向原始金額為 HKD；要完全確定需人工看 PDF |
+| 2 | gpt-5.6-luna 是否仍重現 | ✅ **已回答** —— 3/3 正確且穩定，不重現 |
+| 3 | Azure DEV 是否有同樣現象 | 🔴 **未查** —— 本地 179 份多為重複上傳，線上分佈未知 |
+| 4 | 歷史錯誤資料如何處置 | 🔴 **待決** —— 見上節三個選項 |
+| 5 | `subtotal` 提取不穩定（新發現） | 🔴 **待決是否另開 FIX** —— 不屬本 FIX 範圍，但會影響 FIX-151 的對帳基準 |
+
+---
+
+## 備註
+
+- 本地備份：`.snapshots/extraction-results-before-rerun-2026-08-02T13-10-28-641Z.json`（全量 179 筆）、`fix155-fairate-{before,after}-2026-08-02.json`（目標文件 7 筆）
+- 重跑會**覆蓋** `extraction_results`（`document_id` 唯一約束，無處理歷史），驗收所需的多次取樣必須逐次輸出，不能事後回查
+- 本 FIX 使用的腳本：`scripts/test-fix155-rerun-fairate.ts`（重跑取樣）、`scripts/check-fix155-blob-availability.ts`（blob 可用性）—— 兩者依 `.gitignore` 的 `scripts/test-*` / `scripts/check-*` 規則不入 git
+- **本 FIX 有兩處自我更正**（初稿的判讀被後續資料推翻，已在正文標示）：`quantity: 147` 並非誤植；`subtotal` 缺失與模型無關
