@@ -84,9 +84,16 @@ const DEFAULT_PRICING: Record<ApiProviderType, Record<string, { perCall?: number
     'default': { perInputToken: 0.00000175, perOutputToken: 0.000014 }
   },
   AZURE_OPENAI: {
+    // CHANGE-115: 現行唯一使用的模型。官方定價 $0.20 / $1.20 per 1M token
+    //   （short context；long context 為 $0.40 / $1.80）。此表結構只支援單一價格，
+    //   採 short context —— 發票文件多不觸及 long context 門檻。
+    //   cached input（$0.02）亦無對應欄位，未計入。
+    'gpt-5.6-luna': { perInputToken: 0.0000002, perOutputToken: 0.0000012 },
     'gpt-5.2': { perInputToken: 0.00000175, perOutputToken: 0.000014 },
     'gpt-4o': { perInputToken: 0.000005, perOutputToken: 0.000015 },
     'gpt-4o-mini': { perInputToken: 0.00000015, perOutputToken: 0.0000006 },
+    // ⚠️ 5.4 系列從未列入此表，一直落到 default（＝gpt-5.2 的價格）而高估成本。
+    //   CHANGE-115 後 5.4 已不再使用，故不補列；default 維持原值不動。
     'default': { perInputToken: 0.00000175, perOutputToken: 0.000014 }
   }
 }

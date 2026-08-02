@@ -7,7 +7,7 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 112 | CHANGE-114 | **CHANGE-115** |
+| CHANGE | 113 | CHANGE-115 | **CHANGE-116** |
 | FIX | 155 | FIX-153 | **FIX-154** |
 
 ## 📋 未開始（28）
@@ -45,7 +45,7 @@
 | [FIX-148](4-changes/bug-fixes/FIX-148-v31-pipeline-discards-routing-decision.md) | v31 pipeline discards routing decision | ⏳ 待實作（使用者 2026-07-31 決定：FIX-147 先以最小範圍繞過，本 FIX 另行評估）。影響評估已於 2026-08-0… |
 | [FIX-152](4-changes/bug-fixes/FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) | dhl multi shipment aggregate amount leak | 📋 規劃中（根因已確認、修復方案待拍板） |
 
-## 🚧 進行中 / 部分完成（25）
+## 🚧 進行中 / 部分完成（26）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -58,6 +58,7 @@
 | [CHANGE-079](4-changes/feature-changes/CHANGE-079-city-scope-idor-unified-fix.md) | city scope idor unified fix | ✅ 已實作（程式碼層面，2026-06-10）：6 套用點全部完成；單元測試 + 執行期待驗證 |
 | [CHANGE-091](4-changes/feature-changes/CHANGE-091-template-instance-flow-ux-async-progress.md) | template instance flow ux async progress | 🚧 Phase 1 已完成（2026-06-26）／Phase 2 待實作 |
 | [CHANGE-095](4-changes/feature-changes/CHANGE-095-allow-editing-company-code.md) | allow editing company code | 🔬 待 E2E 驗證（實作完成、type-check/lint 通過；使用者自行測試中） |
+| [CHANGE-115](4-changes/feature-changes/CHANGE-115-switch-all-llm-stages-to-gpt56-luna.md) | switch all llm stages to gpt56 luna | ✅ 已實作（本地 `type-check` / `lint` / `test` 453 通過；實機端到端驗證通過；⏳ 待部署 Azure … |
 | [FIX-065](4-changes/bug-fixes/FIX-065-mapping-api-auth-and-city-scope.md) | mapping api auth and city scope | 🔧 認證已修復（2026-06-10）；城市範圍 IDOR 留 WP-4 |
 | [FIX-067](4-changes/bug-fixes/FIX-067-v1-confidence-prompts-classified-auth.md) | v1 confidence prompts classified auth | 🔧 部分修復（2026-06-10）：confidence/prompts/classified 已修；`/api/v1` 留 WP-2… |
 | [FIX-069](4-changes/bug-fixes/FIX-069-redos-safe-regex-execution.md) | redos safe regex execution | ✅ 核心已完成（2026-06-11，程式碼層面；執行期 staging 驗證待部署） |

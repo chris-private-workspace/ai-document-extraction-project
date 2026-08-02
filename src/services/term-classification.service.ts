@@ -34,7 +34,7 @@ import { callGatewayByModelKey } from '@/services/llm';
  * 原先硬編 `gpt-5.2`，但該 deployment 已於 CHANGE-102 移除 → env 未設即 404。
  * 改走白名單解析（env 覆蓋 → 白名單預設部署名）。
  */
-const DEFAULT_MODEL_KEY = 'gpt-5.4-mini';
+const DEFAULT_MODEL_KEY = 'gpt-5.6-luna';
 
 // ============================================================================
 // Types & Interfaces

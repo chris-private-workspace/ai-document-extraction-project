@@ -32,6 +32,7 @@ vi.mock('@/services/logging/logger.service', () => ({
 import { prisma } from '@/lib/prisma';
 import { LlmModelConfigService } from '@/services/llm-model-config.service';
 import { LLM_STAGES, LLM_STAGE_KEYS } from '@/lib/constants/llm-stages';
+import { isValidLlmModel } from '@/lib/constants/llm-models';
 
 // ============================================================================
 // Fixtures
@@ -87,8 +88,10 @@ describe('環節目錄（LLM_STAGES）', () => {
   });
 
   it('should give every stage a whitelisted default model key', () => {
+    // CHANGE-115: 改為對白名單動態查驗。原本硬編模型清單，每次換模型都得回來改，
+    //   等於把「fallback 必須有效」這個不變量寫成了「模型必須叫某個名字」。
     for (const stage of LLM_STAGES) {
-      expect(['gpt-5.4-mini', 'gpt-5.4-nano']).toContain(stage.defaultModelKey);
+      expect(isValidLlmModel(stage.defaultModelKey)).toBe(true);
     }
   });
 
@@ -197,16 +200,15 @@ describe('LlmModelConfigService.getStageAssignments（fallback 鏈）', () => {
     ] as never);
     vi.mocked(prisma.systemConfig.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.llmModel.findMany).mockResolvedValue([
-      { id: 'mini-id', modelKey: 'gpt-5.4-mini' },
-      { id: 'nano-id', modelKey: 'gpt-5.4-nano' },
+      { id: 'luna-id', modelKey: 'gpt-5.6-luna' },
     ] as never);
 
     const result = await LlmModelConfigService.getStageAssignments();
 
     expect(result[LLM_STAGE_KEYS.TERM_CLASSIFICATION]).toBe('assigned-1');
     // 未指派者回退到環節 defaultModelKey 對應的 Azure 模型 id
-    expect(result[LLM_STAGE_KEYS.EXTRACTION_STAGE_2]).toBe('nano-id');
-    expect(result[LLM_STAGE_KEYS.VISION_EXTRACTION]).toBe('mini-id');
+    expect(result[LLM_STAGE_KEYS.EXTRACTION_STAGE_2]).toBe('luna-id');
+    expect(result[LLM_STAGE_KEYS.VISION_EXTRACTION]).toBe('luna-id');
     // 涵蓋全部環節，UI 不會缺列
     expect(Object.keys(result)).toHaveLength(LLM_STAGES.length);
   });
@@ -215,18 +217,21 @@ describe('LlmModelConfigService.getStageAssignments（fallback 鏈）', () => {
     vi.mocked(prisma.stageModelAssignment.findMany).mockResolvedValue([] as never);
     // CHANGE-099 遷移前的環境：stageKey 與舊 SystemConfig key 同字串
     vi.mocked(prisma.systemConfig.findMany).mockResolvedValue([
-      { key: LLM_STAGE_KEYS.EXTRACTION_STAGE_3, value: 'gpt-5.4-nano' },
+      { key: LLM_STAGE_KEYS.EXTRACTION_STAGE_3, value: 'gpt-5.6-luna' },
     ] as never);
     vi.mocked(prisma.llmModel.findMany).mockResolvedValue([
-      { id: 'mini-id', modelKey: 'gpt-5.4-mini' },
-      { id: 'nano-id', modelKey: 'gpt-5.4-nano' },
+      { id: 'luna-id', modelKey: 'gpt-5.6-luna' },
     ] as never);
 
     const result = await LlmModelConfigService.getStageAssignments();
 
-    // stage3 預設是 mini，但舊設定指定 nano → 以舊設定為準（行為零變）
-    expect(result[LLM_STAGE_KEYS.EXTRACTION_STAGE_3]).toBe('nano-id');
-    expect(result[LLM_STAGE_KEYS.EXTRACTION_STAGE_1]).toBe('mini-id');
+    expect(result[LLM_STAGE_KEYS.EXTRACTION_STAGE_3]).toBe('luna-id');
+    expect(result[LLM_STAGE_KEYS.EXTRACTION_STAGE_1]).toBe('luna-id');
+    // 🔴 CHANGE-115 後鑑別力下降：白名單只剩單一模型，無法再構造「舊設定指向**另一個**
+    //    白名單模型」的情境（原本是 stage3 預設 mini、舊設定指定 nano，可分辨走哪條路徑）。
+    //    現在兩條路徑的結果都是 luna-id，故補一條斷言確保 systemConfig 分支確實有被讀取。
+    //    白名單恢復多模型時，應還原為「預設與舊設定指向不同模型」的強斷言。
+    expect(prisma.systemConfig.findMany).toHaveBeenCalled();
   });
 
   it('should ignore a legacy value that is no longer a whitelisted model', async () => {
@@ -236,12 +241,12 @@ describe('LlmModelConfigService.getStageAssignments（fallback 鏈）', () => {
       { key: LLM_STAGE_KEYS.EXTRACTION_STAGE_3, value: 'gpt-5.2' },
     ] as never);
     vi.mocked(prisma.llmModel.findMany).mockResolvedValue([
-      { id: 'mini-id', modelKey: 'gpt-5.4-mini' },
+      { id: 'luna-id', modelKey: 'gpt-5.6-luna' },
     ] as never);
 
     const result = await LlmModelConfigService.getStageAssignments();
 
-    expect(result[LLM_STAGE_KEYS.EXTRACTION_STAGE_3]).toBe('mini-id');
+    expect(result[LLM_STAGE_KEYS.EXTRACTION_STAGE_3]).toBe('luna-id');
   });
 
   it('should fall back to an empty string when nothing resolves so the UI shows a placeholder', async () => {
