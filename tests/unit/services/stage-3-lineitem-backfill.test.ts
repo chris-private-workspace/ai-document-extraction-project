@@ -460,3 +460,113 @@ describe('FIX-126: 費用名稱比對強化（單複數 + 方向必要條件 + �
     expect(fields.vgm_admin_charge.value).toBe(936)
   })
 })
+
+/**
+ * FIX-154: Currency Rule 造成的 `(THB)` 後綴使短 label 完全無法命中
+ *
+ * Fixture 取自 Nippon Express Logistics (THAILAND) 實測：該公司的欄位定義集
+ * **aliases 全為空**（與 Nippon Express (HK) 不同，後者靠 alias 僥倖躲過），
+ * 因此 `"THC (THB)"` 無法命中 label `"THC"`（3 字元，未達子字串門檻），
+ * 退回 classifiedAs 後被 `handling_charge` 以 `"Terminal Handling Charge"` 吃掉。
+ */
+describe('FIX-154: 尾端括號註記不得使短 label 落空', () => {
+  let backfill: BackfillFn
+
+  beforeEach(() => {
+    const service = new Stage3ExtractionService({} as unknown as PrismaClient)
+    backfill = (
+      service as unknown as { backfillLineItemCharges: BackfillFn }
+    ).backfillLineItemCharges.bind(service)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  /** 泰國 Nippon 實測欄位定義（aliases 全空，與資料庫一致） */
+  const NEXTH_DEFS: FieldDefinitionEntry[] = [
+    chargeDef('thc', 'THC'),
+    chargeDef('t_h_c', 'T.H.C'),
+    chargeDef('handling_charge', 'Handling Charge'),
+    chargeDef('ocean_freight', 'Ocean Freight'),
+    chargeDef('do_fee', 'D/O Fee'),
+    chargeDef('other_charges', 'Other Charge'),
+    chargeDef('cleaning_container', 'Cleaning Container'),
+  ]
+
+  /** NEX_RCIM250001_202.SIGNED..pdf 的 8 筆實測明細（gpt-5.6-luna，兩次完全一致） */
+  const NEXTH_LINE_ITEMS: LineItemV3[] = [
+    lineItem('HANDLING CHARGE (THB)', 'Handling Charge', 500),
+    lineItem('D/O FEE (THB)', 'D/o Fee', 1650),
+    lineItem('THC (THB)', 'Terminal Handling Charge', 13950),
+    lineItem('OTHER CHARGES (THB)', 'Other Charges', 2100),
+    lineItem('CLEANING CONTAINER (THB)', 'Cleaning Container', 2100),
+    lineItem('THC (THB)', 'Terminal Handling Charge', 2800),
+    lineItem('OCEAN FREIGHT (THB)', 'Ocean Freight', 36191),
+    lineItem('OCEAN FREIGHT (THB)', 'Ocean Freight', 6032),
+  ]
+
+  it('帶幣別後綴的短 label 應由 description 認領，不得落到 classifiedAs', () => {
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, [lineItem('THC (THB)', 'Terminal Handling Charge', 13950)], NEXTH_DEFS)
+
+    expect(fields.thc.value).toBe(13950)
+    // 修復前：THC 退回 classifiedAs，被 handling_charge 以子字串吃掉
+    expect(fields.handling_charge?.value ?? null).toBeNull()
+  })
+
+  it('重現並修正 NEX_RCIM250001_202：handling 不得吸收兩筆 THC', () => {
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, NEXTH_LINE_ITEMS, NEXTH_DEFS)
+
+    // 修復前 handling_charge = 17250（= 500 + 13950 + 2800），模板加總後虛增 16750
+    expect(fields.handling_charge.value).toBe(500)
+    expect(fields.thc.value).toBe(16750) // 13950 + 2800
+    expect(fields.ocean_freight.value).toBe(42223) // 36191 + 6032
+    expect(fields.do_fee.value).toBe(1650)
+    expect(fields.other_charges.value).toBe(2100)
+    expect(fields.cleaning_container.value).toBe(2100)
+
+    // 各欄位合計必須等於行項合計，不得重複計入
+    const sum = [
+      fields.handling_charge,
+      fields.thc,
+      fields.ocean_freight,
+      fields.do_fee,
+      fields.other_charges,
+      fields.cleaning_container,
+    ].reduce((acc, f) => acc + (typeof f?.value === 'number' ? f.value : 0), 0)
+    expect(sum).toBe(65323)
+  })
+
+  it('剝除後綴只採 exact —— 不得放寬既有的子字串門檻', () => {
+    // 剝除後為 "SOME MISC"，與任何 label 都不完全相等 → 仍不認領
+    const defs = [chargeDef('misc_handling_charge', 'Misc Handling Charge')]
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, [lineItem('SOME MISC (THB)', undefined, 100)], defs)
+
+    expect(fields.misc_handling_charge).toBeUndefined()
+  })
+
+  it('剝除後綴不得繞過 FIX-126 的方向閘', () => {
+    // 定義帶方向、候選（原字串）不帶方向 → 剝除後仍不得命中
+    const defs = [chargeDef('origin_thc', 'THC - Origin')]
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, [lineItem('THC (THB)', undefined, 500)], defs)
+
+    expect(fields.origin_thc).toBeUndefined()
+  })
+
+  it('無尾端括號的描述行為完全不變（不觸發第二輪）', () => {
+    const fields: Record<string, FieldValue> = {}
+
+    backfill(fields, [lineItem('THC', 'Terminal Handling Charge', 8700)], NEXTH_DEFS)
+
+    expect(fields.thc.value).toBe(8700)
+    expect(fields.handling_charge?.value ?? null).toBeNull()
+  })
+})

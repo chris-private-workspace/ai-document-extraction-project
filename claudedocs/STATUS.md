@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 113 | CHANGE-115 | **CHANGE-116** |
-| FIX | 155 | FIX-153 | **FIX-154** |
+| FIX | 156 | FIX-154 | **FIX-155** |
 
 ## 📋 未開始（28）
 
@@ -95,7 +95,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（209）
+## ✅ 已完成（210）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -308,4 +308,5 @@
 | [FIX-144](4-changes/bug-fixes/FIX-144-completed-documents-have-no-reprocess-entry.md) | completed documents have no reprocess entry | ✅ 已修復（2026-07-29） |
 | [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | ✅ 已完成（2026-07-30 第三輪部署，五項驗證訊號全部達標） |
 | [FIX-147](4-changes/bug-fixes/FIX-147-stage3-wrapped-line-description-misjoin.md) | stage3 wrapped line description misjoin | ✅ 已完成（2026-07-31 Azure DEV 端到端驗證通過，映像 `dev-fix147r3-20260731130840`） |
+| [FIX-154](4-changes/bug-fixes/FIX-154-currency-rule-pollutes-line-item-description.md) | currency rule pollutes line item description | ✅ 已實作（方案 B + E 皆完成；本地 `type-check` / `lint` / `test` 458 通過零回歸；⏳ 待實機重… |
 

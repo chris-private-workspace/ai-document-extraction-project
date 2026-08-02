@@ -73,11 +73,14 @@ import {
 // CHANGE-046: classifiedAs 正規化
 // CHANGE-094: 費用標籤對照（確定性回填）
 // FIX-126: 方向詞必要條件（方案 C）
+// FIX-154: 剝除尾端括號註記（Currency Rule 造成的 `(THB)` 等後綴）
 import {
   normalizeClassifiedAs,
   matchLabel,
   extractChargeDirections,
+  stripTrailingParenthetical,
   type LabelMatchKind,
+  type ChargeDirection,
 } from '../utils/classify-normalizer';
 // CHANGE-113 階段一 A: PDF 註解作為分組鍵候選清單
 import type { ChargeTableHint, PdfAnnotationInfo } from '../utils/pdf-converter';
@@ -2139,19 +2142,71 @@ Respond in valid JSON format matching the provided schema.`;
    *   alias（如 `TERMINAL HANDLING CHARGE`）不會讓帶反向方向的文件文字
    *   跨方向誤認領。
    *
+   *   FIX-154：原候選無法裁決時，剝除尾端括號註記後**再試一次，且只採 exact**。
+   *   Stage 3 的 GLOBAL Currency Rule 會讓描述變成 `"THC (THB)"`，而子字串門檻
+   *   （目標 ≥ 8 字元且 ≥ 2 詞）使它對 label `"THC"` 完全無法命中，只能退到
+   *   `classifiedAs`，於是 `"Terminal Handling Charge"` 被 `handling_charge`
+   *   吃掉（實測 THC 16,750 併入 handling，模板加總後重複計費）。
+   *   限定 exact 是關鍵：不放寬既有命中標準，即使剝掉的不是幣別也必須完全相等。
+   *   方向集合仍取自**原候選**，避免剝除後遺失方向而繞過 FIX-126 的閘門。
+   *
    * @param candidate - 對照候選字串（lineItem 的 description 或 classifiedAs）
    * @param chargeDefs - `fieldType === 'lineItem'` 的欄位定義
    * @returns 唯一命中的 field key；未命中或歧義時為 null
    * @since FIX-108（邏輯自 CHANGE-094 backfillLineItemCharges 抽出）
-   * @lastModified FIX-126 (2026-07-22)
+   * @lastModified FIX-154 (2026-08-02)
    */
   private resolveUniqueChargeKey(
     candidate: string,
     chargeDefs: FieldDefinitionEntry[]
   ): string | null {
-    const exactKeys: string[] = [];
-    const substringKeys: string[] = [];
+    // 方向恆取自原候選：剝除後綴不得成為繞過 FIX-126 方向閘的途徑
     const candidateDirections = extractChargeDirections(candidate);
+
+    const first = this.collectChargeMatches(
+      candidate,
+      chargeDefs,
+      candidateDirections
+    );
+    if (first.exact.length === 1) return first.exact[0];
+    if (first.exact.length === 0 && first.substring.length === 1) {
+      return first.substring[0];
+    }
+
+    // FIX-154: 剝除尾端括號註記（如 `(THB)`）後再試一次，只採 exact
+    const stripped = stripTrailingParenthetical(candidate);
+    if (stripped && stripped !== candidate) {
+      const second = this.collectChargeMatches(
+        stripped,
+        chargeDefs,
+        candidateDirections
+      );
+      if (second.exact.length === 1) return second.exact[0];
+    }
+
+    return null;
+  }
+
+  /**
+   * 蒐集候選字串對各 charge def 的最強對照結果
+   *
+   * @description
+   *   自 {@link resolveUniqueChargeKey} 抽出，供原候選與剝除後綴的候選共用同一套
+   *   比對規則（含 FIX-126 方向閘）。每個 def 只取最強對照（exact 優先於 substring）。
+   *
+   * @param candidate - 對照候選字串
+   * @param chargeDefs - `fieldType === 'lineItem'` 的欄位定義
+   * @param candidateDirections - 方向集合（恆由**原始**候選算出）
+   * @returns 精確命中與子字串命中的 field key 清單
+   * @since FIX-154
+   */
+  private collectChargeMatches(
+    candidate: string,
+    chargeDefs: FieldDefinitionEntry[],
+    candidateDirections: Set<ChargeDirection>
+  ): { exact: string[]; substring: string[] } {
+    const exact: string[] = [];
+    const substring: string[] = [];
 
     for (const def of chargeDefs) {
       // FIX-126 方案 C：定義有方向、候選未帶相同方向 → 不參與（寧可不填）
@@ -2173,13 +2228,11 @@ Respond in valid JSON format matching the provided schema.`;
         }
         if (kind === 'substring') best = 'substring';
       }
-      if (best === 'exact') exactKeys.push(def.key);
-      else if (best === 'substring') substringKeys.push(def.key);
+      if (best === 'exact') exact.push(def.key);
+      else if (best === 'substring') substring.push(def.key);
     }
 
-    if (exactKeys.length === 1) return exactKeys[0];
-    if (exactKeys.length === 0 && substringKeys.length === 1) return substringKeys[0];
-    return null;
+    return { exact, substring };
   }
 
   /**

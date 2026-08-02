@@ -94,6 +94,39 @@ export function canonicalizeLabel(value: string): string {
 }
 
 /**
+ * 剝除字串尾端的括號註記
+ *
+ * @description
+ *   FIX-154：Stage 3 的 GLOBAL prompt 有一條 Currency Rule，要求在沒有 HKD 金額時
+ *   「把原幣別註明在 description」，於是行項描述變成 `"THC (THB)"`。
+ *   {@link matchLabel} 的子字串命中要求目標 ≥ 8 字元且 ≥ 2 詞（擋通用短詞用），
+ *   因此 `"THC (THB)"` 對 label `"THC"`（3 字元）**完全無法命中** —— 而
+ *   `"OCEAN FREIGHT (THB)"` 對 `"Ocean Freight"`（13 字元）卻命中無礙。
+ *   同樣被加了後綴，命運卻取決於 label 長度。
+ *
+ *   呼叫端（`resolveUniqueChargeKey`）以此做**第二輪**比對，且只採 exact ——
+ *   exact 不受長度門檻限制，而限定 exact 可確保即使剝掉的不是幣別
+ *   （如 `"(FCL)"`），也必須完全相等才認領，不會放寬既有的命中標準。
+ *
+ *   刻意不限定括號內容須為 ISO 4217 幣別碼：規格註記（`(FCL)` / `(LCL)`）被剝除後
+ *   若能完全相等於某定義，該認領同樣正確；限縮反而漏掉這些情形。
+ *
+ * @param value - 原始字串（lineItem 的 description 或 classifiedAs）
+ * @returns 去除尾端括號註記後的字串；無尾端括號時原樣回傳
+ * @since FIX-154
+ *
+ * @example
+ * ```typescript
+ * stripTrailingParenthetical('THC (THB)')            // → 'THC'
+ * stripTrailingParenthetical('OCEAN FREIGHT (THB)')  // → 'OCEAN FREIGHT'
+ * stripTrailingParenthetical('HANDLING CHARGE')      // → 'HANDLING CHARGE'（不變）
+ * ```
+ */
+export function stripTrailingParenthetical(value: string): string {
+  return value.replace(/\s*\([^()]*\)\s*$/, '').trim();
+}
+
+/**
  * 費用方向（起運地 / 目的地）
  * @since FIX-126
  */
