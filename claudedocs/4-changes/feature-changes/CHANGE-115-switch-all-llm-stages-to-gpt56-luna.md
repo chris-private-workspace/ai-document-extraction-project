@@ -101,9 +101,28 @@ gpt-5.4-nano-aidocprocessing  → 404 DeploymentNotFound
 
 | 項目 | 原因 |
 |---|---|
-| **成本定價未更新** | `ai-cost.service.ts` 的 `DEFAULT_PRICING.AZURE_OPENAI` 只列 `gpt-5.2` / `gpt-4o` / `gpt-4o-mini`，**5.4 系列本來就沒列**、一直套用 `default` 價格。使用者尚未提供 luna 單價，不猜價格 → 維持現狀（仍走 `default`）。取得單價後應補一筆 |
 | **模型 label 未 i18n** | `llm-models.ts` 的 `label` 是硬編碼中文（`GPT-5.6 Luna（單一主力）`），`messages/` 內查無任何模型名稱字串 → UI 直接顯示該欄位。此為 CHANGE-099 起的既有模式，非本次引入；i18n 化屬另一項工作 |
 | **Azure DEV 線上環境** | App Service 讀自己的環境變數，不受本機 `.env` 影響。要讓線上也用 luna，須另外設定該處的 endpoint / API key |
+
+---
+
+## 成本定價（使用者於 2026-08-02 提供官方價目）
+
+| 模型 | Input / 1M | Output / 1M |
+|---|---:|---:|
+| **gpt-5.6-luna** | **$0.20** | **$1.20** |
+| gpt-5.4-mini（舊） | $0.75 | $4.50 |
+| gpt-5.4-nano（舊） | $0.20 | $1.25 |
+
+已寫入 `ai-cost.service.ts` 的 `DEFAULT_PRICING.AZURE_OPENAI`（該表單位為 per token，故換算為 `0.0000002` / `0.0000012`）。
+
+取捨與限制：
+
+- **採 short context 價格**。long context 為 $0.40 / $1.80，但此表結構只支援單一價格，而發票文件多不觸及 long context 門檻
+- **cached input（$0.02）未計入** —— 表結構無對應欄位，實際成本會略低於估算值
+- **5.4 系列不補列**：它們從未在此表中，一直落到 `default`（＝gpt-5.2 的 $1.75 / $14）而**高估**成本；CHANGE-115 後已不再使用，故不追補。`default` 維持原值
+
+> 相對舊主力 `gpt-5.4-mini`，input 降 73%、output 降 73%。但**歷史成本數據不可直接比較** —— 5.4 期間記錄的成本是用 `default` 價格估算的，本身就偏高。
 
 ---
 
@@ -122,8 +141,8 @@ gpt-5.4-nano-aidocprocessing  → 404 DeploymentNotFound
   白名單解析出的部署名為 `gpt-5.6-luna`；`capability.supportsTemperature=false` 確實使
   `gpt-caller.service.ts:279` 傳入 `undefined`，未送出 temperature（否則必 400）。
 
+- [x] 成本定價已寫入 `DEFAULT_PRICING`（使用者 2026-08-02 提供官方價目，見 §成本定價）
 - [ ] ⏳ 部署 Azure DEV 後，以真實發票重跑提取，確認三個 Stage 皆正常
-- [ ] ⏳ 取得 luna 單價後補上 `DEFAULT_PRICING`
 - [ ] ⏳ 準確率回歸：Epic 23 tech-spec §6.1 要求核心提取環節換模型前做準確率回歸與 per-model 信心度校準。本次為同 vendor 換版，未執行完整回歸 —— 建議部署後以一批已知結果的文件比對
 
 ---
