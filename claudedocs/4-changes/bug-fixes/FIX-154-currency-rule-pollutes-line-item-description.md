@@ -4,7 +4,7 @@
 > **發現方式**: CHANGE-115 換模型後，使用者驗收 Nippon 模板實例時發現總額異常（83,690 vs 應為 66,940）
 > **影響頁面/功能**: Stage 3 費用回填（`backfillLineItemCharges`）→ 模板實例列金額
 > **優先級**: 高（**金額錯誤**：同一筆費用同時進入兩個欄位，模板加總後虛增。**未被對帳閘攔截** —— 行項合計本身正確，錯的是 `fields` 層的歸戶）
-> **狀態**: 📋 規劃中（根因已確認並實機重現、修復方案待拍板）
+> **狀態**: ✅ 已實作（方案 B + E 皆完成；本地 `type-check` / `lint` / `test` **458 通過**零回歸；⏳ 待實機重新處理文件驗證）
 > **相關**: [CHANGE-115](../feature-changes/CHANGE-115-switch-all-llm-stages-to-gpt56-luna.md)（換模型使問題顯現）、[FIX-108](FIX-108-stage3-lineitem-backfill-description-matching.md) / [FIX-126](FIX-126-charge-label-matching-fragility.md) / [FIX-127](FIX-127-stage3-misattribution-and-dual-source.md)（回填比對規則的歷次調整）、[FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md)（同一公司的費用歸戶問題）
 
 ---
@@ -217,15 +217,54 @@ cleaning_container = 2100
 
 ---
 
+## 實作內容（2026-08-02）
+
+### 方案 B —— 剝除尾端括號註記後重試（代碼）
+
+| 檔案 | 變更 |
+|---|---|
+| `src/services/extraction-v3/utils/classify-normalizer.ts` | 新增 `stripTrailingParenthetical()` |
+| `src/services/extraction-v3/stages/stage-3-extraction.service.ts` | `resolveUniqueChargeKey` 加入第二輪比對；比對迴圈抽出為 `collectChargeMatches` |
+| `tests/unit/services/stage-3-lineitem-backfill.test.ts` | 新增 `describe('FIX-154: ...')` 共 5 項 |
+
+三個關鍵的設計約束：
+
+1. **第二輪只採 exact** —— exact 不受 `≥ 8 字元` 門檻限制，而限定 exact 可確保即使剝掉的不是幣別（如 `(FCL)`），仍必須完全相等才認領。**不放寬**既有命中標準。
+2. **方向集合恆取自原候選** —— 剝除後綴不得成為繞過 FIX-126 方向閘的途徑。
+3. **僅在第一輪無法裁決時才觸發** —— 既有成功路徑完全不經過新邏輯，回歸風險為零。
+
+### 方案 E —— 移除 GLOBAL 規則的 description 註記（資料庫）
+
+腳本：`scripts/fix-154-remove-currency-description-note.ts`（inspect / dryrun / write 三段式）
+
+```diff
+- - If a given line has no HKD amount, then fall back to the original-currency amount
+-   and note the original currency in the "description".
++ - If a given line has no HKD amount, then fall back to the original-currency amount.
+```
+
+其餘四行（含「優先取 HKD 值」）**完全未動**。配置 `cmo197zi9000cnsxgcjg5dh8v` version 3 → 4，字元數 1367 → 1315。
+
+五項必備措施齊備：前置快照（`.snapshots/fix-154-prompt-before-*.json`）、單一交易、`rowCount !== 1` 即中止回滾、`updated_at` 樂觀鎖、冪等（重跑回報「已是目標狀態，無動作」）。
+
+腳本另設兩道保護：原句**完整比對**（找不到即中止，不盲改被他人修改過的內容）、字串層數量閘（預期恰好出現 1 次）。
+
+> ⚠️ **只改了本機資料庫**。Azure DEV 需另跑同一支腳本，且務必先 `inspect`。
+
+---
+
 ## 驗收標準
 
-- [ ] 重新處理 `NEX_RCIM250001_202.SIGNED..pdf`，`fields.handling_charge` = **500**、`fields.thc` = **16,750**
-- [ ] 該文件的模板實例合計 = **66,940**（＝ GRAND TOTAL）
-- [ ] 行項合計對帳仍為 65,323、`mismatch: false`（不得因修復而破壞既有對帳）
-- [ ] 新增回歸測試：`"THC (THB)"` 能認領 label 為 `"THC"` 的欄位
-- [ ] 新增回歸測試：`"Terminal Handling Charge"` **不得**認領 `handling_charge`（當 `thc` 已由 description 認領時）
-- [ ] 既有回填測試全數通過（CHANGE-094 / FIX-108 / FIX-126 / FIX-127 的案例不得回退）
-- [ ] 若採 E：確認改動後 HKD 混幣發票的 `amount` 行為不變
+- [x] 新增回歸測試：`"THC (THB)"` 能認領 label 為 `"THC"` 的欄位
+- [x] 新增回歸測試：`"Terminal Handling Charge"` **不得**認領 `handling_charge`
+- [x] 新增回歸測試：完整重現 NEX_RCIM250001_202 —— `handling_charge` = 500、`thc` = 16,750、六欄合計 = 65,323
+- [x] 新增回歸測試：剝除後綴**只採 exact**，不放寬子字串門檻
+- [x] 新增回歸測試：剝除後綴不得繞過 FIX-126 方向閘
+- [x] 既有回填測試全數通過（CHANGE-094 / FIX-108 / FIX-126 / FIX-127 案例無回退）——**458 passed**（原 453，+5）
+- [x] `type-check` / `lint` 通過
+- [x] 方案 E 保留「優先取 HKD」該句，混幣發票的 `amount` 行為不變
+- [ ] ⏳ **實機驗證**：重新處理 `NEX_RCIM250001_202.SIGNED..pdf`，確認 `handling_charge` = 500、模板實例合計 = 66,940、行項對帳仍為 65,323 且 `mismatch: false`
+- [ ] ⏳ Azure DEV 部署（代碼）+ 於該環境執行方案 E 腳本（資料庫）
 
 ---
 
