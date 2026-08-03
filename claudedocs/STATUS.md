@@ -46,7 +46,7 @@
 | [FIX-152](4-changes/bug-fixes/FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) | dhl multi shipment aggregate amount leak | 📋 規劃中（根因已確認、修復方案待拍板） |
 | [FIX-155](4-changes/bug-fixes/FIX-155-line-item-amount-currency-unstable.md) | line item amount currency unstable | 📋 規劃中 —— 傾向不修（2026-08-02 以 gpt-5.6-luna 重跑 3 次，幣別全部正確且穩定，問題不重現；歷史錯誤資… |
 
-## 🚧 進行中 / 部分完成（27）
+## 🚧 進行中 / 部分完成（23）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -59,7 +59,6 @@
 | [CHANGE-079](4-changes/feature-changes/CHANGE-079-city-scope-idor-unified-fix.md) | city scope idor unified fix | ✅ 已實作（程式碼層面，2026-06-10）：6 套用點全部完成；單元測試 + 執行期待驗證 |
 | [CHANGE-091](4-changes/feature-changes/CHANGE-091-template-instance-flow-ux-async-progress.md) | template instance flow ux async progress | 🚧 Phase 1 已完成（2026-06-26）／Phase 2 待實作 |
 | [CHANGE-095](4-changes/feature-changes/CHANGE-095-allow-editing-company-code.md) | allow editing company code | 🔬 待 E2E 驗證（實作完成、type-check/lint 通過；使用者自行測試中） |
-| [CHANGE-115](4-changes/feature-changes/CHANGE-115-switch-all-llm-stages-to-gpt56-luna.md) | switch all llm stages to gpt56 luna | ✅ 已實作（本地 `type-check` / `lint` / `test` 453 通過；實機端到端驗證通過；⏳ 待部署 Azure … |
 | [FIX-065](4-changes/bug-fixes/FIX-065-mapping-api-auth-and-city-scope.md) | mapping api auth and city scope | 🔧 認證已修復（2026-06-10）；城市範圍 IDOR 留 WP-4 |
 | [FIX-067](4-changes/bug-fixes/FIX-067-v1-confidence-prompts-classified-auth.md) | v1 confidence prompts classified auth | 🔧 部分修復（2026-06-10）：confidence/prompts/classified 已修；`/api/v1` 留 WP-2… |
 | [FIX-069](4-changes/bug-fixes/FIX-069-redos-safe-regex-execution.md) | redos safe regex execution | ✅ 核心已完成（2026-06-11，程式碼層面；執行期 staging 驗證待部署） |
@@ -76,9 +75,6 @@
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
 | [FIX-149](4-changes/bug-fixes/FIX-149-dhl-charge-field-mapping.md) | dhl charge field mapping | 🚧 已實作（本機與 Azure DEV 皆已寫入並驗證；既有 instance 列需重新匹配才會套用） |
 | [FIX-150](4-changes/bug-fixes/FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) | nippon charge fields lost mapping slot contention | 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄皆已完成並驗證；待重新匹配實例驗收，Outbound seal fee … |
-| [FIX-151](4-changes/bug-fixes/FIX-151-reconcile-uses-tax-inclusive-total.md) | reconcile uses tax inclusive total | ✅ 已實作（2026-08-01，本地 `type-check` / `lint` / `test` 452 通過、對帳測試 25 項全過… |
-| [FIX-153](4-changes/bug-fixes/FIX-153-configsource-not-persisted-to-stage2-result.md) | configsource not persisted to stage2 result | ✅ 已實作（2026-08-01，本地 `type-check` / `lint` / `test` 452 通過零回歸；⏳ 待部署 Az… |
-| [FIX-154](4-changes/bug-fixes/FIX-154-currency-rule-pollutes-line-item-description.md) | currency rule pollutes line item description | ✅ 已完成（方案 B + E 皆實作並實機驗證通過 —— 模板實例合計由 83,690 修正為 66,940；本地 `type-check… |
 
 ## ❓ 狀態無法解析（2）
 
@@ -97,7 +93,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（212）
+## ✅ 已完成（216）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -182,6 +178,7 @@
 | [CHANGE-111](4-changes/feature-changes/CHANGE-111-gateway-enforce-allow-sensitive-data.md) | gateway enforce allow sensitive data | ✅ 已完成（2026-07-27；`type-check` / `lint` / `test` 237/237 通過。⚠️ 純政策攔截、無… |
 | [CHANGE-112](4-changes/feature-changes/CHANGE-112-pre-push-hook-docs-check.md) | pre push hook docs check | ✅ 已完成（2026-07-28） |
 | [CHANGE-113](4-changes/feature-changes/CHANGE-113-line-item-group-key-multi-shipment-invoice.md) | line item group key multi shipment invoice | ✅ 已完成（2026-07-30。階段一 A1/A2/A3 + B、階段二 `GROUP` 模式全部完成；本地端到端 + 穩定度 + 燃油… |
+| [CHANGE-115](4-changes/feature-changes/CHANGE-115-switch-all-llm-stages-to-gpt56-luna.md) | switch all llm stages to gpt56 luna | ✅ 已部署 Azure DEV（2026-08-03，映像 `dev-sync20260803b-20260803164326`）。本地 … |
 | [FIX-001](4-changes/bug-fixes/FIX-001-code-review-p1-fixes.md) | code review p1 fixes | ✅ 已修復 |
 | [FIX-002](4-changes/bug-fixes/FIX-002-company-auto-create-fk-constraint.md) | company auto create fk constraint | ✅ 已完成 |
 | [FIX-003](4-changes/bug-fixes/FIX-003-batch-status-logic-contradiction.md) | batch status logic contradiction | ✅ 已修復 |
@@ -310,7 +307,10 @@
 | [FIX-144](4-changes/bug-fixes/FIX-144-completed-documents-have-no-reprocess-entry.md) | completed documents have no reprocess entry | ✅ 已修復（2026-07-29） |
 | [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | ✅ 已完成（2026-07-30 第三輪部署，五項驗證訊號全部達標） |
 | [FIX-147](4-changes/bug-fixes/FIX-147-stage3-wrapped-line-description-misjoin.md) | stage3 wrapped line description misjoin | ✅ 已完成（2026-07-31 Azure DEV 端到端驗證通過，映像 `dev-fix147r3-20260731130840`） |
-| [FIX-156](4-changes/bug-fixes/FIX-156-dhl-prompt-omits-subtotal-definition.md) | dhl prompt omits subtotal definition | ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；⏳ 待同步 Azure DEV） |
+| [FIX-151](4-changes/bug-fixes/FIX-151-reconcile-uses-tax-inclusive-total.md) | reconcile uses tax inclusive total | ✅ 已部署 Azure DEV（2026-08-03，映像 `dev-sync20260803b-20260803164326`）。本地 … |
+| [FIX-153](4-changes/bug-fixes/FIX-153-configsource-not-persisted-to-stage2-result.md) | configsource not persisted to stage2 result | ✅ 已部署 Azure DEV（2026-08-03，映像 `dev-sync20260803b-20260803164326`）。本地 … |
+| [FIX-154](4-changes/bug-fixes/FIX-154-currency-rule-pollutes-line-item-description.md) | currency rule pollutes line item description | ✅ 已完成（方案 B + E 皆實作並實機驗證通過 —— 模板實例合計由 83,690 修正為 66,940；本地 `type-check… |
+| [FIX-156](4-changes/bug-fixes/FIX-156-dhl-prompt-omits-subtotal-definition.md) | dhl prompt omits subtotal definition | ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；2026-08-03 已同步 Azure… |
 | [FIX-157](4-changes/bug-fixes/FIX-157-formula-all-null-writes-zero.md) | formula all null writes zero | ✅ 已完成（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / … |
-| [FIX-158](4-changes/bug-fixes/FIX-158-mapping-field-definition-misalignment.md) | mapping field definition misalignment | ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入。問題一已實機驗證通過，見 §實機驗證；問題二欄位定義已補上，⏳… |
+| [FIX-158](4-changes/bug-fixes/FIX-158-mapping-field-definition-misalignment.md) | mapping field definition misalignment | ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入本機與 Azure DEV。問題一已實機驗證通過，見 §實機驗證… |
 

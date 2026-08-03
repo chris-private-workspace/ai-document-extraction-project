@@ -4,7 +4,7 @@
 > **發現方式**: FIX-155 盤點 `subtotal` 提取率時發現同一張發票的 `subtotal` 前後不一致；使用者指出根因並非模型隨機性，而是 DHL 發票上沒有這個欄位名稱、prompt 又未指明位置，模型只能猜
 > **影響頁面/功能**: Stage 3 提取 `fields.subtotal` → FIX-151 的對帳基準選擇
 > **優先級**: 中（目前**未造成對帳誤判** —— 這幾張發票的 `total_amount` 恰好等於行項合計，兩種基準結論相同。但含稅發票一旦遇上，基準飄移會直接翻轉對帳結論）
-> **狀態**: ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；⏳ 待同步 Azure DEV）
+> **狀態**: ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；**2026-08-03 已同步 Azure DEV**，該環境 version 1→2，以 `prisma/sync-config-20260803.js` 步驟 2 寫入，重跑 inspect 確認「已含 Amount summary 段落」。⏳ Azure 端尚待真實 DHL 發票驗證 `subtotal` 取值）
 > **相關**: [FIX-151](FIX-151-reconcile-uses-tax-inclusive-total.md)（對帳基準依賴 `subtotal`）、[CHANGE-113](../feature-changes/CHANGE-113-line-item-mode-group-expand.md)（建立本 prompt 的變更）、[FIX-155](FIX-155-line-item-amount-currency-unstable.md)（本問題的發現脈絡）、[FIX-152](FIX-152-dhl-multi-shipment-aggregate-amount-leak.md)（同一張 DHL 發票的聚合列問題）
 
 ---

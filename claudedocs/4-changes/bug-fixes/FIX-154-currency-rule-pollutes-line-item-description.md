@@ -4,7 +4,7 @@
 > **發現方式**: CHANGE-115 換模型後，使用者驗收 Nippon 模板實例時發現總額異常（83,690 vs 應為 66,940）
 > **影響頁面/功能**: Stage 3 費用回填（`backfillLineItemCharges`）→ 模板實例列金額
 > **優先級**: 高（**金額錯誤**：同一筆費用同時進入兩個欄位，模板加總後虛增。**未被對帳閘攔截** —— 行項合計本身正確，錯的是 `fields` 層的歸戶）
-> **狀態**: ✅ 已完成（方案 B + E 皆實作並**實機驗證通過** —— 模板實例合計由 83,690 修正為 66,940；本地 `type-check` / `lint` / `test` **458 通過**零回歸；⏳ 待部署 Azure DEV）
+> **狀態**: ✅ 已完成（方案 B + E 皆實作並**實機驗證通過** —— 模板實例合計由 83,690 修正為 66,940；本地 `type-check` / `lint` / `test` **458 通過**零回歸；**2026-08-03 已部署 Azure DEV** —— 方案 B 隨映像 `dev-sync20260803b-20260803164326` 上線，方案 E 以 `prisma/sync-config-20260803.js` 步驟 1 寫入該環境的 GLOBAL prompt，v3→v4 並回讀確認舊句已消失）
 > **相關**: [CHANGE-115](../feature-changes/CHANGE-115-switch-all-llm-stages-to-gpt56-luna.md)（換模型使問題顯現）、[FIX-108](FIX-108-stage3-lineitem-backfill-description-matching.md) / [FIX-126](FIX-126-charge-label-matching-fragility.md) / [FIX-127](FIX-127-stage3-misattribution-and-dual-source.md)（回填比對規則的歷次調整）、[FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md)（同一公司的費用歸戶問題）
 
 ---

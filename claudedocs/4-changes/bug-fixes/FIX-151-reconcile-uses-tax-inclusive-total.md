@@ -4,7 +4,7 @@
 > **發現方式**: 使用者回報「有些文件信心度高於 90% 仍顯示為 FULL_REVIEW」，逐份歸因後查出
 > **影響頁面/功能**: 信心度路由 → 文件審核佇列
 > **優先級**: 中高（誤報佔全部對帳不符的 **2/3**，虛增人工審核量；但不影響金額正確性）
-> **狀態**: ✅ 已實作（2026-08-01，本地 `type-check` / `lint` / `test` 452 通過、對帳測試 25 項全過；⏳ 待部署 Azure DEV —— 部署後既有文件仍需**重新處理**才會套用新判定）
+> **狀態**: ✅ 已部署 Azure DEV（2026-08-03，映像 `dev-sync20260803b-20260803164326`）。本地 `type-check` / `lint` / `test` 452 通過、對帳測試 25 項全過。⚠️ 既有文件仍需**重新處理**才會套用新判定 —— 部署本身不回溯。
 > **相關**: [FIX-147](FIX-147-stage3-wrapped-line-description-misjoin.md)（本閘的引入者）、[FIX-148](FIX-148-v31-pipeline-discards-routing-decision.md)（路由決策被丟棄，本閘是目前唯一實際生效的降級機制）、[FIX-143](FIX-143-summary-area-vat-field-typed-as-lineitem.md)（VAT 印在總結區）
 
 ---

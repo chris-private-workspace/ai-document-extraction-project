@@ -4,7 +4,7 @@
 > **發現方式**: template instance 逐欄追溯核對（2026-08-03 對 12 個 instance 執行）
 > **影響頁面/功能**: `template_field_mappings` / `field_definition_sets` → 模板實例的欄位值
 > **優先級**: 高（RIL 已實測造成 **1,355.07 金額遺失**；CEVA 為潛伏風險，目前未發作）
-> **狀態**: ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入。**問題一已實機驗證通過**，見 §實機驗證；問題二欄位定義已補上，⏳ 驗收待一張含該些費用的真實 CEVA 發票 —— 目前全庫無實例可驗）
+> **狀態**: ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入**本機與 Azure DEV**。**問題一已實機驗證通過**，見 §實機驗證；問題二 ⏳ 驗收待一張含該些費用的真實 CEVA 發票 —— 目前全庫無實例可驗。🔴 **問題二的根因描述經 Azure 實測更正**：該環境一直都有這四個欄位定義，缺的是本機，見 §Azure 實測更正）
 > **相關**: [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md)（同型的欄位互搶）、[FIX-156](FIX-156-dhl-prompt-omits-subtotal-definition.md)（模型在兩個合法選項間搖擺）、[FIX-128](FIX-128-mapping-source-field-validation.md)（transform 診斷）
 
 ---
@@ -66,15 +66,17 @@ handling_at_origin ← {air_local_charge_usa_origin} + {air_local_charge_in_usa_
 
 ---
 
-## 問題二：CEVA 的 mapping 引用了從未定義的欄位
+## 問題二：CEVA 的 mapping 引用了本機未定義的欄位
+
+> 🔴 **標題與下述根因限於本機**。2026-08-03 Azure DEV 實測後確認：**該環境一直都有這四個欄位定義**，缺的是本機。詳見下方 §Azure 實測更正 —— 這推翻了「設定缺陷」的框架，真正的成因是跨環境同步殘缺。
 
 ### 現象
 
-`CEVA_RCIM250325_17865` 的列**結果正確**（合計 2,873.08 = `total_amount`），但有四條 mapping 規則永遠不可能生效。
+`CEVA_RCIM250325_17865` 的列**結果正確**（合計 2,873.08 = `total_amount`），但有四條 mapping 規則在本機永遠不可能生效。
 
-### 根因
+### 根因（本機）
 
-`CEVA LOGISTICS (HONG KONG) LTD`（companyId `0d02b680-165b-4cfd-8c1b-7ebfa6da8424`）的 mapping 引用了四個 key，但該公司的 `field_definition_sets`（`f13aaf3b-ec74-4750-8036-a27dbb554792`，17 個欄位）**都沒有定義**：
+`CEVA LOGISTICS (HONG KONG) LTD`（companyId `0d02b680-165b-4cfd-8c1b-7ebfa6da8424`）的 mapping 引用了四個 key，但**本機**該公司的 `field_definition_sets`（`f13aaf3b-ec74-4750-8036-a27dbb554792`，17 個欄位）**都沒有定義**：
 
 | mapping 規則 | 引用的 key | 欄位定義 |
 |---|---|---|
@@ -104,11 +106,37 @@ handling_at_origin ← {air_local_charge_usa_origin} + {air_local_charge_in_usa_
 | `destination_gate_fee` | Destination Gate Fee | `Gate Fee at Destination`、`Gate Charge at Destination`、`Gate Charge` |
 | `destination_cfs_charges` | Destination CFS Charges | `CFS Charges at Destination`、`CFS Charges`、`Container Freight Station Charge at Destination` |
 
+### 🔴 Azure 實測更正（2026-08-03）：Azure 一直都有這四個定義，缺的是本機
+
+同步到 Azure DEV 前跑 `inspect`，結果與上述根因相反：
+
+| | 欄位數 | 四個 key | aliases | label |
+|---|---|---|---|---|
+| **本機**（修復前） | 17 | 🔴 全缺 | — | — |
+| **Azure DEV** | **21** | ✅ **全在** | 🔴 全空 | 由 key 自動衍生的 sentence case（`Destination truck servicing fee`） |
+
+欄位集 id 兩邊相同（`f13aaf3b-…`，`import-dev-data.js` 匯入時保留 id），但內容不同。
+
+**這改變了問題的性質**：不是「設定缺陷」，而是 **[CHANGE-108](../feature-changes/CHANGE-108-azure-to-local-config-sync.md) 那次 azure-to-local 同步的殘缺** —— 只帶了 mapping，沒帶欄位定義，於是本機的 mapping 引用了本機不存在的 key。Azure 那邊四條規則其實**能**生效，只是沒有 aliases 導引，模型僅能靠 label 猜。
+
+因此同一個 FIX 在兩個環境要做的事**不同**：
+
+| 環境 | 動作 |
+|---|---|
+| 本機 | 新增 4 個欄位定義（含 aliases） |
+| Azure DEV | **只補 aliases**（欄位與數量不變，21 → 21） |
+
+> **連帶修正腳本缺陷**：`prisma/sync-config-20260803.js` 步驟 4 原本的冪等判斷只比對「key 是否存在」，會把 Azure 這種「有欄位但 aliases 全空」誤判為已達目標狀態而跳過。已改為比對 aliases，合併策略為**只增不減**（既有 aliases 一律保留，label 不動）。
+>
+> 教訓與 [FIX-143](FIX-143-summary-area-vat-field-typed-as-lineitem.md) 同型：**文件寫的「同型問題」是推論，跨環境執行前必須查該環境的實際資料**。若照本文件原本的描述直接在 Azure 新增欄位，會建出四組重複定義 —— 正是問題一（RIL 雙胞胎）的成因。
+
 ### ⚠️ 技術債務：後兩者的 aliases 依據薄弱
 
 `destination_gate_fee` 與 `destination_truck_servicing_fee` 的 aliases 是**推導**而非**觀察**得來 —— 全庫 88 份 CEVA 提取結果、33 種行項描述中，這兩類費用**一個實例都沒有**。前兩者尚有旁證（`emergency_fuel_surcharge` 有 DHL 的 `FUEL SURCHARGE` ×34；`destination_cfs_charges` 有 `(SEA) CFS (DEST)`、`CFS CHARGES` 各 ×1），後兩者只有其他 forwarder 的同類欄位可參考。
 
 依 §樣本 ≠ 母體 紀律，**沒有實例不等於不存在**（使用者已確認這些費用會出現），所以照補；但 aliases 用字是否命中真實發票，**必須等一張含該費用的 CEVA 發票才能驗證**。若屆時模型仍抽不到，應以發票原文回填 aliases，而非移除欄位。
+
+⚠️ 該推導出的 aliases 現已同時存在於**本機與 Azure DEV**（2026-08-03 同步），所以待驗證的範圍是兩個環境，不只本機。
 
 ---
 
