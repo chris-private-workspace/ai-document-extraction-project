@@ -4,7 +4,7 @@
 > **發現方式**: 使用者核對 template instance 結果時指出「有些欄位會變了做 0，正常應該都是顯示 -」
 > **影響頁面/功能**: `template_instance_rows.fieldValues` → 模板實例畫面顯示、Excel 匯出、後續統計
 > **優先級**: 中（**不影響金額正確性** —— 0 不改變合計，對帳仍然通過。影響的是語意與可讀性：使用者無法分辨「這張發票沒有這筆費用」與「這筆費用金額為零」）
-> **狀態**: ✅ 已實作（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / `test` **467 通過**零失敗；⏳ 待重新匹配實機驗證）
+> **狀態**: ✅ 已完成（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / `test` **467 通過**零失敗；**已於本機 production build 實機驗證通過**，見 §實機驗證）
 > **相關**: [FIX-128](FIX-128-mapping-source-field-validation.md)（transform 診斷機制）、[CHANGE-101](../feature-changes/CHANGE-101-batch-template-field-mappings-from-excel.md)（FORMULA 型 mapping 的大量建立）
 
 ---
@@ -138,8 +138,53 @@ if (transformedValue !== undefined) {
 | 3 | 變數合法為 0 時仍須計算（0 ≠ 缺值） | ✅ 已鎖定 |
 | 4 | 與 DIRECT 行為一致 | ✅ 專門一項比對測試，兩者皆回傳 `undefined` |
 | 5 | `npm run test` 零回歸 | ✅ **467 通過 / 2 skipped / 0 失敗** |
-| 6 | 重新匹配 `RIL_RCIM250313_22084`，`thc`/`cfs`/`gate_charge`/`delivery`/`wh_container_facility_fee` 為空而非 0 | ⏳ **待實機驗證**（需重新匹配才會反映） |
-| 7 | 同列 `freight`/`docs_fee`/`handling`/`handling_at_origin` 數值不變、合計仍 5,090.17 | ⏳ 同上 |
+| 6 | 重新匹配 `RIL_RCIM250313_22084`，`thc`/`cfs`/`gate_charge`/`delivery`/`wh_container_facility_fee` 為空而非 0 | ✅ 五個欄位全部為空（見 §實機驗證） |
+| 7 | 同列 `freight`/`docs_fee`/`handling`/`handling_at_origin` 數值不變、合計仍 5,090.17 | ✅ 三個數值皆未變、合計 5,090.17 = `total_amount` |
+
+---
+
+## 實機驗證（2026-08-03）
+
+修的是 `src/services/transform/formula.transform.ts`，屬 server bundle —— **production 不熱重載**，必須重新 build 才會生效。流程：停 `AiDocProdServer` 排程任務 → 終止佔用 3200 的 node 程序 → `npm run build` → 重啟。
+
+### 先確認 build 真的含新碼
+
+不直接相信 `npm run build` 的 exit code。`.next/server/chunks/21551.js` 中 minified 後的樣子：
+
+```javascript
+async execute(a,b,c){if(!b?.formula)throw Error("FORMULA 轉換需要提供 formula 參數");
+if(!this.hasAnyReferencedValue(b.formula,c.row))return;
+let d=this.replaceVariables(b.formula,c.row);return this.safeEval(d)}
+```
+
+guard 完整保留、`return` 無值即 `undefined`，未被 webpack 改寫。
+
+### 驗證結果
+
+透過 `/api/v1/template-matching/execute` 重新匹配（新建 DRAFT instance，不動既有資料），逐欄追溯：
+
+| 欄位 | 公式 | 重建前 | 重建後 |
+|---|---|---:|---|
+| `cfs` | `{air_cfs_charge_dest} + {sea_cfs}` | `0` | **（無）** |
+| `thc` | `{sea_thc_hongkong_asia} + {thc} + {sea_thc}` | `0` | **（無）** |
+| `delivery` | `{air_delivery_charge_dest} + {drayage} + {dryage_charge}` | `0` | **（無）** |
+| `gate_charge` | `{air_gate_charge_dest} + {gate_charge}` | `0` | **（無）** |
+| `wh_container_facility_fee` | `{sea_equipment_management_charge} + {status_charge}` | `0` | **（無）** |
+| `freight` / `docs_fee` / `handling` | — | 1472.31 / 148.46 / 538.88 | **不變** |
+| 列合計 | — | 5,090.17 | **5,090.17** = `total_amount` |
+
+### 🔴 沒有誤傷 —— 部分有值的公式照常計算
+
+比通過驗收更值得記錄的是這個對照：同一批匹配中的 `RIL_RCIM250015_14409`（海運發票）：
+
+```
+wh_container_facility_fee = 178.98
+  ← [FORMULA] sea_equipment_management_charge=null + status_charge=178.98
+```
+
+同一條公式、其中一個來源為 null，**仍算出 178.98**。證明 guard 判的是「**全部**來源皆空」而非「有任一來源為空」，§驗收標準 第 2 項在真實資料上成立。該列合計 4,530.20 = `total_amount`。
+
+> 驗證用的 instance：`cmscxbw060000ksxg5keksbfl`、`cmscxbw7l0003ksxg4ls4itfl`（DRAFT，可刪）。核對工具對三列的判定皆為「未發現徵狀」。
 
 ### ⚠️ 一個既有測試的斷言被更新
 
