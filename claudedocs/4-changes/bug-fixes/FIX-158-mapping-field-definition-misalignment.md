@@ -4,7 +4,7 @@
 > **發現方式**: template instance 逐欄追溯核對（2026-08-03 對 12 個 instance 執行）
 > **影響頁面/功能**: `template_field_mappings` / `field_definition_sets` → 模板實例的欄位值
 > **優先級**: 高（RIL 已實測造成 **1,355.07 金額遺失**；CEVA 為潛伏風險，目前未發作）
-> **狀態**: 📋 規劃中（RIL 修法已由使用者拍板；CEVA 範圍待確認）
+> **狀態**: ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入。**問題一已實機驗證通過**，見 §實機驗證；問題二欄位定義已補上，⏳ 驗收待一張含該些費用的真實 CEVA 發票 —— 目前全庫無實例可驗）
 > **相關**: [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md)（同型的欄位互搶）、[FIX-156](FIX-156-dhl-prompt-omits-subtotal-definition.md)（模型在兩個合法選項間搖擺）、[FIX-128](FIX-128-mapping-source-field-validation.md)（transform 診斷）
 
 ---
@@ -87,39 +87,85 @@ handling_at_origin ← {air_local_charge_usa_origin} + {air_local_charge_in_usa_
 
 **使用者 2026-08-03 確認：這些費用會出現在 CEVA 發票上**，因此應補上欄位定義（而非刪除規則）。
 
-### 🔴 待確認才能執行
+### 三項待確認事項的處置（2026-08-03 定案）
 
-| # | 事項 | 為何阻擋 |
+| # | 事項 | 決定 |
 |---|---|---|
-| 1 | **要補哪一間？** 本地有兩間 CEVA 帶配置 —— `CEVA LOGISTICS (HONG KONG) LTD`（0d02b680，17 欄，引用全部 4 個）與 `CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics）`（7448b7c5，22 欄，引用其中 3 個，未引用 `destination_gate_fee`） | 兩間的 mapping 都有斷鏈，但補錯間等於沒補 |
-| 2 | **aliases 要填什麼？** 發票上這四筆費用實際印的字樣 | aliases 會進 Stage 3 prompt，是模型辨識的依據；留空則只能靠 label 猜（RIL 的問題正是兩個欄位都沒有 aliases） |
-| 3 | 第二間已有 `cfs` 與 `gate_charge` 欄位，再補 `destination_cfs_charges`、`destination_gate_fee` 是否會造成語意重疊 | 這正是問題一的成因 —— 兩個語意相同的欄位會讓模型搖擺 |
+| 1 | **要補哪一間？** 本地有兩間 CEVA 帶配置 | **只補 `CEVA LOGISTICS (HONG KONG) LTD`（0d02b680）**，17 → 21 欄。**不動** `CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics）`（7448b7c5） |
+| 2 | **aliases 要填什麼？** | 依「X at Destination」書寫模式推導。資料佐證：全庫同一筆 THC 存在兩種寫法（×34 / ×6），顯示 forwarder 在同型費用上確有 destination 後綴的慣例 |
+| 3 | 是否造成語意重疊 | 正是**不動第二間**的原因 —— 7448b7c5 已有 `cfs` 與 `gate_charge`，再補 `destination_cfs_charges` / `destination_gate_fee` 會製造出第二組雙胞胎，等於在 CEVA 複製 RIL 的問題 |
 
-第 3 點特別要留意：**補欄位若製造出第二組「語意相同的雙胞胎」，等於在 CEVA 複製 RIL 的問題。**
+實際寫入（`scripts/fix-158-ceva-add-field-definitions.ts`，2026-08-03 06:45 UTC）：
+
+| key | label | aliases |
+|---|---|---|
+| `destination_truck_servicing_fee` | Destination Truck Servicing Fee | `Truck Servicing Fee at Destination` |
+| `emergency_fuel_surcharge` | Emergency Fuel Surcharge | `EBS`、`Emergency Bunker Surcharge`、`Emergency Fuel Surcharge at Destination` |
+| `destination_gate_fee` | Destination Gate Fee | `Gate Fee at Destination`、`Gate Charge at Destination`、`Gate Charge` |
+| `destination_cfs_charges` | Destination CFS Charges | `CFS Charges at Destination`、`CFS Charges`、`Container Freight Station Charge at Destination` |
+
+### ⚠️ 技術債務：後兩者的 aliases 依據薄弱
+
+`destination_gate_fee` 與 `destination_truck_servicing_fee` 的 aliases 是**推導**而非**觀察**得來 —— 全庫 88 份 CEVA 提取結果、33 種行項描述中，這兩類費用**一個實例都沒有**。前兩者尚有旁證（`emergency_fuel_surcharge` 有 DHL 的 `FUEL SURCHARGE` ×34；`destination_cfs_charges` 有 `(SEA) CFS (DEST)`、`CFS CHARGES` 各 ×1），後兩者只有其他 forwarder 的同類欄位可參考。
+
+依 §樣本 ≠ 母體 紀律，**沒有實例不等於不存在**（使用者已確認這些費用會出現），所以照補；但 aliases 用字是否命中真實發票，**必須等一張含該費用的 CEVA 發票才能驗證**。若屆時模型仍抽不到，應以發票原文回填 aliases，而非移除欄位。
 
 ---
 
-## 驗收標準
+## 驗收標準與結果
 
-### 問題一
+### 問題一 —— ✅ 全數通過
 
-1. 規則改為 FORMULA 後，重新匹配 `RIL_RCIM250313_22084`，`handling_at_origin` = 1,355.07
-2. 列合計 = 5,090.17 = `total_amount`
-3. 以模型另一次輸出（填 `air_local_charge_usa_origin`）的提取結果重新匹配，結果**同樣**得到 1,355.07 —— 這才證明兩條路都通
-4. 該公司其他欄位值不受影響
+| # | 判準 | 結果 |
+|---|---|---|
+| 1 | 規則改為 FORMULA 後重新匹配，`handling_at_origin` = 1,355.07 | ✅ |
+| 2 | 列合計 = 5,090.17 = `total_amount` | ✅ |
+| 3 | 以模型**另一次輸出**的提取結果重新匹配，同樣得到 1,355.07 | ✅ 見下方對照 |
+| 4 | 該公司其他欄位值不受影響 | ✅ `freight` 1,472.31 / `docs_fee` 148.46 / `handling` 538.88 皆未變 |
 
-### 問題二
+### 問題二 —— ⏳ 待真實發票
 
-1. 補上欄位定義後重新處理一張含這些費用的 CEVA 發票，`stage3Result.fields` 應出現對應 key
-2. 重新匹配後 `ebs` / `gate_charge` / `cfs` / `handling` 取得數值
-3. 列合計與 `total_amount` 吻合
-4. 既有正確的欄位（`freight`、`thc`、`docs_fee`、`others_local_charge`）數值不變
+| # | 判準 | 結果 |
+|---|---|---|
+| 1 | 重新處理一張含這些費用的 CEVA 發票，`stage3Result.fields` 出現對應 key | ⏳ **全庫無此類發票，無從驗證** |
+| 2 | 重新匹配後 `ebs` / `gate_charge` / `cfs` / `handling` 取得數值 | ⏳ 同上 |
+| 3 | 列合計與 `total_amount` 吻合 | ⏳ 同上 |
+| 4 | 既有正確的欄位數值不變 | ✅ 已驗（重跑 `CEVA_RCIM250325_17865`，四個新欄位皆為 null、未搶走既有費用） |
 
 ---
 
 ## 執行方式
 
 依 §不可逆資料操作紀律，兩項都以三段式 gated 腳本執行（inspect / dryrun / write），五項措施齊備：前置快照、單一交易、數量閘、樂觀鎖（比對 `updated_at`）、冪等。
+
+| 腳本 | 目標 |
+|---|---|
+| `scripts/fix-158-ril-dual-key-formula.ts` | `template_field_mappings` 的 `cmrn8gbe1000101mlw86c4baw`，規則 `1cwj_bz-628yROh9Rzo1t` |
+| `scripts/fix-158-ceva-add-field-definitions.ts` | `field_definition_sets` 的 `f13aaf3b-ec74-4750-8036-a27dbb554792`（17 → 21 欄） |
+
+---
+
+## 實機驗證（2026-08-03，問題一）
+
+驗證的關鍵在於**找到對照組** —— 同一張 PDF `RIL_RCIM250313_22084` 恰好留有兩份提取結果，同一個模型（`gpt-5.6-luna`）卻挑了不同的 key。兩者分開建 instance 匹配（同一 `shipment_number` 放同一 instance 會被併成一列、金額翻倍）：
+
+| 來源文件 | 模型輸出 | 修復前 | 修復後 |
+|---|---|---|---|
+| `a3caa157` | `air_local_charge_usa_origin` = 1355.07 | 🔴 `handling_at_origin` **欄位完全不存在**，列合計短少 1,355.07 | ✅ **1,355.07** |
+| `f2227df7` | `air_local_charge_in_usa_origin_charge` = 1355.07 | ✅ 1,355.07（舊規則恰好命中） | ✅ **1,355.07** |
+
+逐欄追溯的實際輸出：
+
+```
+變體 A:  handling_at_origin = 1355.07
+           ← [FORMULA] air_local_charge_usa_origin=1355.07 + air_local_charge_in_usa_origin_charge=null
+變體 B:  handling_at_origin = 1355.07
+           ← [FORMULA] air_local_charge_usa_origin=null + air_local_charge_in_usa_origin_charge=1355.07
+```
+
+兩列合計皆為 5,090.17 = `total_amount`。核對工具（A–G 七類徵狀）判定「未發現徵狀」。
+
+> 本次同時驗證 [FIX-157](FIX-157-formula-all-null-writes-zero.md)，兩者共用同一批重新匹配。驗證用 instance：`cmscxbw060000ksxg5keksbfl`、`cmscxbw7l0003ksxg4ls4itfl`（DRAFT，可刪）。
 
 ---
 

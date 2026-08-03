@@ -10,7 +10,7 @@
 | CHANGE | 113 | CHANGE-115 | **CHANGE-116** |
 | FIX | 160 | FIX-158 | **FIX-159** |
 
-## 📋 未開始（30）
+## 📋 未開始（29）
 
 > 完全未動工的規劃。
 
@@ -45,7 +45,6 @@
 | [FIX-148](4-changes/bug-fixes/FIX-148-v31-pipeline-discards-routing-decision.md) | v31 pipeline discards routing decision | ⏳ 待實作（使用者 2026-07-31 決定：FIX-147 先以最小範圍繞過，本 FIX 另行評估）。影響評估已於 2026-08-0… |
 | [FIX-152](4-changes/bug-fixes/FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) | dhl multi shipment aggregate amount leak | 📋 規劃中（根因已確認、修復方案待拍板） |
 | [FIX-155](4-changes/bug-fixes/FIX-155-line-item-amount-currency-unstable.md) | line item amount currency unstable | 📋 規劃中 —— 傾向不修（2026-08-02 以 gpt-5.6-luna 重跑 3 次，幣別全部正確且穩定，問題不重現；歷史錯誤資… |
-| [FIX-158](4-changes/bug-fixes/FIX-158-mapping-field-definition-misalignment.md) | mapping field definition misalignment | 📋 規劃中（RIL 修法已由使用者拍板；CEVA 範圍待確認） |
 
 ## 🚧 進行中 / 部分完成（27）
 
@@ -98,7 +97,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（211）
+## ✅ 已完成（212）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -312,5 +311,6 @@
 | [FIX-146](4-changes/bug-fixes/FIX-146-change113-annotations-not-effective-on-azure.md) | change113 annotations not effective on azure | ✅ 已完成（2026-07-30 第三輪部署，五項驗證訊號全部達標） |
 | [FIX-147](4-changes/bug-fixes/FIX-147-stage3-wrapped-line-description-misjoin.md) | stage3 wrapped line description misjoin | ✅ 已完成（2026-07-31 Azure DEV 端到端驗證通過，映像 `dev-fix147r3-20260731130840`） |
 | [FIX-156](4-changes/bug-fixes/FIX-156-dhl-prompt-omits-subtotal-definition.md) | dhl prompt omits subtotal definition | ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；⏳ 待同步 Azure DEV） |
-| [FIX-157](4-changes/bug-fixes/FIX-157-formula-all-null-writes-zero.md) | formula all null writes zero | ✅ 已實作（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / … |
+| [FIX-157](4-changes/bug-fixes/FIX-157-formula-all-null-writes-zero.md) | formula all null writes zero | ✅ 已完成（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / … |
+| [FIX-158](4-changes/bug-fixes/FIX-158-mapping-field-definition-misalignment.md) | mapping field definition misalignment | ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入。問題一已實機驗證通過，見 §實機驗證；問題二欄位定義已補上，⏳… |
 
