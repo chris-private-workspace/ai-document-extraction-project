@@ -330,11 +330,49 @@ export class FormulaTransform implements Transform {
       throw new Error('FORMULA 轉換需要提供 formula 參數');
     }
 
+    // FIX-157：公式引用的變數若全部缺值，回傳 undefined 而非 0。
+    // 呼叫端（template-matching-engine 的 transformFields）只在結果不是 undefined 時
+    // 才寫入該欄位，因此這裡與 DIRECT 行為一致 ——「這張發票沒有這筆費用」留空，
+    // 不會顯示成「這筆費用是 0」。
+    if (!this.hasAnyReferencedValue(formulaParams.formula, context.row)) {
+      return undefined;
+    }
+
     // 替換變數佔位符
     const expression = this.replaceVariables(formulaParams.formula, context.row);
 
     // 安全計算
     return this.safeEval(expression);
+  }
+
+  /**
+   * 判斷公式引用的變數中是否至少有一個具備可用數值
+   *
+   * @description
+   *   FIX-157：全部缺值時 `replaceVariables` 會把每個佔位符換成 '0'，公式因而算出 0，
+   *   使「沒有這筆費用」與「金額為零」無法分辨。此方法讓 execute 能在該情況下回傳
+   *   undefined。只要任一變數有值，仍維持原行為（其餘缺值視為 0 參與計算）。
+   *
+   *   公式若完全不含變數（純常數式），視為有值以保留原行為。
+   *
+   * @param formula - 原始公式
+   * @param row - 整行資料
+   * @returns 至少一個引用變數有可用數值時為 true
+   */
+  private hasAnyReferencedValue(formula: string, row: Record<string, unknown>): boolean {
+    let referenced = 0;
+
+    for (const match of formula.matchAll(VARIABLE_PATTERN)) {
+      referenced++;
+      const value = row[match[1]];
+      if (value === undefined || value === null) continue;
+      // 空字串代表「沒有這筆費用」，不可當作有值 —— Number('') 為 0，會漏掉這一類
+      if (typeof value === 'string' && value.trim() === '') continue;
+      if (Number.isNaN(Number(value))) continue;
+      return true;
+    }
+
+    return referenced === 0;
   }
 
   /**

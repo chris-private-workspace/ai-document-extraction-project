@@ -46,7 +46,7 @@ describe('FIX-128: transformFields 轉換診斷', () => {
     ).transformFields.bind(service)
   })
 
-  it('FORMULA 引用不存在的 key 應記錄診斷，且計算照常完成（未知項為 0）', async () => {
+  it('FORMULA 引用不存在的 key 應記錄診斷，且不寫入該欄位（FIX-157 起）', async () => {
     // SBS 實測：delivery 公式第一項拼錯（多了 _charge）、後兩項該公司沒有
     const sourceFields = { air_delivery_charge_dest: 120.5, shipment_number: 'S001' }
     const mappings = [
@@ -62,7 +62,9 @@ describe('FIX-128: transformFields 轉換診斷', () => {
 
     const { values, unresolvedSourceKeys } = await transformFields(sourceFields, mappings)
 
-    expect(values.delivery).toBe(0) // 三項全空 → 0（既有行為不變）
+    // FIX-157：三項全空 → 不寫入該欄位（原行為寫入 0）。
+    // 與下方 DIRECT 測試一致 ——「沒有這筆費用」留空，不顯示成「這筆費用是 0」。
+    expect(values.delivery).toBeUndefined()
     expect(unresolvedSourceKeys).toEqual({
       delivery: ['air_delivery_charge_dest_charge', 'drayage', 'dryage_charge'],
     })
