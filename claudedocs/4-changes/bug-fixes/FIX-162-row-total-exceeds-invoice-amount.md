@@ -192,13 +192,55 @@ Stage 3 把哪一個放進 `express_worldwide_nondoc` **並不一致**：
 
 ### A 類（RICOH / SBS）—— 需回頭修正 FIX-158
 
-| 選項 | 作法 | 風險 |
-|---|---|---|
-| **A1** | mapping 改為只取其一（回到 FIX-158 之前） | 模型只填另一個 key 時會漏帳 —— 那正是 FIX-158 要解的問題 |
-| **A2** | 公式改為取最大值而非相加 | 需確認 FORMULA 是否支援非加法運算；語意上「同一筆費用取其一」是對的 |
-| **A3** | 合併兩個欄位定義為一個，給完整 aliases | 治本。但屬刪除既有定義，需確認兩者確實指同一筆費用 |
+**全母體模擬**（53 份 RICOH/SBS 文件，兩個 key 同時有值者 5 份）：
 
-**傾向 A2 或 A3**。A3 最徹底 —— 兩個定義都沒有 aliases，模型無從區分，才會兩個都填。但刪定義須格外謹慎：本案的理由不是「現有文件沒這種寫法」（那會違反 §樣本 ≠ 母體），而是「**實測證明兩者承載同一筆費用**」，證據強度不同。
+| 方案 | 完全吻合 | 變好 | 變差 |
+|---|---:|---:|---:|
+| 現行（兩個 key 相加） | 25 | — | — |
+| **A1a** 只取 `air_local_charge_in_usa_origin_charge` | 23 | 5 | **6** |
+| **A1b** 只取 `air_local_charge_usa_origin` | 23 | 5 | **2** |
+| **A2** 取兩者最大值 | 25 | 5 | **0** |
+
+A1a／A1b 都會破壞其他文件 —— 有些發票模型只填了其中一個 key。A1b 破壞的兩份之一正是 `RIL_RCIM250313_22084`，即 [FIX-158](FIX-158-mapping-field-definition-misalignment.md) 當初用來驗證的那份，證實「只填另一個 key」的情況確實存在。
+
+**相加與只取其一都會錯一批；取最大值兩種情況都對。**
+
+#### 🔴 但 A2 技術上不可行
+
+`formula.transform.ts` 的白名單（FIX-072 為消除 RCE 攻擊面而收緊）只允許：
+
+```
+SAFE_FORMULA_PATTERN = /^[\d\s\+\-\*\/\.\(\)]+$/
+```
+
+沒有 MAX 函式，而 `max(a,b)` 無法用純算術表達：兩值相同時 `(a+b)/2` 正確，只有一個有值時就錯。要支援 MAX 得改 transform 引擎 —— 那是架構變更（H1），不在本 FIX 範圍。
+
+#### 剩下 A3：合併欄位定義
+
+| key | label | aliases |
+|---|---|---|
+| `air_local_charge_usa_origin` | `(Air) Local Charge in USA (Origin Charge)` | `[]` |
+| `air_local_charge_in_usa_origin_charge` | `Air local charge in usa origin charge` | `[]` |
+
+發票原文是 `(AIR) LOCAL CHARGE IN USA` / `ORIGIN CHARGE` —— 第一個 label 更貼近。兩者都沒有 aliases，模型無從區分，才會兩個都填。
+
+合併後模型只看得到一個 key，效果等同 A2（零破壞）。
+
+**但有一個連帶條件**：欄位定義只影響**未來**的提取。既有的 `extraction_results` 仍然是兩個 key，若 mapping 同時改成 DIRECT，那 2 份「只填了被移除的 key」的舊文件會變成漏帳。
+
+因此完整方案必須包含**重新提取**：
+
+| 步驟 | 動作 | 影響範圍 |
+|---|---|---|
+| 1 | `field_definition_sets` 合併兩個定義（保留 `air_local_charge_usa_origin`，把另一個的 label 收為 alias） | 影響 Stage 3 prompt |
+| 2 | `template_field_mappings` 的 `handling_at_origin` 改 DIRECT 指向保留的 key | 記錄 `cmrn8gbe1000101mlw86c4baw`，規則 id `1cwj_bz-628yROh9Rzo1t` |
+| 3 | **重新提取** RICOH/SBS 全部文件 | 🔴 會**覆蓋** `extraction_results`（對 document 有唯一約束，系統無處理歷史） |
+
+🔴 第 3 步是不可逆的：覆蓋後，本次驗證所依據的診斷資料就消失了。動手前須確認不再需要現有的提取結果作為證據。
+
+**若不執行第 3 步**，則只能維持現狀（繼續高估那 5 份），或接受改 DIRECT 後那 2 份轉為漏帳 —— 兩者都是已知取捨，不是修好。
+
+> 刪定義本應格外謹慎。本案的依據不是「現有文件沒這種寫法」（那會違反 §樣本 ≠ 母體），而是「**5 份文件實測證明兩者承載同一筆費用，且發票上只有一行**」，證據性質不同。
 
 ### 附帶問題（不在本 FIX 範圍）
 
