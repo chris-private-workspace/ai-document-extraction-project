@@ -74,7 +74,7 @@
 | [FIX-130](4-changes/bug-fixes/FIX-130-existing-config-correction-checklist.md) | existing config correction checklist | 🚧 進行中（2026-07-22 資料修正已寫入 Azure DEV——32 筆、10 組 mapping + 1 組欄位集、冪等驗證通… |
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
 | [FIX-149](4-changes/bug-fixes/FIX-149-dhl-charge-field-mapping.md) | dhl charge field mapping | 🚧 已實作（本機與 Azure DEV 皆已寫入並驗證；既有 instance 列需重新匹配才會套用） |
-| [FIX-150](4-changes/bug-fixes/FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) | nippon charge fields lost mapping slot contention | 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項設定變更皆已寫入本機與 Azure DEV 並回讀確認；🔴 但效果… |
+| [FIX-150](4-changes/bug-fixes/FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) | nippon charge fields lost mapping slot contention | 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項設定變更皆已寫入本機與 Azure DEV 並回讀確認；映射層效果已… |
 
 ## ❓ 狀態無法解析（2）
 

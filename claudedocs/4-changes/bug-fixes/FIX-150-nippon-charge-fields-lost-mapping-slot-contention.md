@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 回測回報「之前修好的問題又出現了」（Nippon Inbound 四項）
 > **影響頁面/功能**: Template Field Mapping、Data Template 欄位定義 → 模板實例欄位值
 > **優先級**: 高（使用者回測受阻；且屬設定回歸，非提取缺陷）
-> **狀態**: 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項**設定變更皆已寫入本機與 Azure DEV 並回讀確認**；🔴 但**效果至今未經任何實例列驗證** —— 2026-08-03 掃描 Azure DEV 89 個 NEX 列，含 `vat` 者為 **0**，因 55 個實例全建於執行日之前、改設定不回溯，見 §驗收現況盤點。Outbound seal fee 待使用者決定）
+> **狀態**: 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項**設定變更皆已寫入本機與 Azure DEV 並回讀確認**；**映射層效果已於 2026-08-04 驗證** —— Azure DEV 對 59 份 NEX 文件跑 `preview`，`vat` **59/59 有值**，見 §映射層驗證。**提取層仍待驗** —— 16 個來源欄位在既有結果全缺，需以新設定重跑一次提取。Outbound seal fee 待使用者決定）
 
 ---
 
@@ -440,7 +440,7 @@ handling_charge  969  → 500
 
 ### 🔴 驗收現況盤點（2026-08-03，Azure DEV 唯讀掃描）
 
-上述七項**至今一項都未達成**，原因不是修錯，而是**沒有任何實例重新匹配過**。
+上述七項在 2026-08-03 當下**一項都未達成**，原因不是修錯，而是**沒有任何實例重新匹配過**。（隔日 2026-08-04 以 `preview` 補驗，映射層已確認生效 —— 見 §映射層驗證。）
 
 掃描 Azure DEV 全部 55 個 `Logistics Cost - Outbound Template (Full List)` 實例、291 列，其中來源檔名為 `NEX_*` 的 89 列：
 
@@ -457,6 +457,40 @@ handling_charge  969  → 500
 > 這正是本文件 §乙、驗證層級落差 記載的同一個陷阱的另一面：那次是「修的是提取層、看的是模板層」，這次是「改的是設定、而模板層尚未重跑」。**設定寫入成功 ≠ 結果正確**，中間隔著一次重新匹配。
 
 **待辦**：挑一個含 `vat_7` 的 NEL Outbound 文件建新實例匹配，比對 §預期數值變化 的三組數字。在那之前，變更 A/C 的實際效果屬**未驗證**。
+
+### ✅ 映射層驗證（2026-08-04，Azure DEV，零寫入）
+
+前一節的「必須建新實例才能驗」**只對了一半**。`POST /api/v1/template-matching/preview` 拿既有提取結果套用**當前**映射規則，且**不寫入任何資料** —— 不必建實例、不必重新處理、不會覆蓋 `extraction_results`，就能驗證映射層。
+
+對 59 份 `NEX_*` 文件執行（`companyId` 指定 NEL `5d5d66c4`、模板 `cmrbhjbl4033101o3n77yg0sh`）：
+
+| 判準 | 結果 |
+|---|---:|
+| 解析到的映射組 | `cms8nudab`（**變更 C 修改的那組**，非 NEHK 的 `4ada6fd6`） |
+| `vat` 有值 | **59 / 59** |
+| `vat_7` 列入 `unresolvedSourceKeys` | 0 |
+| 驗證通過列 | 59 / 59 |
+
+`vat` 金額隨發票變動（364 / 469 / 570.5 / 679 / 784 等），非固定值。**變更 C 的 `vat <- vat_7` 規則在 Azure DEV 確實生效**，這是本 FIX 至今第一份實據。
+
+同一份輸出也順帶佐證了 **FIX-157**：`freight`、`cfs_charge` 等來源全缺的欄位**不出現**在 `fieldValues` 裡，而非寫成 0。
+
+### 提取層的缺口（同一次 preview 揭露）
+
+`unresolvedSourceKeys` 顯示 16 個來源在全部 59 列都取不到：
+
+```
+ocean_freight  nvo_freight  cfs_charge  low_sulphur_surchg  port_security_charge
+o_local_truckage  o_gate_io_or_parking_chg  status_charge  facility_charge
+other_charges  cleaning_container  empty_container_placement
+nehk_do_fee  do_fee  surrender_bl  t_h_c
+```
+
+抽樣列 `document_fee = 1650` 來自公式 `{nehk_do_fee}+{do_fee}+{bl_fee}+{surrender_bl}` 四個來源中**唯一有值**的 `bl_fee` —— 與本文件 §甲 記載的「`bl_fee` 實際承載 70 筆 / 114,000」一致。
+
+關鍵在於這 16 個欄位**全部都在 NEL 欄位定義集裡**（`7a124db2`，21 欄；`vat_7` 為 `standard`，其餘為 `lineItem`）。**設定鏈是完整的**，缺的只是「用新設定重跑一次提取」—— 那 59 份都是設定變更之前提取的。
+
+> ⚠️ 查證時的一個假象：初次對照欄位定義集得到「16 個全部不在定義集」，那是把屬性名猜成 `fieldKey` / `name`（實際是 `key`）造成的空值。修正後是 **16/16 全部都在**，結論完全反轉。與本文件 §判準陷阱 同型 —— **訊號的缺席不等於否定證據**，取不到值時先確認是「真的沒有」還是「讀錯地方」。
 
 ### ⚠️ 掃描時的一個判準陷阱（記錄以免重蹈）
 
