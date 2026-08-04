@@ -1,0 +1,120 @@
+# FIX-160: 已提取的費用沒有任何 mapping 引用 —— 錢抽得到卻進不了 template
+
+> **建立日期**: 2026-08-04
+> **發現方式**: 375 份樣本全覆蓋驗證，12 個 template instance 逐列追溯（[TEST-REPORT-006](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md)）
+> **影響範圍**: `template_field_mappings` → 模板實例列值 → 匯出報表金額
+> **優先級**: 高（實測 17 種費用、約 **24,186** 金額在 262 列中未進入 template）
+> **狀態**: 📋 規劃中（**尚未拍板修法** —— 改 mapping 會影響其他費用的去處，需逐項確認）
+> **相關**: [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md)（欄位互搶）、[FIX-158](FIX-158-mapping-field-definition-misalignment.md)（mapping 與定義不對齊）、[FIX-161](FIX-161-mapping-references-undefined-company-fields.md)（反方向：規則引用取不到的 key）
+
+---
+
+## 問題描述
+
+Stage 3 成功提取出費用並寫入 `extraction_results.stage_3_result`，但該公司的 `template_field_mappings` **沒有任何規則引用該 key**。模板匹配時這筆錢不會被任何 `targetField` 取走，直接從帳上消失。
+
+與 [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) 的差別：FIX-150 是**兩個 key 搶同一個 slot**，這裡是 key **根本沒有 slot**。
+
+---
+
+## 實測清單（262 列中出現）
+
+| 提取到的 key | 次數 | 金額合計 | 出現於 |
+|---|---:|---:|---|
+| `bl_fee` | 6 | **9,600.00** | Nippon Express Logistics / import |
+| `destination_thc_terminal_handling_charge` | 3 | **5,490.55** | CEVA LOGISTICS (HONG KONG) / export |
+| `seal_charge` | 6 | **3,250.00** | Nippon Express Logistics / import |
+| `fuel_surcharge` | 12 | **2,703.97** | RICOH INTERNATIONAL LOGISTICS (HK) / import |
+| `cfs_charge` | 3 | 827.90 | Nippon Express (HK) / export |
+| `do_fee` | 1 | 650.00 | RICOH INTERNATIONAL LOGISTICS (HK) / export |
+| `freight_charges` | 1 | 620.00 | CEVA LOGISTICS (HONG KONG) / export |
+| `parking_charge` | 1 | 250.00 | RICOH INTERNATIONAL LOGISTICS (HK) / export |
+| `destination_cfs_charges` | 1 | 200.00 | CEVA LOGISTICS (HONG KONG) / export |
+| `airline_documentation_charges` | 8 | 120.00 | RICOH INTERNATIONAL LOGISTICS (HK) / import |
+| `tunnel_fee` | 1 | 86.00 | RICOH INTERNATIONAL LOGISTICS (HK) / import |
+| `o_gate_io_or_parking_chg` | 1 | 80.00 | Nippon Express (HK) / export |
+| `destination_gate_fee` | 1 | 80.00 | CEVA LOGISTICS (HONG KONG) / export |
+| `document_fee` | 2 | 70.00 | Toll Global Forwarder / import |
+| `freight_charge` | 1 | 60.00 | Toll Global Forwarder / export |
+| `customs_import_clearance_fee` | 1 | 50.00 | Toll Global Forwarder / import |
+| `airport_terminal_fee_origin` | 2 | 47.82 | Toll Global Forwarder / import |
+| **小計（金額欄位）** | | **24,186.24** | |
+
+### 兩項需排除的誤判
+
+驗證工具的忽略清單只涵蓋 `total_amount` / `subtotal` / `currency` 等，未涵蓋以下非金額欄位，故被誤計入：
+
+| key | 值 | 說明 |
+|---|---:|---|
+| `gross_weight` | 310.00 | 重量，不是金額 |
+| `customer_address` | 63.00 | 地址欄位被填入數字，本身是另一個提取品質問題 |
+
+`customer_address = 63` 值得單獨注意 —— 地址欄位不該是數字，代表 Stage 3 有欄位錯填，但不在本 FIX 範圍。
+
+---
+
+## 對帳影響
+
+53 列的列合計低於發票總額，**短少合計 59,500.72**。本 FIX 的 24,186 是其中可直接歸因的部分，其餘由 [FIX-161](FIX-161-mapping-references-undefined-company-fields.md) 涵蓋。
+
+| instance | 列數 | 短少 |
+|---|---:|---:|
+| Nippon Express (HK) / import | 5 | 14,630.96 |
+| Nippon Express Logistics / import | 6 | 12,850.00 |
+| RICOH INTERNATIONAL LOGISTICS (HK) / import | 17 | 8,647.14 |
+| CEVA LOGISTICS (HONG KONG) / export | 5 | 7,321.88 |
+| RICOH INTERNATIONAL LOGISTICS (HK) / export | 5 | 6,585.18 |
+| Nippon Express (HK) / export | 3 | 5,843.90 |
+| DHL Express / import | 2 | 1,516.69 |
+| Nippon Express Logistics / export | 1 | 810.00 |
+| DHL Express / export | 3 | 708.50 |
+| Toll Global Forwarder / import | 5 | 522.27 |
+| Toll Global Forwarder / export | 1 | 64.20 |
+
+---
+
+## 尚未確認的關鍵問題（修法前必須逐項回答）
+
+每一個 key 都要分辨屬於哪一種，處置完全不同：
+
+| 情況 | 判準 | 處置 |
+|---|---|---|
+| A. 該費用**應該**進表，但漏了規則 | 模板有語意對應的 `targetField` 且目前是空的 | 新增規則 |
+| B. 該費用**已經**由別的 key 進表 | 同一筆錢有另一個 key 已被引用 → 加規則會**重複計費** | 不動 |
+| C. 該費用**不該**進這個模板 | 業務上不屬於該模板的欄位範圍 | 不動，記錄為預期行為 |
+
+🔴 **B 是最危險的情況**。`bl_fee` 在 [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) 已知承載 70 筆 / 114,000，與其他費用 key 有互搶史。貿然新增規則可能造成同一筆錢被計兩次 —— 那正是 [FIX-162](FIX-162-row-total-exceeds-invoice-amount.md) 記錄的另一個方向的問題。
+
+---
+
+## 建議修法（待使用者拍板）
+
+1. 逐一比對每個 key 在該公司模板中**是否已有語意對應的 targetField**，以及該 targetField 目前由哪條規則供給
+2. 屬於情況 A 者，以 gated 腳本（inspect / dryrun / write）新增規則
+3. 每次變更前後跑 `scripts/check-orphan-charge-keys.js` 與 `scripts/snapshot-template-values.js`，確認沒有「欄位由有值變為空白」
+4. 變更後重建 instance 驗證列合計是否收斂
+
+### 變更範圍（🔴 修法確定後須精確指名）
+
+| 項目 | 值 |
+|---|---|
+| 資料表 | `template_field_mappings`（**不是** `data_templates`，後者影響全部共用公司） |
+| 記錄 | 依公司逐筆指名，待修法確定後填入 |
+| 不動 | `field_definition_sets`（樣本 ≠ 母體，不因看似重複而刪定義） |
+
+---
+
+## 驗證方式
+
+```bash
+node scripts/check-orphan-charge-keys.js --save=before.json
+# 變更後
+node scripts/check-orphan-charge-keys.js --baseline=before.json
+```
+
+重建 instance 後以 `verify-instances.js` 確認：目標公司的 [B] 徵狀歸零，且 [E] 合計不符的列數下降。
+
+---
+
+**建立者**: AI 助手
+**最後更新**: 2026-08-04
