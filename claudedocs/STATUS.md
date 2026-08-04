@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 113 | CHANGE-115 | **CHANGE-116** |
-| FIX | 160 | FIX-158 | **FIX-159** |
+| FIX | 165 | FIX-164 | **FIX-165** |
 
-## 📋 未開始（29）
+## 📋 未開始（34）
 
 > 完全未動工的規劃。
 
@@ -45,6 +45,11 @@
 | [FIX-148](4-changes/bug-fixes/FIX-148-v31-pipeline-discards-routing-decision.md) | v31 pipeline discards routing decision | ⏳ 待實作（使用者 2026-07-31 決定：FIX-147 先以最小範圍繞過，本 FIX 另行評估）。影響評估已於 2026-08-0… |
 | [FIX-152](4-changes/bug-fixes/FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) | dhl multi shipment aggregate amount leak | 📋 規劃中（根因已確認、修復方案待拍板） |
 | [FIX-155](4-changes/bug-fixes/FIX-155-line-item-amount-currency-unstable.md) | line item amount currency unstable | 📋 規劃中 —— 傾向不修（2026-08-02 以 gpt-5.6-luna 重跑 3 次，幣別全部正確且穩定，問題不重現；歷史錯誤資… |
+| [FIX-160](4-changes/bug-fixes/FIX-160-template-mapping-unreferenced-extracted-charges.md) | template mapping unreferenced extracted charges | 📋 規劃中（尚未拍板修法 —— 改 mapping 會影響其他費用的去處，需逐項確認） |
+| [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 📋 規劃中 |
+| [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 📋 規劃中 |
+| [FIX-163](4-changes/bug-fixes/FIX-163-refmatch-missing-r-prefix.md) | refmatch missing r prefix | 📋 規劃中 |
+| [FIX-164](4-changes/bug-fixes/FIX-164-companies-without-template-mapping.md) | companies without template mapping | 📋 規劃中 |
 
 ## 🚧 進行中 / 部分完成（23）
 
