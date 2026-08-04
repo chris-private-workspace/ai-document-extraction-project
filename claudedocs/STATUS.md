@@ -47,7 +47,7 @@
 | [FIX-155](4-changes/bug-fixes/FIX-155-line-item-amount-currency-unstable.md) | line item amount currency unstable | 📋 規劃中 —— 傾向不修（2026-08-02 以 gpt-5.6-luna 重跑 3 次，幣別全部正確且穩定，問題不重現；歷史錯誤資… |
 | [FIX-160](4-changes/bug-fixes/FIX-160-template-mapping-unreferenced-extracted-charges.md) | template mapping unreferenced extracted charges | 📋 規劃中（尚未拍板修法 —— 改 mapping 會影響其他費用的去處，需逐項確認） |
 | [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 📋 規劃中 |
-| [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 📋 規劃中 |
+| [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 📋 規劃中（根因已確認並經發票原文證實，見 §根因；修法待拍板 —— 其中一項需回頭修正 [FIX-158](FIX-158-mappi… |
 | [FIX-163](4-changes/bug-fixes/FIX-163-refmatch-missing-r-prefix.md) | refmatch missing r prefix | 📋 規劃中 |
 | [FIX-164](4-changes/bug-fixes/FIX-164-companies-without-template-mapping.md) | companies without template mapping | 📋 規劃中 |
 
