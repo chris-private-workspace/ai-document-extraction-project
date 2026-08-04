@@ -3,7 +3,8 @@
 > **建立日期**: 2026-08-02
 > **變更類型**: 模型切換（同 vendor：Azure OpenAI，換模型版本與資源）
 > **觸發原因**: 使用者要求 —— 新模型 gpt-5.6-luna 價格更便宜
-> **狀態**: ✅ 已實作（本地 `type-check` / `lint` / `test` 453 通過；**實機端到端驗證通過**；⏳ 待部署 Azure DEV）
+> **狀態**: ✅ 已部署 Azure DEV（2026-08-03，映像 `dev-sync20260803b-20260803164326`）。本地 `type-check` / `lint` / `test` 453 通過；**本機實機端到端驗證通過**。⏳ Azure 端尚待真實發票驗證三個 Stage。
+> **🔴 部署時的關鍵前置**（見下方 §Azure DEV 部署）：Azure 原本**沒有** luna 部署，且新 env `AZURE_OPENAI_LUNA_DEPLOYMENT_NAME` 未登記在 `.env.example`，直接部署會整批 404。已於專案自有資源建立 `gpt-5.6-luna-aidocprocessing` 並設定該 env。
 > **相關**: CHANGE-099（模型白名單機制）、CHANGE-100 / CHANGE-102（前兩次模型汰換）、FIX-137（`isReasoningModel` 漏判，本次同型再現）、Epic 23 Story 23.4（per-環節指派）
 
 ---

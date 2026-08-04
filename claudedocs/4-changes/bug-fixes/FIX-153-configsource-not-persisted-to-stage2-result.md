@@ -4,7 +4,7 @@
 > **發現方式**: FIX-148 影響評估時，發現 802 份提取結果的 `stage_2_result` **全部**沒有 `configSource` key
 > **影響範圍**: `src/types/extraction-v3.types.ts`、`src/services/extraction-v3/extraction-v3.service.ts`、`src/services/unified-processor/unified-document-processor.service.ts`
 > **優先級**: 中（不影響金額或提取正確性；但使 FIX-148 的降級條件之一無從評估，也無法事後稽核「這份文件當時用了哪種配置」）
-> **狀態**: ✅ 已實作（2026-08-01，本地 `type-check` / `lint` / `test` 452 通過零回歸；⏳ 待部署 Azure DEV 後以資料驗證）
+> **狀態**: ✅ 已部署 Azure DEV（2026-08-03，映像 `dev-sync20260803b-20260803164326`）。本地 `type-check` / `lint` / `test` 452 通過零回歸。⏳ 待該環境**新處理**的文件累積後以資料驗證 —— 新欄位只寫入部署後的提取，既有 `stage_2_result` 不回填。
 > **相關**: [FIX-148](FIX-148-v31-pipeline-discards-routing-decision.md)（本 FIX 是其「先補資料再評估」路徑的前置）、FIX-092 / FIX-146 / FIX-147 / CHANGE-113（同型的逐層漏接）
 
 ---

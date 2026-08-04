@@ -4,7 +4,7 @@
 > **發現方式**: 使用者 Azure DEV 回測回報「之前修好的問題又出現了」（Nippon Inbound 四項）
 > **影響頁面/功能**: Template Field Mapping、Data Template 欄位定義 → 模板實例欄位值
 > **優先級**: 高（使用者回測受阻；且屬設定回歸，非提取缺陷）
-> **狀態**: 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄皆已完成並驗證；待重新匹配實例驗收，Outbound seal fee 待使用者決定）
+> **狀態**: 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項**設定變更皆已寫入本機與 Azure DEV 並回讀確認**；**映射層效果已於 2026-08-04 驗證** —— Azure DEV 對 59 份 NEX 文件跑 `preview`，`vat` **59/59 有值**，見 §映射層驗證。**提取層仍待驗** —— 16 個來源欄位在既有結果全缺，需以新設定重跑一次提取。Outbound seal fee 待使用者決定）
 
 ---
 
@@ -437,6 +437,79 @@ handling_charge  969  → 500
 - [ ] `NEX_RCEX240692,0692A,0692B_9898.pdf`（Outbound）：`vat` = 469、`handling_charge` = 500
 - [ ] `transform_diagnostics` 中不再出現 `nehk_bl_fee` 缺失
 - [ ] 其他共用公司的既有實例重新匹配後，原有欄位值不變（新增 `vat` 欄為空）
+
+### 🔴 驗收現況盤點（2026-08-03，Azure DEV 唯讀掃描）
+
+上述七項在 2026-08-03 當下**一項都未達成**，原因不是修錯，而是**沒有任何實例重新匹配過**。（隔日 2026-08-04 以 `preview` 補驗，映射層已確認生效 —— 見 §映射層驗證。）
+
+掃描 Azure DEV 全部 55 個 `Logistics Cost - Outbound Template (Full List)` 實例、291 列，其中來源檔名為 `NEX_*` 的 89 列：
+
+| 觀察 | 數字 |
+|---|---:|
+| NEX 列總數 | 89 |
+| 帶新映射獨有欄位（`freight` / `cfs_charge` / `others_local_charge` 等） | 28 |
+| 帶 `telex_release`（NEHK 名下那組獨有） | 5 |
+| 只有兩組共有的欄位，無法判定 | 56 |
+| **含 `vat` 欄位** | **0** |
+
+**`vat` 為 0 是關鍵**：變更 A 已在兩張模板加好 `vat` 欄，變更 C 已在 NEL 映射加好 `vat <- vat_7` 規則（本文件 §執行記錄 皆有回查佐證，2026-08-03 再次以 API 確認 Inbound 46 欄 / Outbound 38 欄、NEL 兩組映射各 14 條含 `vat` 規則）。但 55 個實例**全部建立於 2026-07-31 執行之前**，而改設定不回溯既有實例列 —— 所以修復正確與否，目前**沒有任何一列可以佐證**。
+
+> 這正是本文件 §乙、驗證層級落差 記載的同一個陷阱的另一面：那次是「修的是提取層、看的是模板層」，這次是「改的是設定、而模板層尚未重跑」。**設定寫入成功 ≠ 結果正確**，中間隔著一次重新匹配。
+
+**待辦**：挑一個含 `vat_7` 的 NEL Outbound 文件建新實例匹配，比對 §預期數值變化 的三組數字。在那之前，變更 A/C 的實際效果屬**未驗證**。
+
+### ✅ 映射層驗證（2026-08-04，Azure DEV，零寫入）
+
+前一節的「必須建新實例才能驗」**只對了一半**。`POST /api/v1/template-matching/preview` 拿既有提取結果套用**當前**映射規則，且**不寫入任何資料** —— 不必建實例、不必重新處理、不會覆蓋 `extraction_results`，就能驗證映射層。
+
+對 59 份 `NEX_*` 文件執行（`companyId` 指定 NEL `5d5d66c4`、模板 `cmrbhjbl4033101o3n77yg0sh`）：
+
+| 判準 | 結果 |
+|---|---:|
+| 解析到的映射組 | `cms8nudab`（**變更 C 修改的那組**，非 NEHK 的 `4ada6fd6`） |
+| `vat` 有值 | **59 / 59** |
+| `vat_7` 列入 `unresolvedSourceKeys` | 0 |
+| 驗證通過列 | 59 / 59 |
+
+`vat` 金額隨發票變動（364 / 469 / 570.5 / 679 / 784 等），非固定值。**變更 C 的 `vat <- vat_7` 規則在 Azure DEV 確實生效**，這是本 FIX 至今第一份實據。
+
+同一份輸出也順帶佐證了 **FIX-157**：`freight`、`cfs_charge` 等來源全缺的欄位**不出現**在 `fieldValues` 裡，而非寫成 0。
+
+### 提取層的缺口（同一次 preview 揭露）
+
+`unresolvedSourceKeys` 顯示 16 個來源在全部 59 列都取不到：
+
+```
+ocean_freight  nvo_freight  cfs_charge  low_sulphur_surchg  port_security_charge
+o_local_truckage  o_gate_io_or_parking_chg  status_charge  facility_charge
+other_charges  cleaning_container  empty_container_placement
+nehk_do_fee  do_fee  surrender_bl  t_h_c
+```
+
+抽樣列 `document_fee = 1650` 來自公式 `{nehk_do_fee}+{do_fee}+{bl_fee}+{surrender_bl}` 四個來源中**唯一有值**的 `bl_fee` —— 與本文件 §甲 記載的「`bl_fee` 實際承載 70 筆 / 114,000」一致。
+
+關鍵在於這 16 個欄位**全部都在 NEL 欄位定義集裡**（`7a124db2`，21 欄；`vat_7` 為 `standard`，其餘為 `lineItem`）。**設定鏈是完整的**，缺的只是「用新設定重跑一次提取」—— 那 59 份都是設定變更之前提取的。
+
+> ⚠️ 查證時的一個假象：初次對照欄位定義集得到「16 個全部不在定義集」，那是把屬性名猜成 `fieldKey` / `name`（實際是 `key`）造成的空值。修正後是 **16/16 全部都在**，結論完全反轉。與本文件 §判準陷阱 同型 —— **訊號的缺席不等於否定證據**，取不到值時先確認是「真的沒有」還是「讀錯地方」。
+
+### ⚠️ 掃描時的一個判準陷阱（記錄以免重蹈）
+
+初版掃描用 `telex_release` 當「NEHK 名下那組」的指紋，直接套用到全部 291 列，命中 28 列。**該判準只在那兩組映射之間成立** —— 這張模板由 30 組映射共用，其他公司（實際命中的第一筆是 NINGBO）也會產生該欄位。以來源檔名 `NEX_*` 先篩出 Nippon 的列之後，真實數字是 5 列而非 28。
+
+另：那 5 列全部落在 2026-07-14 建立的兩個測試實例（`NIPPON - import to outbound 5.0 / 6.0`），**早於本 FIX 執行日期**，屬存量而非修復後仍持續發生。
+
+### 關於 NEHK 名下那組 Outbound 映射（`4ada6fd6-…`）
+
+2026-08-03 查證時一度誤判它是「FIX-150 漏改的一組」。**不是** —— 本文件 §C 已明確記載該組屬「NEHK 欄位集無 `vat_7`，FIX-128 同型死 key，本次不處理」，是刻意排除。
+
+另補一項當時未寫明、容易致誤的事實：**該映射的名稱是 `Nippon Express Logistics - …`，但 `companyId` 指向 NEHK**（`7b6a2886-945e-4ea2-8463-0ec6fc2c71c7`，公司名為 `Nippon Express (HK) Co., Ltd.`）。兩組同名、歸屬不同公司，光看名稱無法分辨，極易誤認為「同一組的重複」或「漏改」。
+
+| 映射 id | 名稱 | 實際 companyId | 公司 | 規則數 |
+|---|---|---|---|---:|
+| `cms8nudab000b01p1tkcer6db` | Nippon Express Logistics - …Outbound… | `5d5d66c4` | **NEL**（code=NIPPON） | 14 |
+| `4ada6fd6-cc98-436a-a712-6aa2da2a4c0c` | Nippon Express Logistics - …Outbound… | `7b6a2886` | **NEHK** | 6 |
+
+由於 NEHK 欄位集無 `vat_7`，該組的 `{vat_7}+{handling_charge}` 中 `vat_7` 取不到值，**不會造成 VAT 重複計算**。
 
 ---
 

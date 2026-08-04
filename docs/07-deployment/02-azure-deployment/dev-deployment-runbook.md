@@ -88,12 +88,14 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
   --settings RUN_DEV_DATA_IMPORT=false FORCE_SCHEMA_RESET=false
 ```
 
-**非布林旗標(2 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
+**非布林旗標(4 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
 - `RUN_TEMPLATE_MAPPING_SEED`(三模式 `inspect|dryrun|write`)
+- `RUN_CHANGE113_DHL_SETUP`(三模式 `inspect|dryrun|write`)
+- `RUN_CONFIG_SYNC_20260803`(三模式 `inspect|dryrun|write`,見 §17)
 - `GRANT_GLOBAL_ADMIN_EMAIL`(值是 email)
 ```bash
 az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
-  --setting-names RUN_TEMPLATE_MAPPING_SEED GRANT_GLOBAL_ADMIN_EMAIL
+  --setting-names RUN_TEMPLATE_MAPPING_SEED RUN_CHANGE113_DHL_SETUP RUN_CONFIG_SYNC_20260803 GRANT_GLOBAL_ADMIN_EMAIL
 ```
 > FIX-140 前這 2 個用 `[ -n "$X" ]`(非空即執行),`"false"` 非空故仍觸發 —— 2026-07-28 FIX-139 部署的 log 就出現 `template field mapping seed: mode=false`(當時該設定確實是 `false`)。FIX-140 已改為明確列舉/形狀檢查:值無法辨識時**印出 skip 訊息並跳過**,不再靜默執行。設成 `false` 現在會看到 `... skipped: mode=false not recognised`,**但那仍代表設定沒清乾淨**,請照上方 `delete` 清掉。
 
@@ -364,7 +366,7 @@ failed to compile wasm module: RuntimeError: abort(...re2.wasm)
 
 `MIGRATIONS` **每次執行都全跑**——DDL 全部冪等(`IF NOT EXISTS` / `DO ... EXCEPTION`),已存在的條目照樣回報 `OK` 並計入 `applied`(`apply-schema-drift.js:223-233` 無 skip 分支)。所以**期待數字 = 陣列總條目數**。上方 CHANGE-086 小節的「三筆 / `3 applied`」是 2026-06-22 當時的總數,**現已過時**,照它驗會誤判。
 
-目前共 **21 條**:
+目前共 **22 條**:
 
 | 來源 | 條數 | 內容 |
 |------|------|------|
@@ -374,8 +376,11 @@ failed to compile wasm module: RuntimeError: abort(...re2.wasm)
 | FIX-133 | 2 | 移除無效全表唯一索引 + 建 partial `NULLS NOT DISTINCT` 索引 |
 | CHANGE-109 | 2 | `extraction_results.invoice_number` + 複合索引 |
 | **Epic 23** | **10** | enum `LlmProviderType` + **三張新表** + `llm_models.routing_thresholds` + 3 組索引 + 2 外鍵 |
+| CHANGE-113 | 1 | `data_templates.line_item_mode` |
 
-**期待 log**:21 筆 `[schema-drift] OK ...` + `[schema-drift] done — 21 applied, 0 failed`。**總數對但 `failed > 0` 一樣是問題**——單筆失敗不中斷其餘,必須逐筆看 `ERR`。
+**期待 log**:22 筆 `[schema-drift] OK ...` + `[schema-drift] done — 22 applied, 0 failed`。**總數對但 `failed > 0` 一樣是問題**——單筆失敗不中斷其餘,必須逐筆看 `ERR`。
+
+> 2026-08-03 實測即為 22（本處原記 21，漏了 CHANGE-113 那條）。這正是上方警語說的情況——**加條目時沒回來更新總數，下一個部署者就會拿過時數字去驗**。
 
 > 加新條目時記得同步更新這裡的總數,否則下一個部署者又會拿過時數字去驗。
 
@@ -450,5 +455,60 @@ az cognitiveservices account deployment list -g RG-RAPOSCM-AIDocProcessing-DEV \
 
 ---
 
+## 17. 2026-08-03 批次:模型切換 + 設定同步(`a1eba1e` → `52d2184`,27 個 commit)
+
+### 🔴 `.env.example` diff 這次「查不出」新 env —— §A.0 的檢查失效了
+
+§16 之後訂的預防措施是「部署前 diff `.env.example`」。這次跑該 diff **回傳 0 行**,但 CHANGE-115 **確實引入了新 env `AZURE_OPENAI_LUNA_DEPLOYMENT_NAME`** —— 它加在 `src/lib/constants/llm-models.ts` 的 `deploymentEnvVar`,卻沒同步寫進 `.env.example`。
+
+**教訓**:`.env.example` 是**人工維護**的清單,不是自動生成的。它只在「有人記得更新」時才是權威。改模型白名單時,`deploymentEnvVar` 必須同步登記。
+
+**補強做法**:除了 diff `.env.example`,再 diff `src/lib/constants/llm-models.ts`(或直接 grep 該區間新增的 `process.env.` 讀取):
+```bash
+git diff <線上commit>..<目標commit> -- src/lib/constants/llm-models.ts
+git diff <線上commit>..<目標commit> | grep -n 'deploymentEnvVar\|process\.env\.'
+```
+(`.env.example` 已於本次補上該 env 的條目與後果說明。)
+
+### 🔴 兩邊用的是不同的 Azure OpenAI 資源
+
+CHANGE-115 在**本機**驗證時,`.env` 的 `AZURE_OPENAI_ENDPOINT` 指向 `chris-mj48nnoz-eastus2`(個人資源,**不在專案訂閱內**),該處有 `gpt-5.6-luna` 部署。而 Azure DEV 指向 `aiservices-raposcm-aidocprocessing-dev`,當時只有 5.4 系列兩個部署。
+
+直接部署 = 三個 Stage 全部解析到不存在的部署名 → **整批 `OCR_FAILED`**(§16 重演)。
+
+**處置**(2026-08-03,使用者拍板):在**專案自己的資源**建 luna 部署,而非把線上指到個人資源。
+```bash
+# 先確認該資源/區域提供該模型(勿臆測)
+az cognitiveservices account list-models -g RG-RAPOSCM-AIDocProcessing-DEV \
+  -n aiservices-raposcm-aidocprocessing-dev --query "[?contains(name,'luna')]" -o table
+# 沿用既有部署的規格與命名慣例(GlobalStandard / 250 / <model>-aidocprocessing)
+az cognitiveservices account deployment create -g RG-RAPOSCM-AIDocProcessing-DEV \
+  -n aiservices-raposcm-aidocprocessing-dev --deployment-name gpt-5.6-luna-aidocprocessing \
+  --model-name gpt-5.6-luna --model-version 2026-07-09 --model-format OpenAI \
+  --sku-name GlobalStandard --sku-capacity 250
+az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
+  --settings AZURE_OPENAI_LUNA_DEPLOYMENT_NAME=gpt-5.6-luna-aidocprocessing
+```
+
+### 設定同步(`RUN_CONFIG_SYNC_20260803`)
+
+`prisma/sync-config-20260803.js`,三模式 `inspect|dryrun|write`,五個步驟各自獨立:
+
+| # | 來源 | 目標表 |
+|---|------|--------|
+| 1 | FIX-154 | `prompt_configs` GLOBAL — 移除 description 幣別註記 |
+| 2 | FIX-156 | `prompt_configs` DHL COMPANY — 補 subtotal 定義 |
+| 3 | FIX-158 一 | `template_field_mappings` — RIL `handling_at_origin` 改雙 key FORMULA |
+| 4 | FIX-158 二 | `field_definition_sets` — CEVA LTD 補 4 欄(純 additive) |
+| 5 | CHANGE-115 | `llm_providers` / `llm_models` / `stage_model_assignments` — 切 luna |
+
+**前置**:步驟 5 需 Epic 23 三張表存在 → 同批次設 `RUN_SCHEMA_DRIFT_FIX=true`(見 §14)。表不存在時該步驟自行跳過,不影響其餘四步。
+
+**🔴 不含 FIX-150**(VAT 獨立成欄、NEHK bl_fee alias 收窄)。CLAUDE.md §不可逆資料操作紀律要求改 mapping 前後各跑一次 `scripts/check-orphan-charge-keys.js` + `scripts/snapshot-template-values.js` 對帳,而 **runner 映像不含 `scripts/`** —— 安全網無法在容器內執行。且 FIX-150 本身仍是 🚧 進行中。要送 Azure 需先把那兩支對帳工具也移植進 `prisma/`。
+
+> 這是個通案限制,不只影響 FIX-150:**凡「規範要求先跑對帳才能改」的設定,在移植對帳工具之前都不該送進 Azure**。
+
+---
+
 *維護者: AI 助手 + 開發團隊*
-*最後更新: 2026-07-14*
+*最後更新: 2026-08-03*

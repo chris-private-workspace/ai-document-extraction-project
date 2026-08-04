@@ -142,5 +142,28 @@ case "$RUN_CHANGE113_DHL_SETUP" in
     ;;
 esac
 
+# (選用)2026-08-03 設定同步 —— 由 RUN_CONFIG_SYNC_20260803=inspect|dryrun|write 觸發,非致命。
+# 線上映像 dev-fix147r3(a1eba1e)到 52d2184 之間,有一部分變更**不隨映像走** —— 它們是
+# 資料庫裡的設定:FIX-154 GLOBAL prompt 幣別註記、FIX-156 DHL subtotal 定義、
+# FIX-158 RIL 雙 key 公式與 CEVA 欄位定義、CHANGE-115 LLM 型錄切 luna。
+# 不套用則程式碼雖新、行為仍是舊的。
+# inspect=唯讀印現況;dryrun=印將改什麼不寫入;write=冪等寫入。完成後把旗標**清空**。
+# 🔴 比照 FIX-140:本旗標是「三模式」非布林 —— **關閉方式是清空設定,設成 false 不會關閉**。
+# 有效值須與 prisma/sync-config-20260803.js 的 VALID_MODES 保持一致。
+# 前置:步驟 5(LLM 型錄)需 Epic 23 三張表存在,由 apply-schema-drift.js 建立
+# (RUN_SCHEMA_DRIFT_FIX=true);表不存在時該步驟自行跳過,不影響其餘四步。
+case "$RUN_CONFIG_SYNC_20260803" in
+  inspect|dryrun|write)
+    echo "[entrypoint] (optional) config sync 20260803: mode=$RUN_CONFIG_SYNC_20260803"
+    node prisma/sync-config-20260803.js || echo "[entrypoint] config sync 20260803 failed (non-fatal), continuing"
+    ;;
+  "")
+    : # 未設定 = 關閉(正常情況,不輸出)
+    ;;
+  *)
+    echo "[entrypoint] (optional) config sync 20260803 skipped: mode=$RUN_CONFIG_SYNC_20260803 not recognised (expected inspect|dryrun|write; clear the app setting to disable)"
+    ;;
+esac
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js
