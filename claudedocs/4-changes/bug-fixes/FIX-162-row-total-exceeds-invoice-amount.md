@@ -121,7 +121,7 @@ Analysis of Extra Charges:
 
 `EXPRESS WORLDWIDE NONDOC` 的 14,419.88 **已經包含 Extra Charges**。而「Analysis of Extra Charges」是對這些 extra 的**分解**，不是額外的費用。
 
-mapping 卻寫成：
+mapping 寫成：
 
 ```
 freight ← {express_worldwide_nondoc} + {fuel_surcharge}
@@ -133,25 +133,62 @@ freight ← {express_worldwide_nondoc} + {fuel_surcharge}
 |---|---:|---:|
 | `DHL_RCEX250035,0036_6800` | 3,060.93 | **3,060.93** |
 | `DHL_RCEX250146_09847` | 4,662.63 | **4,662.63** |
-| `DHL_RCEX250212_24745` | 1,574.28 | 需個別確認（不等於單一 fuel_surcharge） |
+| `DHL_RCEX250212_24745` | 1,574.28 | 不等於單一 fuel_surcharge（混合情況） |
 
 與 [FIX-152](FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) 無關 —— 那是多筆併單的合計外洩，本案是彙總與明細重複計入。
+
+#### 🔴 但 mapping 沒有寫錯 —— 錯的是提取不一致
+
+發票該列有**三個數字**：
+
+```
+EXPRESS WORLDWIDE NONDOC   Standard 11,452.95   Extra 2,966.93   Total 14,419.88
+```
+
+Stage 3 把哪一個放進 `express_worldwide_nondoc` **並不一致**：
+
+| 抽到的值 | 份數 | 加 `fuel_surcharge` 之後 |
+|---|---:|---|
+| Standard（不含 extra） | 22 | ✅ 正確 —— 這正是公式要補的 |
+| Total（已含 extra） | 3 | 🔴 重複 |
+
+模擬「移除 `+ {fuel_surcharge}`」對全部 26 份 DHL 文件的影響：
+
+```
+改善 3 份 / 變差 22 份 / 不變 1 份
+```
+
+| 文件 | `total_amount` | 現行列合計 | 移除後 |
+|---|---:|---:|---:|
+| `DHL_RCIM250341_44357` | 24,538.03 | **24,538.03** ✅ | 18,660.10（-5,877.93） |
+| `DHL_RCIM250291_20411` | 25,947.21 | **25,947.21** ✅ | 19,997.85（-5,949.36） |
+| `DHL_RCEX250035,0036_6800` | 14,913.88 | 17,974.81（+3,060.93） | **14,913.88** ✅ |
+
+**移除公式中的 `fuel_surcharge` 會把 22 份原本正確的文件變成漏帳。** 同一個 key 承載了兩種語意，mapping 層無法分辨，因此**改 mapping 解決不了這個問題**。
+
+🔴 這一段是修法**執行前的模擬**擋下來的。若只看那 3 份超出的文件，「移除 fuel_surcharge」看起來完全正確 —— 3 份全部歸零。**修法驗證必須跑全母體，不能只驗出問題的那幾份。**
 
 ---
 
 ## 修法選項（待拍板）
 
-### B 類（DHL）—— 明確、低風險
+### B 類（DHL）—— ❌ 原訂修法已否決
 
-移除 `freight` 公式中的 `+ {fuel_surcharge}`：
+原本計畫移除 `freight` 公式中的 `+ {fuel_surcharge}`，執行前的全母體模擬顯示會**改善 3 份、破壞 22 份**，已放棄。
 
-| 項目 | 值 |
-|---|---|
-| 資料表 | `template_field_mappings` |
-| 記錄 | DHL Express - Logistics Cost - **Outbound** Template (Full List) |
-| 規則 | `freight ← {express_worldwide_nondoc} + {fuel_surcharge}` → `freight ← express_worldwide_nondoc` |
+問題在 Stage 3：同一個 `express_worldwide_nondoc` 有時裝 Standard Charge、有時裝含 extra 的 Total。mapping 層看不到差別，**改 mapping 無法解決**。
 
-⚠️ 動手前須確認 **Inbound** 模板是否有同樣寫法，以及 `fuel_surcharge` 是否為別的 targetField 的唯一來源（移除後會不會變成 [FIX-160](FIX-160-template-mapping-unreferenced-extracted-charges.md) 的漏帳形態）。
+可行方向（皆未執行）：
+
+| 選項 | 作法 | 考量 |
+|---|---|---|
+| **B1** | 欄位定義拆成兩個 key（如 `express_worldwide_nondoc_standard` 與 `_total`），並給明確 aliases | 治本，但要同步改 mapping，且需確認發票版面是否穩定 |
+| **B2** | 在該公司的 Stage 3 prompt 明確指示「取 Standard Charge 欄，不要取 Total」 | 改動小，但 prompt 對模型的約束力需實測 |
+| **B3** | 維持現狀，接受 3/26 的誤差 | 不建議 —— 那 3 份分別高估 3,060.93 / 4,662.63 / 1,574.28 |
+
+兩套模板（Inbound `db4ac18b-…`、Outbound `87b9bffd-…`）**都有**同一條公式，修法時須一併處理。
+
+另註：`DHL_RCIM250268_01010.pdf` 現行列合計為 **0**（發票 159.64 完全沒進 template），屬 [FIX-160](FIX-160-template-mapping-unreferenced-extracted-charges.md) 的漏帳形態，不在本 FIX 範圍。
 
 ### A 類（RICOH / SBS）—— 需回頭修正 FIX-158
 
@@ -183,7 +220,9 @@ freight ← {express_worldwide_nondoc} + {fuel_surcharge}
 
 | 判準 | 說明 |
 |---|---|
+| **修法驗證必須跑全母體，不能只驗出問題的那幾份** | 「移除 fuel_surcharge」對那 3 份是完美解，對其餘 22 份是破壞。執行前的模擬擋下了它 |
 | **一份文件不足以支撐「只會有一個 key 有值」這種假設** | FIX-158 據此選了相加，5 份文件證明兩個 key 會同時有值 |
+| **同一個 key 承載兩種語意時，mapping 層無解** | DHL 的 `express_worldwide_nondoc` 有時含 extra、有時不含，加或不加都會錯一批 |
 | **[F] 徵狀為 0 不代表沒有重複引用** | 驗證工具只檢查 `targetField` 重複，不檢查兩個不同 targetField 引用同一個 sourceField |
 | **超出金額恰等於某個欄位時，優先懷疑「彙總 + 明細」** | DHL 的 fuel surcharge 是 extra charges 的分解，不是額外費用 |
 | **掃描件要轉圖判讀** | 本案兩份關鍵發票，一份無文字層（RIL）、一份有（DHL），都必須看原文才能定案 |
