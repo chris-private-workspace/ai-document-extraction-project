@@ -4,7 +4,7 @@
 > **發現方式**: 375 份樣本全覆蓋驗證，12 個 template instance 逐列追溯（[TEST-REPORT-006](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md)）
 > **影響範圍**: `template_field_mappings` → 模板實例列值 → 匯出報表金額**虛增**
 > **優先級**: 高（9 列超出合計 **20,638.44**，方向與漏帳相反，會高估成本）
-> **狀態**: 📋 規劃中（**根因已確認並經發票原文證實**，見 §根因；修法待拍板 —— 其中一項需回頭修正 [FIX-158](FIX-158-mapping-field-definition-misalignment.md) 的決策）
+> **狀態**: 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；**A 類已執行「合併欄位定義」但刻意不重新提取**，見 §A 類已執行；B 類原訂修法經全母體模擬後**否決**，見 §B 類）
 > **相關**: [FIX-158](FIX-158-mapping-field-definition-misalignment.md)（🔴 其修法的核心假設被本案推翻）、[FIX-152](FIX-152-dhl-multi-shipment-aggregate-amount-leak.md)（DHL 多筆併單的合計外洩）、[FIX-160](FIX-160-template-mapping-unreferenced-extracted-charges.md)（反方向：漏帳）
 
 ---
@@ -241,6 +241,62 @@ SAFE_FORMULA_PATTERN = /^[\d\s\+\-\*\/\.\(\)]+$/
 **若不執行第 3 步**，則只能維持現狀（繼續高估那 5 份），或接受改 DIRECT 後那 2 份轉為漏帳 —— 兩者都是已知取捨，不是修好。
 
 > 刪定義本應格外謹慎。本案的依據不是「現有文件沒這種寫法」（那會違反 §樣本 ≠ 母體），而是「**5 份文件實測證明兩者承載同一筆費用，且發票上只有一行**」，證據性質不同。
+
+---
+
+## A 類已執行（2026-08-04）：只做步驟 1，不重新提取
+
+使用者選擇「讓問題停止擴大且完全可逆」的路徑 —— 合併欄位定義，但**不動 mapping、不重新提取**。
+
+### 變更範圍（🔴 精確指名）
+
+| 項目 | 值 |
+|---|---|
+| 資料表 | `field_definition_sets` |
+| 記錄 | `548326fa-5981-4e1b-9c98-19d0358a32a4`（SBS  INTERNATIONAL LOGISTICS - 自訂費用欄位集） |
+| 變更 | 移除 `air_local_charge_in_usa_origin_charge`；保留 `air_local_charge_usa_origin` 並加入 2 個 aliases |
+| 欄位總數 | 47 → 46 |
+| **不動** | `template_field_mappings` —— 公式維持 `{air_local_charge_usa_origin} + {air_local_charge_in_usa_origin_charge}` |
+| **不動** | `extraction_results` —— 不重新提取 |
+
+新的 aliases：`"Air local charge in usa origin charge"`（被移除者的 label，確保既有寫法仍被辨識）、`"Local Charge in USA"`（發票上的實際寫法）。
+
+腳本：`scripts/fix-162-merge-ricoh-duplicate-field.js`（三段式，五項措施齊備）
+
+### 為什麼刻意不動 mapping
+
+公式保留對兩個 key 的引用是**有意的向後相容**：
+
+| 資料 | 公式行為 |
+|---|---|
+| 未來提取 | 被移除的 key 不再出現 → 公式等於「只取保留的 key」→ 正確 |
+| 既有結果 | 仍帶著兩個 key → 公式照舊取得到值 → 不會突然漏帳 |
+
+若同時把公式改成 DIRECT，那 2 份「只填了被移除 key」的舊文件會立刻轉為漏帳（全母體模擬已量化）。
+
+### 驗證結果
+
+| 檢查 | 結果 |
+|---|---|
+| `snapshot-template-values` diff | **變空 0、值改變 0、變有值 0**，exit 0 —— 既有模板值完全未受影響 |
+| `check-orphan-charge-keys` | RICOH 漏接 3,809.97 → 3,749.97 |
+
+### ⚠️ 一個會誤導的帳面現象
+
+變更後 `check-orphan-charge-keys` 對 RICOH 新增了 **⚠️ 多算 10,329.64** 的標記，合計「多算」從 2,616.87 跳到 12,946.51。
+
+**這不是資料變壞** —— 模板值 diff 全部為 0 已經證實。原因是該腳本「**只計入 `field_definition_sets` 定義的費用欄位**」（見其檔頭註解）：
+
+```
+A = 提取結果中「已定義為費用欄位」且有值的金額總和
+B = 該文件模板實例列上所有數值欄位的總和
+```
+
+移除定義後，既有結果裡 `air_local_charge_in_usa_origin_charge` 的值不再計入 A，但它仍透過公式進入 B → 差額變負 → 標為「多算」。
+
+換句話說，**這個標記正是原本就存在、但先前被隱藏的重複計費**。定義集與既有資料不同步期間都會如此，重新提取後會消失。
+
+🔴 日後看到這個數字時不要誤讀為「合併定義造成了重複計費」——因果相反。
 
 ### 附帶問題（不在本 FIX 範圍）
 
