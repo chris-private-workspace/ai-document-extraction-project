@@ -4,7 +4,7 @@
 > **發現方式**: template instance 逐欄追溯核對（2026-08-03 對 12 個 instance 執行）
 > **影響頁面/功能**: `template_field_mappings` / `field_definition_sets` → 模板實例的欄位值
 > **優先級**: 高（RIL 已實測造成 **1,355.07 金額遺失**；CEVA 為潛伏風險，目前未發作）
-> **狀態**: ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入**本機與 Azure DEV**。**問題一已實機驗證通過**，見 §實機驗證；問題二 ⏳ 驗收待一張含該些費用的真實 CEVA 發票 —— 目前全庫無實例可驗。🔴 **問題二的根因描述經 Azure 實測更正**：該環境一直都有這四個欄位定義，缺的是本機，見 §Azure 實測更正）
+> **狀態**: ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入**本機與 Azure DEV**。**問題一已實機驗證通過**，見 §實機驗證。**問題二已於 2026-08-04 驗證通過** —— 以 375 份樣本第二批在本機重跑，四個欄位全部命中真實發票，推導的 aliases 確實有效，技術債務結清，見 §技術債務已結清。🔴 **問題二的根因描述經 Azure 實測更正**：該環境一直都有這四個欄位定義，缺的是本機，見 §Azure 實測更正）
 > **相關**: [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md)（同型的欄位互搶）、[FIX-156](FIX-156-dhl-prompt-omits-subtotal-definition.md)（模型在兩個合法選項間搖擺）、[FIX-128](FIX-128-mapping-source-field-validation.md)（transform 診斷）
 
 ---
@@ -130,13 +130,35 @@ handling_at_origin ← {air_local_charge_usa_origin} + {air_local_charge_in_usa_
 >
 > 教訓與 [FIX-143](FIX-143-summary-area-vat-field-typed-as-lineitem.md) 同型：**文件寫的「同型問題」是推論，跨環境執行前必須查該環境的實際資料**。若照本文件原本的描述直接在 Azure 新增欄位，會建出四組重複定義 —— 正是問題一（RIL 雙胞胎）的成因。
 
-### ⚠️ 技術債務：後兩者的 aliases 依據薄弱
+### ✅ 技術債務已結清（2026-08-04）：四個欄位全部取得真實實例
 
-`destination_gate_fee` 與 `destination_truck_servicing_fee` 的 aliases 是**推導**而非**觀察**得來 —— 全庫 88 份 CEVA 提取結果、33 種行項描述中，這兩類費用**一個實例都沒有**。前兩者尚有旁證（`emergency_fuel_surcharge` 有 DHL 的 `FUEL SURCHARGE` ×34；`destination_cfs_charges` 有 `(SEA) CFS (DEST)`、`CFS CHARGES` 各 ×1），後兩者只有其他 forwarder 的同類欄位可參考。
+原記錄如下（保留，作為判斷過程的紀錄）：
 
-依 §樣本 ≠ 母體 紀律，**沒有實例不等於不存在**（使用者已確認這些費用會出現），所以照補；但 aliases 用字是否命中真實發票，**必須等一張含該費用的 CEVA 發票才能驗證**。若屆時模型仍抽不到，應以發票原文回填 aliases，而非移除欄位。
+> `destination_gate_fee` 與 `destination_truck_servicing_fee` 的 aliases 是**推導**而非**觀察**得來 —— 全庫 88 份 CEVA 提取結果、33 種行項描述中，這兩類費用**一個實例都沒有**。前兩者尚有旁證（`emergency_fuel_surcharge` 有 DHL 的 `FUEL SURCHARGE` ×34；`destination_cfs_charges` 有 `(SEA) CFS (DEST)`、`CFS CHARGES` 各 ×1），後兩者只有其他 forwarder 的同類欄位可參考。
+>
+> 依 §樣本 ≠ 母體 紀律，**沒有實例不等於不存在**（使用者已確認這些費用會出現），所以照補；但 aliases 用字是否命中真實發票，**必須等一張含該費用的 CEVA 發票才能驗證**。
 
-⚠️ 該推導出的 aliases 現已同時存在於**本機與 Azure DEV**（2026-08-03 同步），所以待驗證的範圍是兩個環境，不只本機。
+**2026-08-04 以使用者提供的 375 份樣本在本機跑第二批（197 份、CEVA 系 46 份有結果），四個欄位全部命中真實發票：**
+
+| 欄位 | 有值份數 | 發票上的實際原文 |
+|---|---:|---|
+| `destination_gate_fee` | 3/46 | `DESTINATION GATE FEE--car park + gate fee`、`GATE CHARGE`、`Gate Fee at Destination` |
+| `destination_cfs_charges` | 2/46 | `DESTINATION CFS CHARGES`、`CFS-Minimum HKD 200.00` |
+| `emergency_fuel_surcharge` | 1/46 | `OTHER SURCHARGE (Emergency Fuel Surcharge)` |
+| `destination_truck_servicing_fee` | 1/46 | `DESTINATION TRUCK SERVICING FEE` |
+
+**推導出來的 aliases 確實命中**，其中兩項值得記錄：
+
+- `Gate Fee at Destination` —— 這正是當初依「X at Destination」書寫模式推導的寫法，真實發票確實這樣印
+- `Gate Charge`、`CFS Charges` 等**無 destination 後綴**的寫法也被接住，證明保留無後綴變體是必要的
+
+最有價值的單一樣本是 `CEVA_RHIM260059_34014.pdf`，一份即命中三個欄位。
+
+> ⚠️ 命中率偏低（1-3/46）是因為這些費用在 CEVA 發票上本就少見，不是 aliases 失準 —— 46 份的 55 種行項描述中，相關關鍵字僅出現 7 筆。母體稀少與 aliases 失效是兩回事，勿混為一談。
+
+> ⚠️ 跨公司觀察：`Gate Fee at Destination` 也出現在 **`NEX_RHIM250096_28812.pdf`**（Nippon，非 CEVA）。同一寫法跨 forwarder 出現，意味這批 aliases 可能對其他公司同樣適用 —— 也可能造成跨公司的欄位競爭（[FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) 的形態）。尚未查證，記錄待辦。
+
+⚠️ 上述驗證僅在**本機**完成。Azure DEV 的 aliases 內容與本機相同（2026-08-03 同步），但該環境未跑這批樣本。
 
 ---
 
@@ -151,14 +173,16 @@ handling_at_origin ← {air_local_charge_usa_origin} + {air_local_charge_in_usa_
 | 3 | 以模型**另一次輸出**的提取結果重新匹配，同樣得到 1,355.07 | ✅ 見下方對照 |
 | 4 | 該公司其他欄位值不受影響 | ✅ `freight` 1,472.31 / `docs_fee` 148.46 / `handling` 538.88 皆未變 |
 
-### 問題二 —— ⏳ 待真實發票
+### 問題二 —— ✅ 本機驗證通過（2026-08-04）
 
 | # | 判準 | 結果 |
 |---|---|---|
-| 1 | 重新處理一張含這些費用的 CEVA 發票，`stage3Result.fields` 出現對應 key | ⏳ **全庫無此類發票，無從驗證** |
-| 2 | 重新匹配後 `ebs` / `gate_charge` / `cfs` / `handling` 取得數值 | ⏳ 同上 |
-| 3 | 列合計與 `total_amount` 吻合 | ⏳ 同上 |
+| 1 | 重新處理一張含這些費用的 CEVA 發票，`stage3Result.fields` 出現對應 key | ✅ 四個欄位皆取得真實值，見 §技術債務已結清 |
+| 2 | 重新匹配後 `ebs` / `gate_charge` / `cfs` / `handling` 取得數值 | ✅ 提取層已確認；模板層尚未建實例比對 |
+| 3 | 列合計與 `total_amount` 吻合 | ⏳ 未查（需建模板實例） |
 | 4 | 既有正確的欄位數值不變 | ✅ 已驗（重跑 `CEVA_RCIM250325_17865`，四個新欄位皆為 null、未搶走既有費用） |
+
+判準 1 的關鍵樣本：`CEVA_RHIM260059_34014.pdf`（一份命中三欄）、`CEVA_RCIM260090_54835.pdf`（EBS）、`CEVA_RHEX250584_51396.pdf`（Gate / CFS 的無後綴寫法）。
 
 ---
 

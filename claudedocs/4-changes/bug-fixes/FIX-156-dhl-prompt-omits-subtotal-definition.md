@@ -4,7 +4,7 @@
 > **發現方式**: FIX-155 盤點 `subtotal` 提取率時發現同一張發票的 `subtotal` 前後不一致；使用者指出根因並非模型隨機性，而是 DHL 發票上沒有這個欄位名稱、prompt 又未指明位置，模型只能猜
 > **影響頁面/功能**: Stage 3 提取 `fields.subtotal` → FIX-151 的對帳基準選擇
 > **優先級**: 中（目前**未造成對帳誤判** —— 這幾張發票的 `total_amount` 恰好等於行項合計，兩種基準結論相同。但含稅發票一旦遇上，基準飄移會直接翻轉對帳結論）
-> **狀態**: ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；**2026-08-03 已同步 Azure DEV**，該環境 version 1→2，以 `prisma/sync-config-20260803.js` 步驟 2 寫入，重跑 inspect 確認「已含 Amount summary 段落」。⏳ Azure 端尚待真實 DHL 發票驗證 `subtotal` 取值）
+> **狀態**: ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；**2026-08-03 已同步 Azure DEV**，該環境 version 1→2，以 `prisma/sync-config-20260803.js` 步驟 2 寫入，重跑 inspect 確認「已含 Amount summary 段落」。**2026-08-04 本機以 26 份 DHL 樣本驗證取值** —— `subtotal` 覆蓋率 **26/26**，且有一份 `subtotal ≠ total_amount` 證明非照抄，見 §取值驗證。⏳ Azure 端仍未以真實發票驗證）
 > **相關**: [FIX-151](FIX-151-reconcile-uses-tax-inclusive-total.md)（對帳基準依賴 `subtotal`）、[CHANGE-113](../feature-changes/CHANGE-113-line-item-mode-group-expand.md)（建立本 prompt 的變更）、[FIX-155](FIX-155-line-item-amount-currency-unstable.md)（本問題的發現脈絡）、[FIX-152](FIX-152-dhl-multi-shipment-aggregate-amount-leak.md)（同一張 DHL 發票的聚合列問題）
 
 ---
@@ -133,6 +133,32 @@ Nippon 名下無 COMPANY prompt，走的是 GLOBAL 那份 —— 本次變更未
 2. 差異的內容是「VAT 是否被當成 line item」。依 [FIX-143](FIX-143-summary-area-vat-field-typed-as-lineitem.md)，`vat_7` 已由 `lineItem` 改為 `standard`（屬摘要區欄位），因此 **8 筆才是正確的**，先前的 9 筆才是異常
 
 `diff` 的「行項變少 = 退步」是啟發式判準，此處為誤判 —— 判準用於**提示人工檢視**，不能當作結論。
+
+---
+
+## 取值驗證（2026-08-04，本機 26 份 DHL 樣本）
+
+2026-08-02 的驗收證明了 prompt 已寫入且同一張發票重跑取值一致，但樣本只有數份。以使用者提供的 375 份樣本在本機分兩批重跑（第一批抽樣 2 份 + 第二批 24 份），DHL 共 **26 份**取得提取結果：
+
+| 判準 | 份數 |
+|---|---:|
+| `subtotal` 有值 | **26 / 26** |
+| 其中 `subtotal` **≠** `total_amount` | **1** |
+| 其中 `subtotal` **=** `total_amount` | 25 |
+
+**覆蓋率 100%** —— prompt 加上 Amount summary 段落後，模型每一份都取得到 `subtotal`，不再出現 FIX-155 記錄的「時有時無」。
+
+**區辨力的唯一實例**：
+
+```
+DHL_RCEX250138_96978.pdf     subtotal = 108.75     total_amount = 299.85
+```
+
+這一份證明 `subtotal` **不是照抄** `total_amount`，模型確實在辨識稅前金額。其餘 25 份兩值相等 —— 若那些發票本就不含稅則屬正常，但也因此**驗不到區辨力**。
+
+> ⚠️ 上述唯一實例的差額為 191.10，佔 total 的 63.7%，遠高於一般稅率。這不像單純的稅前／含稅關係，可能涉及多筆 shipment 的結構（參見 [FIX-152](FIX-152-dhl-multi-shipment-aggregate-amount-leak.md)）。**本文件不對該份的正確性下判斷** —— 它證明的是「`subtotal` 與 `total_amount` 會取到不同值」，不是「這個值算得對」。要確認需人工核對該張發票。
+
+> ⚠️ 樣本偏差：25/26 為 `subtotal = total_amount`，意味 [FIX-151](FIX-151-reconcile-uses-tax-inclusive-total.md) 的對帳基準切換邏輯在這批樣本上**幾乎沒有被實際觸發**。要驗證那條路徑，需要一批確實含 VAT 的 DHL 發票。
 
 ---
 
