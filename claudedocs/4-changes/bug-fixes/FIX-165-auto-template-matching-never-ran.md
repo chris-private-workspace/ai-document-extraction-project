@@ -4,7 +4,7 @@
 > **發現方式**: 使用者質疑「你是否真的像人一樣在平台上傳文件觸發處理流程」，追查後發現先前的驗證走的是手動 API，掩蓋了自動路徑從未運作
 > **影響範圍**: `auto-template-matching.service.ts` → `autoMatch` / `resolveDefaultTemplate`；呼叫端 `documents/upload/route.ts:434`、`document.service.ts:637`、`documents/[id]/process/route.ts:187`
 > **優先級**: 高（提取正常完成，但文件不會進任何模板實例，且無任何錯誤提示）
-> **狀態**: 📋 規劃中
+> **狀態**: 📋 規劃中（2026-08-05 第二次修訂：**初版的統計數字全部作廢**，改以代碼演繹論證，見 §實測資料）
 > **相關**: [CHANGE-037](../feature-changes/CHANGE-037-data-template-flow-completion.md)（建立三層預設模板解析）、[FIX-038](FIX-038-template-matching-formatid-autocomplete.md)（formatId 傳遞修正）、[TEST-REPORT-006](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md)
 
 ---
@@ -35,60 +35,69 @@ if (!resolved) {
 
 ---
 
-## 實測資料（2026-08-05，本機）
+## 實測資料（2026-08-05，本機；第二次修訂）
 
-### 判準
+### 🔴 初版的判準是錯的，整組統計數字作廢
 
-`autoMatch` 成功時會寫 `document.template_instance_id` + `template_matched_at`（第 5 步）。
-手動走 `/api/v1/template-matching/execute` **不寫這兩個欄位**。據此可精確區分兩條路徑。
+初版寫：
 
-### 375 份樣本的自動匹配結果
+> `autoMatch` 成功時會寫 `document.template_instance_id` + `template_matched_at`（第 5 步）。
+> 手動走 `/api/v1/template-matching/execute` **不寫這兩個欄位**。據此可精確區分兩條路徑。
 
-| 結果 | 份數 |
+**這個判準有三重錯誤**，據此得出的「自動匹配成功 9 份 / 未匹配 280 份 / 樣本 375 份 / 覆蓋率 2.4%」**全部作廢**：
+
+| # | 錯誤 | 依據 |
+|---|---|---|
+| 1 | **手動路徑同樣寫這兩個欄位** | `auto-template-matching.service.ts` 有 **3 個**寫入點：`autoMatch`（385 行）、`matchSingle`（452 行）、`batchMatch`（539 行）。判準只排除了 `template-matching/execute`，**沒有排除 `documents/match`（batchMatch）** —— 而初版 §手動 workaround 一節自己就記錄了該路徑「執行後確實寫入 `template_instance_id`」，**前後自相矛盾而未被發現** |
+| 2 | **樣本界定未記錄** | 初版稱「375 份樣本」，但未說明如何界定。現況 `Document` 總數為 **645**，無從重現當時的篩選條件 |
+| 3 | **兩個欄位並不同步** | 實測 `templateInstanceId` 非空 **20** 份，`templateMatchedAt` 非空 **53** 份 —— **33 份不一致**（詳見下方訊號） |
+
+### ✅ 核心結論不需要統計數字 —— 它可以由代碼演繹
+
+自動匹配成功數必然為 **0**，證明如下（三項全部為 2026-08-05 直接查證）：
+
+| 前提 | 實測 |
+|---|---|
+| `resolveDefaultTemplate` 依 FORMAT → COMPANY → GLOBAL 三層解析，全部落空則回傳 `null` | 代碼 `auto-template-matching.service.ts:172-227` |
+| FORMAT 層：`DocumentFormat.defaultTemplateId` | 26 筆，**0 筆有值** |
+| COMPANY 層：`Company.defaultTemplateId` | 54 筆，**0 筆有值** |
+| GLOBAL 層：`SystemConfig` 的全域預設 | key 含 `template` 者共 **0 筆** |
+| 三層皆無**任何寫入路徑**（故不可能被設起來） | 全 `src/` 搜尋 `defaultTemplate`（含 Prisma relation 寫法）：只有 `include` / `select` 讀取、API 回應欄位、UI 顯示，**0 處寫入**；`setGlobalDefaultTemplate` **0 個呼叫者** |
+
+∴ `resolveDefaultTemplate` 對任何文件必然回傳 `null` → `autoMatch` 必然在第 2 步 `return { success: false, error: '沒有配置預設模版' }`。
+
+**這比初版的統計結論更強**：不是「覆蓋率 2.4%」，而是 **0%**。既有的 20 份已匹配文件**全部**來自手動路徑。
+
+（對照：`data_templates` 有 8 個可用模板，含 `Logistics Cost - Inbound / Outbound Template (Full List)`，只是沒有任何一層指向它們。）
+
+### 現況數字（僅供規模參考，不作為缺陷判準）
+
+| 項目 | 份數 |
 |---|---:|
-| ✅ 自動匹配成功 | **9** |
-| 🔴 有提取結果 + 有 companyId，卻未自動匹配 | **280** |
-| 無提取結果（管線更早中止） | 62 |
+| `Document` 總數 | 645 |
+| 　有 `companyId` | 514 |
+| 　有 `templateInstanceId` | **20** |
+| 　🔴 有 `companyId` 但無 `templateInstanceId` | **494** |
+| `extraction_result` 筆數（相異 document） | 623 |
+| `template_instance` 總數 | 152 |
 
-**自動覆蓋率 9 / 375 = 2.4%**。
+依 `status` 分佈：`MAPPING_COMPLETED` 510、`REF_MATCH_FAILED` 108、`OCR_PROCESSING` 13、`OCR_FAILED` 8、`UPLOADED` 6。
 
-未自動匹配的 280 份分佈於全部 7 家有文件的公司，無一例外：
+### 🔴 附帶發現：`templateInstanceId` 與 `templateMatchedAt` 不同步（33 份）
 
-| 公司 | 份數 |
-|---|---:|
-| Nippon Express Logistics | 59 |
-| CEVA LOGISTICS (HONG KONG) LTD | 52 |
-| RICOH INTERNATIONAL LOGISTICS (HK) LTD. | 51 |
-| Toll Global Forwarder Limited | 38 |
-| Nippon Express (HK) Co., Ltd. | 30 |
-| DHL Express | 25 |
-| Toll Global Forwarding (Hong Kong) Ltd | 25 |
-
-### 三層預設模板配置
-
-| 公司 | 文件 | COMPANY 級 | FORMAT 級 |
-|---|---:|---|---|
-| CEVA LOGISTICS (HONG KONG) LTD | 141 | 🔴 未設 | 0/2 |
-| Nippon Express Logistics | 118 | 🔴 未設 | 0/1 |
-| Nippon Express (HK) Co., Ltd. | 66 | 🔴 未設 | 0/1 |
-| RICOH INTERNATIONAL LOGISTICS (HK) LTD. | 54 | 🔴 未設 | 0/1 |
-| Toll Global Forwarder Limited | 51 | 🔴 未設 | 0/1 |
-| DHL Express | 42 | 🔴 未設 | 0/3 |
-| Toll Global Forwarding (Hong Kong) Ltd | 28 | 🔴 未設 | 0/1 |
-| Fairate Express | 11 | 🔴 未設 | 0/1 |
-| UNIT INTERNATIONAL LOGISTICS (HK) LTD. | 1 | 🔴 未設 | 0/1 |
-| CARGO LINK LOGISTICS HK COMPANY LIMITED | 1 | 🔴 未設 | 0/1 |
-
-**10 家公司、11 個格式，`default_template_id` 全部為空。**
-
-GLOBAL 層讀 `SystemConfig` 的 `global_default_template_id`：
+有 `templateMatchedAt` 卻無 `templateInstanceId` 的文件共 **33 份**，最早可追到 2026-06-02。樣本：
 
 ```
-SystemConfig 沒有這一筆
-key 含 "template" 的 SystemConfig 共 0 筆
+2026-06-02T11:11:41  Fairate_HEX260200_03186_signed.pdf   （同檔名 3 份）
+2026-06-26T09:22:02  CEVA_CEX250440_52240.pdf
+2026-06-26T09:22:02  CEVA LOGISTICS_CEX240464_39613.pdf
 ```
 
-而 `data_templates` 有 8 個可用模板（含 `Logistics Cost - Inbound / Outbound Template (Full List)`），只是沒有任何一層指向它們。
+最可能的成因是 **template instance 被刪除時 `templateInstanceId` 被設為 null，而 `templateMatchedAt` 留著**（未查證 schema 的 `onDelete` 行為，屬推論）。
+
+無論成因為何，後果是確定的：**「哪些文件曾經匹配過」已無法從這兩個欄位還原**。這既是初版判準失效的第三重原因，也意味著任何依賴這兩欄做歷史統計的分析都不可靠。
+
+⚠️ 這是本次查證才發現的訊號，先前完全未注意到。是否另立 FIX 待定 —— 需先查明 `onDelete` 行為再判斷是缺陷還是預期行為。
 
 ---
 
@@ -115,7 +124,7 @@ key 含 "template" 的 SystemConfig 共 0 筆
 
 > 這也回答了初版列的待確認 §1。至於「同一家公司 Inbound / Outbound 兩個方向、而三層沒有方向維度」的推論仍然成立，且因為連寫入路徑都沒有，該推論目前無法用實測驗證。
 
-### 層面 B：失敗完全無聲（本 FIX 的核心）
+### 層面 B：失敗在**主要路徑**上無聲（本 FIX 的核心）
 
 `autoMatch` 失敗時**回傳物件、不 throw**：
 
@@ -123,19 +132,21 @@ key 含 "template" 的 SystemConfig 共 0 筆
 return { success: false, error: '沒有配置預設模版' };
 ```
 
-而呼叫端不檢查回傳值：
+🔴 **初版寫「失敗完全無聲」，定性過強**。2026-08-05 逐一讀完三個呼叫端後修正如下：
 
-```ts
-if (result.success && result.companyId) {
-  await autoTemplateMatchingService.autoMatch(doc.id)   // ← 回傳值被丟棄
-}
-```
+| 呼叫端 | 觸發時機 | 是否記錄失敗 |
+|---|---|---|
+| `documents/upload/route.ts:435` | **使用者上傳**（主要路徑） | 🔴 **否** —— `await autoMatch(doc.id)` 回傳值直接丟棄 |
+| `document.service.ts:638` | 重試處理 | 🔴 **否** —— `.catch()` 只接 rejection，接不到 `{success:false}` |
+| `documents/[id]/process/route.ts:187-197` | 手動觸發處理 | ✅ **是** —— `.then()` 檢查 `matchResult.success`，`else` 分支寫 `console.log('[Process] Auto-match skipped for ${id}: ${error}')` |
 
-外層只有 `runInBatches(...).catch()`，而 `autoMatch` 不 throw，所以那個 catch 永遠不會觸發。
+第三個呼叫端**已經做對了**，初版漏看。這反而強化了修法建議：**B1 不是要發明新機制，是把 `process` 路徑既有的寫法補到另外兩處**。
 
-**結果：280 份文件靜默地沒有進模板，資料庫、日誌、UI 都沒有任何痕跡。** 這個狀態可以無限期存在而無人察覺。
+至於 upload 路徑，外層只有 `runInBatches(...).catch()`，而 `autoMatch` 不 throw，所以那個 catch 永遠不會觸發。
 
-`document.service.ts:637` 的重試路徑同樣如此（`.catch()` 只接 rejection，接不到 `{success:false}`）。
+**結果：透過上傳進來的文件靜默地沒有進模板，資料庫與 UI 沒有任何痕跡。** 這個狀態可以無限期存在而無人察覺 —— 而上傳正是使用者的主要入口，所以實務影響未因這項修正而減輕。
+
+⚠️ 即使是 `process` 路徑，`console.log` 也只進伺服器日誌，**使用者在介面上仍然看不到**。三條路徑對使用者而言都是無聲的。
 
 ---
 
@@ -148,6 +159,15 @@ if (result.success && result.companyId) {
 **那個數字本身就是本缺陷的徵狀**，當時被讀成「覆蓋率低，需要補」，於是用手動 API（`POST /api/v1/template-instances` + `POST /api/v1/template-matching/execute`，自行指定 `templateInstanceId` 與 `options.companyId`）建了 13 個實例、把覆蓋率做到 262 份。
 
 手動路徑**繞過了** `resolveDefaultTemplate`，因此完全掩蓋了三層皆空這件事。TEST-REPORT-006 報告的 69.9%（後續重算為 75.2%）是**手動達成的**，不是系統自動達成的。
+
+⚠️ **兩種「覆蓋率」的口徑不同，不可對照相減**：
+
+| 口徑 | 資料來源 | 現況 |
+|---|---|---|
+| 進了模板**實例列** | `TemplateInstanceRow.sourceDocumentIds` | TEST-REPORT-006 記 262 份 |
+| `Document` 上有**實例關聯** | `Document.templateInstanceId` | 20 份 |
+
+差異來自 `POST /api/v1/template-matching/execute` **只建實例列、不回寫 `Document`**（這正是初版判準的立論基礎，也是它唯一成立的部分）。兩個數字並不矛盾，但**任何跨兩者的比較都是無效的**。
 
 🔴 **判準**：把「系統沒做到的事」當成「我該幫它做的事」，會讓補位動作蓋掉缺陷本身。驗證覆蓋率時必須區分「系統自動達成」與「驗證者手動達成」，並以前者為準。
 
@@ -210,7 +230,21 @@ POST /api/v1/documents/match                          → 200
 
 走的是 **`/api/v1/documents/match`（batchMatch）**，不經 `resolveDefaultTemplate`，執行後確實寫入 `template_instance_id`（實測 `cmsfhl95z008rx0xge301bcc3`，instance 名「Batch Match 2026-08-05」）。
 
-因此原待確認 §2「那 9 份是怎麼成功的」有了合理解釋：**很可能就是有人用這個手動流程做的**。既有 138 個非驗證用 instance 中，`CEVA_RCIM250325_17865`、`nippon outbound instance 20260803 1212pm` 等命名也支持這個推論（仍非直接證據）。
+因此原待確認 §2「已匹配的那些是怎麼成功的」有了確定答案：**全部是手動做的**（§實測資料 的演繹已排除自動路徑的可能）。
+
+2026-08-05 查證這 20 份文件涉及的 13 個 template instance，名稱**全部呈現人手命名的形態**：
+
+```
+CHANGE-113 GROUP 驗證 DHL 28699          ← 驗證用
+TOLL inbound instance test 20260803 1055am   ← 含 "test" + 人工時間戳
+RIL_RCIM test instance 20260803 1057am
+nippon outbound instance 20260803 1212pm
+NEX_RCIM250001_202.SIGNED..pdf - 20260802 - 6:42pm   ← 直接用檔名
+CEVA_RCIM250325_17865
+Batch Match 2026-08-05                    ← 本次 UI 實測產生
+```
+
+`autoMatch` 走的是 `getOrCreateInstance(resolved.templateId)`，不會產生「test」、「1055am」、「驗證」這類名稱。**命名形態與演繹結論一致**。
 
 三點使用性問題：
 
@@ -232,11 +266,13 @@ POST /api/v1/documents/match                          → 200
 
 | 選項 | 作法 | 影響 |
 |---|---|---|
-| **B1** | 呼叫端檢查 `autoMatch` 回傳值，失敗時 `logger.warn` 並記錄 documentId + error | 最小改動，讓問題說出名字。不改變任何行為 |
+| **B1** | 把 `process/route.ts:188-197` **既有的**寫法（檢查 `matchResult.success`，失敗時記錄 documentId + error）補到 `upload/route.ts:435` 與 `document.service.ts:638` | 最小改動，讓問題說出名字。不改變任何行為。**有現成範本可抄，不需設計新機制** |
 | B2 | 在 `document` 或處理階段記錄「未匹配原因」，UI 可見 | 使用者能自己看到，但需要 schema 或 UI 變更 |
 | B3 | `autoMatch` 改為 throw | 會讓上傳流程的錯誤處理路徑改變，風險較高 |
 
 **建議 B1**：本專案已有「靜默失效先讓它說出名字再修」的判準。先加日誌，重新上傳一份即可確認因果，再決定要不要做 B2。
+
+⚠️ B1 只讓失敗進入**伺服器日誌**，使用者在介面上仍看不到。要讓使用者看見必須做 B2 或 A0 補強項 1（列表加匹配狀態欄）。
 
 ### 層面 A（三層無寫入路徑）
 
@@ -275,6 +311,12 @@ UI 實測後，原本的 A1–A3 都不再是「去設定一下」就能做的 �
 
 ⚠️ 不可只看「有沒有進 instance」——**進錯模板比沒進更難發現**。
 
+🔴 **不可用 `templateInstanceId` / `templateMatchedAt` 的計數作為驗收指標**。理由見 §實測資料：
+- 兩個欄位在既有資料中已不同步（33 份）
+- 手動與自動路徑寫入同樣的欄位，計數無法區分二者
+
+驗收必須改用**可歸因的訊號**：例如在 `autoMatch` 的成功路徑寫入一個可辨識的來源標記，或直接以日誌中的 `[Process] Auto-match success` 計數。**這是初版最大的方法錯誤，不可重蹈。**
+
 ---
 
 ## 本次 UI 實測產生的資料（需清理）
@@ -290,4 +332,4 @@ UI 實測後，原本的 A1–A3 都不再是「去設定一下」就能做的 �
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-05
+**最後更新**: 2026-08-05（第二次修訂：判準失效、統計數字作廢、改採代碼演繹；修正「完全無聲」定性；新增欄位不同步訊號）
