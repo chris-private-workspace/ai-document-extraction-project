@@ -4,7 +4,7 @@
 > **發現方式**: 追查 `vat_7` 是否被 mapping 引用（起於 [TEST-REPORT-006 §8.5](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md) 的盲讀副帶發現）
 > **影響範圍**: `template_field_mappings` 中 8 條啟用規則 → 模板實例列值 → 匯出報表的成本欄位
 > **優先級**: 中（金額規模小，但**欄位名與內容不符**會讓報表被誤讀，且各公司口徑不一致無法橫向比較）
-> **狀態**: 📋 規劃中（**待業務拍板** —— 這不是技術缺陷，是口徑問題）
+> **狀態**: 📋 規劃中（待一句業務確認 —— **不是要業務設計口徑，是要確認「6 家沒照模板既有設計走」是否為刻意**，見 §模板本來就有 vat 欄）
 > **相關**: [FIX-160](FIX-160-template-mapping-unreferenced-extracted-charges.md)（費用無 mapping 引用）、[FIX-161](FIX-161-mapping-references-undefined-company-fields.md)（規則引用不存在的 key）、[FIX-166](FIX-166-vat-extracted-as-line-item-charge.md)（稅額被抽成明細列，**提取層**的問題，與本 FIX 不同層）
 
 ---
@@ -65,6 +65,44 @@ TOLL_RCIM250334_77227   handling = 355.76  其中稅額 15.79（4%）
 
 ---
 
+## 🔑 模板本來就有 `vat` 欄 —— 這不是設計缺口，是 6 家沒照設計走
+
+2026-08-05 追查這 8 條規則的來源時發現的關鍵事實：
+
+| 模板 | 欄數 | 稅額欄 | handling 欄 |
+|---|---:|---|---|
+| Logistics Cost - **Inbound** Template (Full List) | 46 | **`vat`** | `yard_handling`, `handling`, `handling_at_origin` |
+| Logistics Cost - **Outbound** Template (Full List) | 38 | **`vat`** | `handling_charge` |
+
+**兩個模板都設計了獨立的 `vat` 欄。** 但只有 Nippon Express Logistics 的兩條規則在用它 —— 其餘 6 家把稅塞進 handling，那個 `vat` 欄就空著。
+
+（另兩個較舊的 GLOBAL 模板 `Logistics Cost - Inobund Template` / `Outbound Template` 沒有稅額欄，但本 FIX 涉及的 8 條規則全部指向 Full List 版本。）
+
+### 規則來源：全部由 `dev-user-1` 陸續配置，無業務簽核痕跡
+
+| 建立日期 | 公司 / 模板 | 方式 |
+|---|---|---|
+| 2026-07-09 | DSV（Outbound） | 併入 handling |
+| 2026-07-09 | Nippon Express (HK)（Outbound） | 併入 handling |
+| 2026-07-09 | **Nippon Express Logistics（Inbound）** | **獨立成欄** |
+| 2026-07-09 | Toll（Outbound） | 併入 handling |
+| 2026-07-09 | Toll（Inbound） | 併入 handling |
+| 2026-07-23 | CEVA（Inbound） | 併入 handling |
+| 2026-07-28 | DSV（Inbound） | 併入 handling |
+| 2026-07-31 | **Nippon Express Logistics（Outbound）** | **獨立成欄** |
+
+同一天（07-09）建立的 5 條裡就有兩種做法並存，且每個 mapping 中**引用稅額的都只有 1 條規則**（其餘 6–16 條與稅無關）。這比較像逐家配置時各自處理，而非依循某個共同的會計口徑決定。
+
+### 🔴 因此本 FIX 的定性要修正
+
+初版寫「這是業務口徑問題，需業務拍板」。**證據顯示模板設計已經給了答案** —— 設計者規劃了 `vat` 欄，意圖就是讓稅獨立列出。6 家沒用它，更可能是配置偏差而非刻意選擇。
+
+問題因此從「要不要改設計」降級為「**要不要讓 6 家對齊模板既有的設計**」。
+
+⚠️ 但仍不可由技術端逕行修改 —— 模板有欄不等於一定要填。需要一句確認（見下方 §需要業務回答的一句話）。
+
+---
+
 ## 🔴 判準修正記錄：一個不成立的「無去處」
 
 追查過程中兩度誤判，兩次都是**檢查本身有缺陷**而非資料有問題：
@@ -80,26 +118,38 @@ TOLL_RCIM250334_77227   handling = 355.76  其中稅額 15.79（4%）
 
 ---
 
-## 待業務拍板的問題
+## 需要業務回答的一句話
 
-這不是程式缺陷 —— 每條規則都按設定正確執行了。要決定的是**口徑**：
+> Logistics Cost 模板裡有一個 `vat` 欄，目前只有 Nippon Express Logistics 的資料會填進去。Toll、DSV、CEVA、Nippon Express (HK) 這四家的稅被加進了 handling 欄。**請問稅應該填進 `vat` 欄，還是刻意要留在 handling 裡？**
 
-| # | 問題 | 影響 |
+兩種答案的後續完全不同：
+
+| 答案 | 性質 | 後續 |
 |---|---|---|
-| 1 | 稅額應獨立成 `vat` 欄，還是併入 handling 成本？ | 決定要改哪一邊：把 B 改成 A，或把 A 改成 B |
-| 2 | 若併入，欄位名為 `handling` 而內容含稅是否可接受？ | 若不可接受，需要新的 targetField（如 `handling_incl_tax`） |
-| 3 | 各公司口徑是否必須一致？ | 若報表要跨公司比較 handling 成本，不一致就不可比 |
-| 4 | 13 列「handling 100% 是稅」是否應顯示為 0 + 稅另計？ | 目前的顯示會讓人誤以為收了手續費 |
+| **填進 `vat` 欄** | 配置修正，非設計變更 | 技術端可直接執行（三段式 gated 腳本），無需再等 |
+| **刻意留在 handling** | 確認為現行口徑 | 需追問：那 Nippon 為何不同？是否該把 Nippon 也改成併入？ |
+
+### 具體差異（實測資料）
+
+| 檔案 | 現況 | 若改為獨立成欄 |
+|---|---|---|
+| `TOLL_RCIM250334_77227` | `handling` = 355.76 | `handling` = 339.97　`vat` = 15.79 |
+| `TOLL_RHIM260037_78679` | `handling` = **22.31** | `handling` = **0**　`vat` = 22.31 |
+| `NEX_RCIM250001_202` | `vat` = 1,617 | （不變，已是此形態） |
+
+第二列最極端：報表顯示「手續費 22.31」，實際手續費是 0。
+
+### 影響的三個層面
+
+1. **跨公司不可比** —— 問「哪家 forwarder 手續費較貴」時，Nippon 的數字不含稅、其餘四家含稅，直接比較是錯的
+2. **稅務處理** —— VAT 在多數地區可退抵或另行申報，混進成本欄後無法分離
+3. **報表誤讀** —— 見上表第二列
 
 ### 我的建議
 
-**傾向統一為方式 A（稅額獨立成 `vat` 欄）**，理由：
+**統一為方式 A（填進 `vat` 欄）**：模板設計已預留該欄、Nippon 已在使用、「handling 100% 是稅」的顯示問題會自然消失。
 
-- 稅額在會計上與服務費性質不同，混入成本欄會妨礙後續的稅務處理
-- 模板已有 `vat` 這個 targetField（Nippon 在用），不需新增欄位
-- 「handling 100% 是稅」這種顯示只會出現在方式 B，統一為 A 即自然消失
-
-但這牽涉 6 家公司的既有報表口徑，**不應由技術端單方決定**。
+但仍需上述那句確認才動手 —— 模板有欄不等於一定要填，且此變更會改變 4 家公司既有報表的欄位分佈。
 
 ---
 
@@ -137,4 +187,4 @@ node scripts/snapshot-template-values.js diff before.json after.json
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-05
+**最後更新**: 2026-08-05（新增 §模板本來就有 vat 欄 —— 定性由「業務設計口徑」修正為「6 家未照模板既有設計配置」；待確認的問題收斂為一句）

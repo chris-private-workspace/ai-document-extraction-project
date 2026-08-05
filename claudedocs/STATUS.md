@@ -52,7 +52,7 @@
 | [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中 |
 | [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（發生率未量化，見 §待量化） |
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（發生率未量化，見 §待量化） |
-| [FIX-168](4-changes/bug-fixes/FIX-168-vat-mapping-inconsistent-across-companies.md) | vat mapping inconsistent across companies | 📋 規劃中（待業務拍板 —— 這不是技術缺陷，是口徑問題） |
+| [FIX-168](4-changes/bug-fixes/FIX-168-vat-mapping-inconsistent-across-companies.md) | vat mapping inconsistent across companies | 📋 規劃中（待一句業務確認 —— 不是要業務設計口徑，是要確認「6 家沒照模板既有設計走」是否為刻意，見 §模板本來就有 vat 欄） |
 
 ## 🚧 進行中 / 部分完成（25）
 
