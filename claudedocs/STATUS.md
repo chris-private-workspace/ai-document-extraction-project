@@ -7,10 +7,10 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 113 | CHANGE-115 | **CHANGE-116** |
-| FIX | 165 | FIX-164 | **FIX-165** |
+| CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
+| FIX | 166 | FIX-165 | **FIX-166** |
 
-## 📋 未開始（34）
+## 📋 未開始（36）
 
 > 完全未動工的規劃。
 
@@ -38,6 +38,7 @@
 | [CHANGE-080](4-changes/feature-changes/CHANGE-080-python-services-auth-rate-limit.md) | python services auth rate limit | ⏳ 待實作（H1 架構，用戶暫未 approve，需先確認部署網路拓撲） |
 | [CHANGE-102](4-changes/feature-changes/CHANGE-102-cleanup-legacy-llm-models-stage-config-rename.md) | cleanup legacy llm models stage config rename | ⏳ 待實作 |
 | [CHANGE-114](4-changes/feature-changes/CHANGE-114-extraction-result-version-history-and-file-hash.md) | extraction result version history and file hash | ⏳ 待實作 |
+| [CHANGE-116](4-changes/feature-changes/CHANGE-116-upload-client-side-batching.md) | upload client side batching | 📋 規劃中 |
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
@@ -50,6 +51,7 @@
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 📋 規劃中 |
 | [FIX-163](4-changes/bug-fixes/FIX-163-refmatch-missing-r-prefix.md) | refmatch missing r prefix | 📋 規劃中 |
 | [FIX-164](4-changes/bug-fixes/FIX-164-companies-without-template-mapping.md) | companies without template mapping | 📋 規劃中 |
+| [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中 |
 
 ## 🚧 進行中 / 部分完成（23）
 
