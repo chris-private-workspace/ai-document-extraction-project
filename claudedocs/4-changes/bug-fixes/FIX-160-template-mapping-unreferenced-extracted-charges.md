@@ -53,6 +53,19 @@ Stage 3 成功提取出費用並寫入 `extraction_results.stage_3_result`，但
 
 ---
 
+### 查證後排除：稅額（`vat` / `vat_7`）不屬於本 FIX
+
+2026-08-05 曾懷疑稅額也是「提取到卻無 mapping 引用」的一員，查證後**不成立**：
+
+- 8 條啟用中的規則有引用稅額 key（Nippon 以 `vat_7 → vat` DIRECT，其餘 6 家併入 handling 的 FORMULA）
+- 依各 formula 實際引用的 key 逐條重算 844 列，**稅額去向不明 = 0 筆**
+
+最初判定的「25 列無去處」是**判準缺陷**：該檢查用「row 的 handling 欄 = **同名**提取值 + 稅額」比對，但 formula 的 sourceField 與 targetField 不同名且另有他項。
+
+稅額真正的問題是**各公司口徑不一致**，已另立 [FIX-168](FIX-168-vat-mapping-inconsistent-across-companies.md)。
+
+---
+
 ## 對帳影響
 
 53 列的列合計低於發票總額，**短少合計 59,500.72**。本 FIX 的 24,186 是其中可直接歸因的部分，其餘由 [FIX-161](FIX-161-mapping-references-undefined-company-fields.md) 涵蓋。
@@ -117,4 +130,4 @@ node scripts/check-orphan-charge-keys.js --baseline=before.json
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-04
+**最後更新**: 2026-08-05（新增 §查證後排除：稅額不屬於本 FIX，已另立 FIX-168）

@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
-| FIX | 166 | FIX-165 | **FIX-166** |
+| FIX | 169 | FIX-168 | **FIX-169** |
 
-## 📋 未開始（34）
+## 📋 未開始（37）
 
 > 完全未動工的規劃。
 
@@ -50,6 +50,9 @@
 | [FIX-163](4-changes/bug-fixes/FIX-163-refmatch-missing-r-prefix.md) | refmatch missing r prefix | 📋 規劃中 |
 | [FIX-164](4-changes/bug-fixes/FIX-164-companies-without-template-mapping.md) | companies without template mapping | 📋 規劃中 |
 | [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中 |
+| [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（發生率未量化，見 §待量化） |
+| [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（發生率未量化，見 §待量化） |
+| [FIX-168](4-changes/bug-fixes/FIX-168-vat-mapping-inconsistent-across-companies.md) | vat mapping inconsistent across companies | 📋 規劃中（待業務拍板 —— 這不是技術缺陷，是口徑問題） |
 
 ## 🚧 進行中 / 部分完成（25）
 
