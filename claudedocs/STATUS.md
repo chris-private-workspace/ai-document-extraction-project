@@ -10,7 +10,7 @@
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
 | FIX | 169 | FIX-168 | **FIX-169** |
 
-## 📋 未開始（37）
+## 📋 未開始（36）
 
 > 完全未動工的規劃。
 
@@ -52,7 +52,6 @@
 | [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中 |
 | [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（發生率未量化，見 §待量化） |
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（發生率未量化，見 §待量化） |
-| [FIX-168](4-changes/bug-fixes/FIX-168-vat-mapping-inconsistent-across-companies.md) | vat mapping inconsistent across companies | 📋 規劃中（待一句業務確認 —— 不是要業務設計口徑，是要確認「6 家沒照模板既有設計走」是否為刻意，見 §模板本來就有 vat 欄） |
 
 ## 🚧 進行中 / 部分完成（25）
 
@@ -103,7 +102,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（216）
+## ✅ 已完成（217）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -323,4 +322,5 @@
 | [FIX-156](4-changes/bug-fixes/FIX-156-dhl-prompt-omits-subtotal-definition.md) | dhl prompt omits subtotal definition | ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；2026-08-03 已同步 Azure… |
 | [FIX-157](4-changes/bug-fixes/FIX-157-formula-all-null-writes-zero.md) | formula all null writes zero | ✅ 已完成（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / … |
 | [FIX-158](4-changes/bug-fixes/FIX-158-mapping-field-definition-misalignment.md) | mapping field definition misalignment | ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入本機與 Azure DEV。問題一已實機驗證通過，見 §實機驗證… |
+| [FIX-168](4-changes/bug-fixes/FIX-168-vat-mapping-inconsistent-across-companies.md) | vat mapping inconsistent across companies | ✅ 已結案（2026-08-05 決定維持現狀、不修改任何 mapping —— 見 §結案決定與保留的已知影響） |
 
