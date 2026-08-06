@@ -75,7 +75,7 @@
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
 | [FIX-149](4-changes/bug-fixes/FIX-149-dhl-charge-field-mapping.md) | dhl charge field mapping | 🚧 已實作（本機與 Azure DEV 皆已寫入並驗證；既有 instance 列需重新匹配才會套用） |
 | [FIX-150](4-changes/bug-fixes/FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) | nippon charge fields lost mapping slot contention | 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項設定變更皆已寫入本機與 Azure DEV 並回讀確認；映射層效果已… |
-| [FIX-159](4-changes/bug-fixes/FIX-159-toll-cross-border-entities-merged-by-normalization.md) | toll cross border entities merged by normalization | 🚧 部分完成 —— 本機已修復並雙向驗證通過（gated 腳本，見 §驗證）；⚠️ Azure DEV 尚未套用，且該環境是否有同型誤歸… |
+| [FIX-159](4-changes/bug-fixes/FIX-159-toll-cross-border-entities-merged-by-normalization.md) | toll cross border entities merged by normalization | 🚧 部分完成 —— 本機已修復並雙向驗證通過（gated 腳本，見 §驗證）；拆分後的設定缺口已於 2026-08-06 補齊（見 §拆… |
 
 ## ❓ 狀態無法解析（2）
 

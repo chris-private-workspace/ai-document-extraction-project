@@ -4,7 +4,8 @@
 > **發現方式**: 使用者以 375 份樣本做本地端到端測試時，要求盤點「每間公司有多少種文件格式、公司名稱會否不一樣」，比對 Stage 1 讀到的發票原文與實際歸屬時發現
 > **影響頁面/功能**: Stage 1 公司識別 → 公司歸屬 → 該公司的 mapping / 欄位定義集全鏈
 > **優先級**: 中（資料歸屬錯誤，會使設定套用到錯誤實體；但目前僅影響 Toll 一家已知）
-> **狀態**: 🚧 部分完成 —— **本機已修復並雙向驗證通過**（gated 腳本，見 §驗證）；⚠️ **Azure DEV 尚未套用**，且該環境是否有同型誤歸尚未查證，見 §跨環境狀態
+> **狀態**: 🚧 部分完成 —— **本機已修復並雙向驗證通過**（gated 腳本，見 §驗證）；拆分後的設定缺口已於 **2026-08-06** 補齊（見 §拆分後的設定缺口）；⚠️ **Azure DEV 仍未套用**，且該環境是否有同型誤歸尚未查證，見 §跨環境狀態
+> **最後更新**: 2026-08-06（補記拆分後的設定缺口 —— 原「3 筆提取內容未更新」低估了範圍，實為新實體完全沒有欄位定義集與映射）
 
 ---
 
@@ -146,8 +147,59 @@ Step 3   findDuplicateCompany（Levenshtein / token-set）
 | **[推導] 的 variants 未經真實發票驗證** | 香港側的 `(Hong Kong) Limited` / `(HK) Ltd` / `(HK) Limited` 與泰國側的 `(Thailand) Ltd` 皆為依縮寫慣例補的，本庫**尚無**任何發票用過這些印法。依 §樣本 ≠ 母體 紀律照補，但用字是否命中真實發票待驗 |
 | **未涵蓋的結構性變體仍會落回 2b** | GPT 對公司名的輸出不穩定（實測同一份文件兩次跑出 `CO., LTD.` 與 `CO.,LTD.`）。若出現本清單未涵蓋的**結構性**差異，仍會走到 Step 2b。屆時應補 `nameVariants`，**不要**放寬正規化規則。純大小寫差異不必補 —— Step 2a 的 `name equals` 為大小寫不敏感 |
 | **學習迴路的污染風險未從根本解決** | §丙 的機制仍在。本 FIX 只清掉 Toll 這一組已發生的污染，並未替 `learnNameVariant` 加防線。任何「正規化規則分不開的兩家公司」都可能重演 |
-| **既有 3 筆的提取內容未更新** | `--reassign` 只改 `company_id`，**不會**重新提取。那 3 筆的 `field_mappings` 仍是以原公司設定產出的結果 |
+| ~~**既有 3 筆的提取內容未更新**~~ | `--reassign` 只改 `company_id`，**不會**重新提取。→ ✅ **2026-08-06 已處理**，且實際範圍遠大於 3 筆，見下方 §拆分後的設定缺口 |
 | **既有記錄名與發票原文不一致** | `Toll Global Forwarder Limited` vs 發票的 `Toll Global Forwarding (Thailand) Limited`。本次**未改**記錄名（超出 task scope）。若日後對齊，需一併確認 `code=TOLL` 的下游引用 |
+
+### 🔴 拆分後的設定缺口（2026-08-06 補記，已處理）
+
+本 FIX 原本只登記「3 筆提取內容未更新」，**低估了缺口**。真正的問題是：
+
+> **拆出新實體時，沒有任何機制把設定帶過去。** 新建的 `Toll Global Forwarding (Hong Kong) Ltd`
+> 有 34 份文件，但 `field_definition_sets` = 0、`template_field_mappings` = 0，
+> 而系統**沒有 GLOBAL 級的欄位定義集**可以退回。
+
+後果是一條完整的空轉鏈：
+
+```
+field_definition_sets = 0
+  → Stage 3 沒有費用科目可注入 prompt
+  → 只提取到通用發票欄位（費用塌縮成單一 freight_charge）
+  → template_field_mapping 的 sourceField 全部落空
+  → 補映射規則等於空轉
+  → 34 份文件無法進入任何模板實例列
+```
+
+⚠️ **這個形態會誤導診斷**：表面症狀是「模板匹配失敗 / `MAPPING_NOT_FOUND`」，
+看起來像缺 mapping，實際缺的是**上游的欄位定義集**。2026-08-06 的第一版修復方向
+就是「複製一組 mapping 過去」，被資料推翻（規則的 sourceField 在目標文件中出現率
+近乎 0，平均填入 1.2 欄 vs 對照組 4.6 欄）。
+
+**反證**：香港 34 份中有 2 份確實有細分費用 —— 那是 Stage 1 讀到泰國抬頭、
+匹配到泰國 `companyId` 的交叉樣本，因而注入了泰國的 37 個定義。同一批文件、
+同一條管線，唯一差別是**當時能不能取到欄位定義集**。
+
+#### 處理結果（2026-08-06）
+
+| 步驟 | 結果 |
+|---|---|
+| 建立香港 `field_definition_set` | 37 個費用科目，複製自泰國（純 key/label/dataType，**不含 aliases**，故無公司特定用語隨之移轉） |
+| 試跑 2 份驗證 | log 出現 `Injected 37 field definitions from FieldDefinitionSet`，確認生效才續行 |
+| 重新提取其餘 32 份 | 0 錯誤，**34/34 提取出細分費用** |
+| 建立 `template_field_mappings` | Outbound 14 條 + Inbound 16 條 |
+| 模板匹配 | **32/32 進入實例列**（以 `sourceDocumentIds` 驗收，非引擎回傳值） |
+
+腳本：`scripts/tmp-toll-hk-fielddefs.ts`（六階段 gated）、`scripts/tmp-add-toll-hk-mappings.ts`（診斷）
+快照：`.snapshots/toll-hk-config-before-write.json`、`.snapshots/toll-hk-extraction-before-reprocess.json`
+
+#### 🔴 這對「同型問題」的意義
+
+下方 §同型問題 列出的其他跨國 forwarder，**一旦比照本 FIX 拆分，就會複製同一個缺口**。
+拆分腳本只搬 `company_id`，不搬 `field_definition_sets` / `template_field_mappings`，
+而新實體在補上這兩者**之前**的提取結果全部是不完整的，且**欄位定義不回溯**——
+必須重新提取（會覆蓋 `extraction_results`，需前置快照）。
+
+**拆分公司的完整程序應為**：拆 → 建欄位定義集 → **重新提取** → 建映射 → 重跑匹配。
+只做第一步等於把文件搬到一個沒有任何設定的空殼公司底下。
 
 ---
 
@@ -159,6 +211,11 @@ Step 3   findDuplicateCompany（Levenshtein / token-set）
 | Azure DEV | ⚠️ **未套用**。該環境僅有一筆 `Toll Global Forwarder Limited`，無香港記錄。**但這不等於該環境沒有香港發票被誤歸** —— 查證需讀提取結果，而文件端點需認證，尚未查 |
 
 移植時需注意：Azure 的公司主鍵與本機不同，腳本已以**名稱查找**、不寫死主鍵，可直接沿用。
+
+🔴 **2026-08-06 補充**：移植到 Azure DEV **不能只跑拆分腳本**。依 §拆分後的設定缺口，
+拆完之後新實體會是一個沒有任何設定的空殼，必須接著建欄位定義集 → **重新提取** → 建映射 → 重跑匹配。
+其中「重新提取」會覆蓋 `extraction_results`（`document_id` 唯一約束 + upsert），
+Azure 上執行前必須先快照，且該環境的一次性腳本要放 `prisma/*.js`（runner 映像不含 `scripts/` 與 tsx）。
 
 ---
 
