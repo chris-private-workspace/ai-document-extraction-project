@@ -1,8 +1,8 @@
 # ClaudeDocs - AI 助手文檔目錄
 
-> **相關規則**: 請參閱 `.claude/rules/` 獲取開發規範（9 個規則文件）
-> **自定義 Agent**: `.claude/agents/`（8 個 AI Agent）
-> **自定義 Skill**: `.claude/skills/`（4 個 Skill）
+> **相關規則**: 請參閱 `.claude/rules/` 獲取開發規範（**12** 個規則文件）
+> **自定義 Agent**: `.claude/agents/`（**9** 個 AI Agent）
+> **自定義 Skill**: `.claude/skills/`（**8** 個 Skill）
 
 ## 目錄用途
 
@@ -34,7 +34,7 @@ TIER 2: Forwarder-Specific Override（特定覆蓋層）
   只記錄該 Forwarder 與通用規則「不同」的映射
 
 TIER 3: LLM Classification（AI 智能分類）
-  當以上都無法匹配時，使用 GPT-5.2 智能分類
+  當以上都無法匹配時，使用 gpt-5.6-luna 智能分類
 ```
 
 ### 信心度路由機制
@@ -87,8 +87,8 @@ claudedocs/
 │   └── weekly/                  # 每週進度報告
 │
 ├── 4-changes/                   # 變更記錄
-│   ├── bug-fixes/               # Bug 修復記錄 (35 份: FIX-001 ~ FIX-035)
-│   └── feature-changes/         # 功能變更記錄 (33 份: CHANGE-001 ~ CHANGE-033)
+│   ├── bug-fixes/               # Bug 修復記錄 (FIX-*.md，份數與最大編號查 STATUS.md)
+│   └── feature-changes/         # 功能變更記錄 (CHANGE-*.md，同上)
 │
 ├── 5-status/                    # 狀態報告
 │   └── testing/                 # 測試文檔
@@ -125,9 +125,13 @@ claudedocs/
 
 ## 項目進度追蹤
 
-### Epic 完成狀態 (2026-02-09)
+### Epic 完成狀態
 
-全部 22 個 Epic（157+ 個 Stories）已完成。
+**Epic 0–21**（157+ 個 Stories）已完成，下表為當時記錄。
+🔴 **Epic 22**（企業安全治理）與 **Epic 23**（多 LLM Provider）**仍進行中**，不在下表內 ——
+進度分別查 `docs/04-implementation/stories/epic-22-enterprise-security/` 與
+`docs/04-implementation/tech-specs/epic-23-multi-llm-provider/AI-HANDOFF.md`。
+（`docs/04-implementation/sprint-status.yaml` 已封存，只涵蓋 Epic 0–21。）
 
 | Epic | 名稱 | 狀態 | 完成日期 |
 |------|------|------|----------|
@@ -246,33 +250,35 @@ claudedocs/
 ### 核心框架
 - **前端**: Next.js 15.0.0 (App Router) + TypeScript 5.0 + React 18.3
 - **樣式**: Tailwind CSS 3.4 + shadcn/ui (Radix UI 20+ primitives)
-- **資料庫**: PostgreSQL 15 + Prisma ORM 7.2 (122 models, 113 enums)
+- **資料庫**: PostgreSQL 15 + Prisma ORM 7.2 (125 models, 115 enums)
 - **狀態管理**: Zustand 5.x (UI) + React Query 5.x (Server State)
 - **表單**: React Hook Form 7.x + Zod 4.x 驗證
-- **國際化**: next-intl 4.7（支援 en, zh-TW, zh-CN，34 個命名空間）
+- **國際化**: next-intl 4.7（支援 en, zh-TW, zh-CN，41 個命名空間）
 - **快取**: @upstash/redis（⚠️ Rate limit 實作使用 in-memory Map，見主 CLAUDE.md §已知差異）
 - **拖放**: @dnd-kit (sortable UI)
 
 ### 外部服務
 - **OCR**: Azure Document Intelligence
-- **AI**: Azure OpenAI GPT-5.2 (含 GPT Vision) + OpenAI SDK
+- **AI**: Azure OpenAI `gpt-5.6-luna`（含 Vision）+ OpenAI SDK — CHANGE-115 起全部 9 個 LLM 環節統一此模型；實際生效值以 DB `StageModelAssignment` 為準
 - **認證**: Azure AD (Entra ID) SSO + 本地帳號認證
 - **工作流**: n8n
 - **文件來源**: SharePoint / Outlook / Azure Blob Storage
 - **Office 365**: Microsoft Graph Client
 
-### 代碼規模（同步 codebase-analyze 2026-04-09）
+### 代碼規模（重新計數 2026-08-06）
 
-| 指標 | 數量 | 說明 |
-|------|------|------|
-| React 組件 | **371** | src/components/ 下所有 .tsx（~98K LOC） |
-| 業務服務 | **200** | src/services/ 下所有 .ts（~100K LOC） |
-| API 路由文件 | **331** | 414 HTTP methods，約 **400+ 端點** |
-| 自定義 Hooks | **104** | src/hooks/ |
-| Types | **93** | src/types/ |
-| Prisma Models | **122** | 資料庫模型定義 |
-| Prisma Enums | **113** | 列舉類型 |
-| i18n 命名空間 | **34/語言** | 3 種語言各 34 個 JSON 文件（共 102 個） |
+| 指標 | 數量 | 2026-04-09 舊值 | 說明 |
+|------|------|------|------|
+| React 組件 | **387** | 371 | src/components/ 下所有 .tsx |
+| 業務服務 | **209** | 200 | src/services/ 下所有 .ts |
+| API 路由文件 | **347** | 331 | HTTP method 分佈未重新統計 |
+| 自定義 Hooks | **111** | 104 | src/hooks/ |
+| Types | **93** | 93 | src/types/ |
+| Prisma Models | **125** | 122 | 資料庫模型定義 |
+| Prisma Enums | **115** | 113 | 列舉類型 |
+| i18n 命名空間 | **41/語言** | 34 | 3 種語言共 **123** 個 JSON 文件 |
+
+> ⚠️ 這張表是**快照**，會隨開發持續偏離。引用前先重新計數，不要當成當下事實。
 
 > **完整深度分析**: `docs/06-codebase-analyze/00-analysis-index.md`（80 份：31 分析 + 5 diagrams + 44 驗證報告）
 
@@ -310,31 +316,33 @@ claudedocs/
 
 | 文檔路徑 | 用途 |
 |----------|------|
-| `CLAUDE.md` (根目錄) | 專案總指南 (v3.0.0) |
+| `CLAUDE.md` (根目錄) | 專案總指南 |
 | `.claude/CLAUDE.md` | 詳細操作指引（服務啟動等） |
 | `docs/01-planning/prd/` | 產品需求文檔 |
 | `docs/02-architecture/` | 系統架構設計 |
-| `docs/03-stories/` | User Stories |
-| `docs/04-implementation/sprint-status.yaml` | Sprint 狀態追蹤 |
+| `docs/03-epics/` | Epic 文件 |
+| `docs/04-implementation/tech-specs/` | Tech Specs |
+| `docs/04-implementation/sprint-status.yaml` | Sprint 狀態追蹤（⚠️ 已封存，只到 Epic 21） |
 
 ---
 
 ## Claude Code 自定義基礎設施
 
-### `.claude/agents/` - 8 個自定義 AI Agent
+### `.claude/agents/` - 9 個自定義 AI Agent
 
-| Agent | 模型 | 用途 | 修改代碼？ |
-|-------|------|------|------------|
-| `project-analyst` | sonnet | 文檔審計與差距分析 | 否（文檔） |
-| `requirement-analyst` | sonnet | 需求探索與影響分析 | 否（唯讀） |
-| `architecture-reviewer` | sonnet | 架構設計驗證 | 否（唯讀） |
-| `i18n-guardian` | haiku | 翻譯同步檢查 | 否（建議修復） |
-| `code-quality-checker` | sonnet | 項目品質審查 | 否（唯讀） |
-| `fullstack-scaffolder` | sonnet | 全端代碼骨架生成 | 是（新文件） |
-| `test-strategist` | sonnet | 測試計劃文檔 | 否（文檔） |
-| `session-manager` | haiku | SITUATION-5 自動化 | 否（文檔） |
+| Agent | 用途 | 修改代碼？ |
+|-------|------|------------|
+| `project-analyst` | 文檔審計與差距分析 | 否（文檔） |
+| `requirement-analyst` | 需求探索與影響分析 | 否（唯讀） |
+| `architecture-reviewer` | 架構設計驗證 | 否（唯讀） |
+| `i18n-guardian` | 翻譯同步檢查 | 否（建議修復） |
+| `code-quality-checker` | 項目品質審查 | 否（唯讀） |
+| `code-implementer` | 依既定設計寫代碼 | **是** |
+| `fullstack-scaffolder` | 全端代碼骨架生成 | 是（新文件） |
+| `test-strategist` | 測試計劃文檔 | 否（文檔） |
+| `session-manager` | SITUATION-5 自動化 | 否（文檔） |
 
-### `.claude/skills/` - 4 個自定義 Skill
+### `.claude/skills/` - 8 個自定義 Skill
 
 | Skill | 觸發命令 | 用途 |
 |-------|----------|------|
@@ -342,8 +350,12 @@ claudedocs/
 | `plan-story` | `/plan-story` | 新功能規劃 |
 | `plan-change` | `/plan-change` | 功能變更規劃 |
 | `plan-fix` | `/plan-fix` | Bug 修復規劃 |
+| `git-status` | `/git-status` | 快速狀態檢查（Git + Docker + 開發伺服器） |
+| `git-sync` | `/git-sync` | 完整同步流程（拉取/推送 + 依賴/Schema 偵測） |
+| `restart-services` | `/restart-services` | 重啟本機開發服務 |
+| `refresh-codebase-analysis` | `/refresh-codebase-analysis` | 重新產生 codebase 分析 |
 
-### `.claude/rules/` - 9 個規則文件
+### `.claude/rules/` - 12 個規則文件
 
 | 規則文件 | 用途 |
 |----------|------|
@@ -356,6 +368,9 @@ claudedocs/
 | `testing.md` | 測試規範 |
 | `i18n.md` | 國際化開發規範 |
 | `technical-obstacles.md` | 技術障礙處理 |
+| `hard-constraints.md` | H1–H6 完整規範 |
+| `language.md` | 繁體中文紀律 + 常違反詞彙對照 |
+| `agent-orchestration.md` | 並行 Agent 編排協議 |
 
 ---
 
@@ -381,7 +396,7 @@ claudedocs/
 ### 創建新文檔
 
 1. **確定文檔類型和目錄** - 功能規劃用 plan-docs/，變更用 feature-changes/，修復用 bug-fixes/
-2. **使用正確的命名約定** - CHANGE 下一個編號 034，FIX 下一個編號 036
+2. **使用正確的命名約定** - 🔴 下一個可用編號**一律查 [`STATUS.md`](STATUS.md)**，或用全量 Glob `CHANGE-*.md` / `FIX-*.md` 取最大值 +1。**不要在本文件寫死編號**（舊版曾寫「CHANGE-034 / FIX-036」，實際早已超過百號）
 3. **遵循格式範本** - 參考 `7-archive/templates/` 下的範本
 
 > **下一個可用編號**: 查 [`STATUS.md`](STATUS.md) 的「編號」表（自動生成，永遠是當下值）。
@@ -419,5 +434,5 @@ claudedocs/
 ---
 
 **維護者**: AI 助手 + 開發團隊
-**最後更新**: 2026-04-22（v3.3.0：CHANGE-055 v0.2 Critical 決策定案 + 新增 CHANGE-056 Prisma migration baseline）
-**文檔版本**: 3.3.0
+**最後更新**: 2026-08-06（v3.4.0：模型記載改為 `gpt-5.6-luna`；全面重新計數；移除寫死的 CHANGE/FIX 編號與份數；標明 Epic 22/23 仍進行中）
+**文檔版本**: 3.4.0

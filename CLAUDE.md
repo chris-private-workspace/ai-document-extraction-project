@@ -44,7 +44,7 @@
 ```
 TIER 1: Universal Mapping (通用層)           — 70-80% 常見術語，所有 Forwarder 通用
 TIER 2: Forwarder-Specific Override (覆蓋層) — 只記錄該 Forwarder 與通用規則的差異
-TIER 3: LLM Classification (AI 智能分類)     — 以上都無法匹配時用 GPT-5.2
+TIER 3: LLM Classification (AI 智能分類)     — 以上都無法匹配時用 gpt-5.6-luna
 ```
 
 ### 信心度路由機制
@@ -74,8 +74,13 @@ TIER 3: LLM Classification (AI 智能分類)     — 以上都無法匹配時用
 ## 🛠️ 技術棧
 
 **核心**：Next.js 15 + TypeScript 5.0 + Prisma 7.2 + PostgreSQL 15
-**OCR**：Azure Document Intelligence | **AI**：Azure OpenAI GPT-5.2 | **認證**：Azure AD SSO + 本地帳號
+**OCR**：Azure Document Intelligence | **AI**：Azure OpenAI `gpt-5.6-luna` | **認證**：Azure AD SSO + 本地帳號
 **i18n**：next-intl 4.7（en/zh-TW/zh-CN）| **狀態**：Zustand + React Query | **驗證**：Zod | **測試**：Playwright
+
+> 🔴 **模型以 DB 為準，不以文檔或常數為準**（CHANGE-115 起全部 9 個 LLM 環節統一 `gpt-5.6-luna`，
+> 白名單其餘模型皆 `isEnabled=false`）。實際生效值由 `LlmModelConfigService.getStageModel(stage)`
+> 解析：`StageModelAssignment`（DB）→ 舊 `SystemConfig` key → `DEFAULT_STAGE_MODELS`。
+> ⚠️ 代碼中 `callGptNano()`、`'GPT-5-nano 調用失敗'`、`nanoDeploymentName` 皆為切換前的**殘留命名**，與實際模型無關。
 
 > 📋 完整技術棧（含版本、套件、設定）：`claudedocs/reference/tech-stack.md`
 > 📋 代碼規模統計：`docs/06-codebase-analyze/00-analysis-index.md`
@@ -89,8 +94,8 @@ ai-document-extraction-project/
 ├── .claude/              # Claude Code 配置（rules/ + agents/ + skills/）
 ├── claudedocs/           # AI 助手文檔（7 層分類）
 ├── docs/                 # 項目正式文檔（discovery/planning/architecture/stories/codebase-analyze）
-├── messages/             # i18n 翻譯（en/zh-TW/zh-CN × 34 命名空間）
-├── prisma/               # Schema（122 models + 113 enums）
+├── messages/             # i18n 翻譯（en/zh-TW/zh-CN × 41 命名空間）
+├── prisma/               # Schema（125 models + 115 enums）
 ├── python-services/      # Python 後端（extraction/ + mapping/）
 ├── src/                  # 主代碼（app/ components/ services/ hooks/ lib/ types/）
 └── tests/                # unit/ integration/ e2e/
@@ -106,7 +111,7 @@ ai-document-extraction-project/
 
 ### H1 — Architectural Change Constraint
 
-**Trigger**：擅自偏離 PRD / Tech Spec / 三層映射架構 / 信心度路由邏輯 / 122 Prisma models 結構 / 既定 vendor
+**Trigger**：擅自偏離 PRD / Tech Spec / 三層映射架構 / 信心度路由邏輯 / Prisma models 結構 / 既定 vendor
 
 **Required behavior**：
 1. STOP 寫 code
@@ -408,14 +413,15 @@ UI Components (`src/components/ui/`) → 不需要 | Type Definitions → 簡化
 
 ## 🌐 i18n 同步規則（摘要）
 
-**框架**：next-intl 4.7 | **支援**：en / zh-TW / zh-CN | **命名空間**：34 個/語言 = 102 JSON 檔
+**框架**：next-intl 4.7 | **支援**：en / zh-TW / zh-CN | **命名空間**：41 個/語言 = 123 JSON 檔
 
 **核心規則**：
 1. 修改 `src/types/*.ts`、`src/constants/*.ts` 含 `label`/`description` 的常量 → 必須同步 i18n
 2. 新增命名空間 → 建立 3 個語言 JSON + 在 `src/i18n/request.ts` `namespaces` 陣列註冊
 3. 完成前執行 `npm run i18n:check`
 
-> 📋 完整 i18n 規範 + 34 命名空間列表 + 常量映射表：`.claude/rules/i18n.md`
+> 📋 完整 i18n 規範 + 命名空間列表 + 常量映射表：`.claude/rules/i18n.md`
+> 🔴 命名空間的權威來源是 `src/i18n/request.ts` 的 `namespaces` 陣列，不是任何文檔清單
 
 ---
 
@@ -481,7 +487,7 @@ npm run docs:status      # 重新生成 claudedocs/STATUS.md，需一併 commit
 ### Session Start Protocol
 
 每個 session 開始時 AI 必須：
-1. 讀 `claudedocs/6-ai-assistant/prompts/SITUATION-1.md`（PROJECT-ONBOARDING）
+1. 讀 `claudedocs/6-ai-assistant/prompts/SITUATION-1-PROJECT-ONBOARDING.md`
 2. 讀對應情境 SITUATION（feature dev = SITUATION-2/4；enhancement = SITUATION-3；save progress = SITUATION-5）
 3. Run `git status --short` + `git log --oneline -5`
 
@@ -527,7 +533,7 @@ npm run docs:status      # 重新生成 claudedocs/STATUS.md，需一併 commit
 | Sprint 狀態（唯一真實來源） | `docs/04-implementation/sprint-status.yaml` |
 | Codebase 全面分析（80 份） | `docs/06-codebase-analyze/00-analysis-index.md` |
 | PRD | `docs/01-planning/prd/prd.md` |
-| Tech Specs | `docs/03-stories/tech-specs/` |
+| Tech Specs | `docs/04-implementation/tech-specs/` |
 | 系統架構設計 | `docs/02-architecture/` |
 | 部署文件中心 | `docs/07-deployment/README.md` |
 | 本地 vs Azure 部署差異 | `docs/07-deployment/local-vs-azure-differences.md` |
@@ -574,7 +580,12 @@ npm run docs:status      # 重新生成 claudedocs/STATUS.md，需一併 commit
 | Epic 22 / 23 進度 | `docs/04-implementation/stories/epic-22-enterprise-security/`、`docs/04-implementation/tech-specs/epic-23-multi-llm-provider/AI-HANDOFF.md` |
 | Epic 0–21 歷史 | `docs/04-implementation/sprint-status.yaml`（⚠️ **已封存，不再維護** — 不含 Epic 22/23） |
 
-**Sub-CLAUDE.md 自動載入機制**：Claude Code 自動遞迴載入子目錄 CLAUDE.md（共 15 個：.claude/、claudedocs/、messages/、prisma/、src/* 等）— 修改子目錄時對應的 sub-CLAUDE.md 會自動注入 context
+**Sub-CLAUDE.md 自動載入機制**：Claude Code 自動遞迴載入子目錄 CLAUDE.md（共 16 個：.claude/、claudedocs/、messages/、prisma/、scripts/、src/* 等）— 修改子目錄時對應的 sub-CLAUDE.md 會自動注入 context
+
+> 🔴 **sub-CLAUDE.md 會自動注入 context，所以它一旦過時就會反覆誤導**。2026-08-06 全面核對發現
+> 13/15 份的數量或模型記載與實際不符（最久的停在 2026-02-09），其中
+> `src/services/extraction-v3/CLAUDE.md` 的「GPT-5-nano / GPT-5.2」已被 CHANGE-115 取代半年仍未更新。
+> **凡是可被計數或查詢驗證的聲明（數量、模型、閾值），引用前先驗證，不要直接相信文檔。**
 > 完整地圖 + 過時統計：`claudedocs/reference/sub-claude-md-map.md`
 
 **Codebase 深度分析**：80 份文檔（31 分析 + 5 diagrams + 44 驗證），整體驗證通過率 91.1%
@@ -603,7 +614,7 @@ AI Document Extraction — Strict Mode
 ├─ 語言: 繁體中文 (6 類例外: code/path/API/hash/編號/vendor)
 ├─ 行為基準: Karpathy 4 守則 (think → simple → surgical → goal-driven)
 ├─ 核心架構: 三層映射 (Universal → Forwarder Override → LLM) + 信心度路由
-├─ 技術棧: Next.js 15 + Prisma + PostgreSQL + Azure OpenAI GPT-5.2
+├─ 技術棧: Next.js 15 + Prisma + PostgreSQL + Azure OpenAI gpt-5.6-luna
 ├─ Hard Constraints (STOP+ask on trigger):
 │  ├─ H1 — 擅自改設計 / 三層映射 / 信心度邏輯 / Prisma 結構
 │  ├─ H2 — 加 dependency / 換 vendor
@@ -619,9 +630,15 @@ AI Document Extraction — Strict Mode
 
 ## 📝 版本資訊
 
-- **CLAUDE.md 版本**：4.1.2
-- **最後更新**：2026-08-01
-- **本版變更**（v4.1.1 → v4.1.2）：
+- **CLAUDE.md 版本**：4.2.0
+- **最後更新**：2026-08-06
+- **本版變更**（v4.1.2 → v4.2.0）：
+  - **🔴 修正 AI 模型記載：GPT-5.2 → `gpt-5.6-luna`**（3 處）。CHANGE-115 已把全部 9 個 LLM 環節切到 `gpt-5.6-luna`，白名單其餘模型皆 `isEnabled=false`，但本文件與 4 份 sub-CLAUDE.md 仍記著 GPT-5.2 / GPT-5-nano。起因為 2026-08-06 追查公司識別問題時，AI 直接引用 `src/services/extraction-v3/CLAUDE.md` 而未查代碼，向使用者陳述了錯誤的模型；由使用者指正
+  - **新增模型查證規則**：模型以 DB（`StageModelAssignment`）為準，並標註 `callGptNano()` / `'GPT-5-nano 調用失敗'` / `nanoDeploymentName` 皆為切換前的殘留命名
+  - **同步過時計數**：Prisma 122→**125** models、113→**115** enums；i18n 34→**41** 命名空間、102→**123** JSON；sub-CLAUDE.md 15→**16** 份
+  - **新增 sub-CLAUDE.md 過時警示**：2026-08-06 全面核對，13/15 份的數量或模型記載與實際不符（最久停在 2026-02-09）。因 sub-CLAUDE.md 會自動注入 context，過時記載會反覆誤導——可被計數或查詢驗證的聲明，引用前必須先驗證
+  - **§i18n 標明權威來源**：命名空間以 `src/i18n/request.ts` 的 `namespaces` 陣列為準，非任何文檔清單
+- **v4.1.2 變更**（v4.1.1 → v4.1.2）：
   - **§按需查閱 新增一列**：`claudedocs/reference/data-semantic-breakpoints.md`（歷史資料語義斷點登記簿）。起因為 FIX-148 影響評估——初版拉全量 802 份資料算出的衝擊比真實值高 3 倍，因為 `isNewFormat` 的語義在 FIX-124（2026-07-21）改過，而舊值不會回填。跨時間統計前需先查該表
 - **v4.1.1 變更**（v4.1.0 → v4.1.1）：
   - **修正 §信心度路由機制 的降級描述**：原記「新公司 → 強制 FULL_REVIEW；新格式 → 強制 QUICK_REVIEW」與代碼不符 —— `applyRoutingStrategy` 對新公司 / 新格式 / 配置來源 / >3 項待分類**一律只降一級**（AUTO_APPROVE → QUICK_REVIEW），能覆蓋成 FULL_REVIEW 的只有「Stage 失敗」與「行項合計不符」兩類。依此改為表格

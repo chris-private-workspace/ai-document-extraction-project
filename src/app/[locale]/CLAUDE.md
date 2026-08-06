@@ -1,11 +1,11 @@
 # App Router 路由結構 — [locale] 動態路由
 
-> **頁面數量**: 76 個 page.tsx
-> **Admin 模組**: 20 個
+> **頁面數量**: **85** 個 page.tsx（`(auth)` 6 + `(dashboard)` 76 + docs 2 + 首頁 1）
+> **Admin 模組**: **24** 個
 > **路由組**: 2 個（`(auth)` + `(dashboard)`）
 > **布局層級**: 3 層
-> **最後更新**: 2026-02-09
-> **版本**: 1.0.0
+> **最後更新**: 2026-08-06（重新計數；補上 2026-02 之後新增的 4 個 admin 模組）
+> **版本**: 1.1.0
 
 ---
 
@@ -40,23 +40,27 @@ src/app/[locale]/
 │   ├── layout.tsx                      # Sidebar + TopBar 布局（需認證）
 │   ├── dashboard/page.tsx              # 主儀表板
 │   │
-│   ├── admin/                          # 🛠️ 管理區域（20 模組，見下方索引）
+│   ├── admin/                          # 🛠️ 管理區域（24 模組，見下方索引）
 │   │   ├── alerts/
 │   │   ├── backup/
-│   │   ├── companies/
+│   │   ├── companies/                  # review/ + duplicate-review/
 │   │   ├── config/
 │   │   ├── data-templates/             # CRUD 模式
 │   │   ├── document-preview-test/      # 含 components/ 子目錄
 │   │   ├── exchange-rates/             # CRUD 模式
+│   │   ├── field-definition-sets/      # CRUD 模式
 │   │   ├── field-mapping-configs/      # CRUD 模式
 │   │   ├── historical-data/
 │   │   ├── integrations/
+│   │   ├── llm-providers/              # Epic 23：Provider + models 子頁
+│   │   ├── model-settings/             # Epic 23：per-環節模型指派
 │   │   ├── monitoring/
 │   │   ├── performance/
-│   │   ├── pipeline-settings/          # CRUD 模式（新增）
+│   │   ├── pipeline-settings/          # CRUD 模式
 │   │   ├── prompt-configs/             # CRUD 模式
 │   │   ├── reference-numbers/          # CRUD 模式
 │   │   ├── roles/
+│   │   ├── settings/
 │   │   ├── template-field-mappings/    # CRUD 模式
 │   │   ├── term-analysis/
 │   │   ├── test/                       # 測試工具（3 頁 + 組件）
@@ -69,6 +73,7 @@ src/app/[locale]/
 │   ├── global/                         # 全域統計
 │   ├── reports/                        # 報表（4 種報表）
 │   ├── review/                         # 文件審核
+│   ├── profile/                        # 使用者個人設定
 │   ├── rollback-history/               # 回滾歷史
 │   ├── rules/                          # 映射規則（CRUD + 審核 + 歷史）
 │   └── template-instances/             # 模板實例
@@ -97,10 +102,22 @@ src/app/[locale]/
 |------|------|
 | 布局 | Sidebar（288px）+ TopBar + 內容區（最大 1600px） |
 | 權限 | 需認證（NextAuth Session 驗證） |
-| 頁數 | 69 頁 |
+| 頁數 | **76** 頁 |
 | 路徑 | `/{locale}/dashboard`、`/{locale}/admin/*` 等 |
 
 > **注意**: 路由組名稱 `(auth)` 和 `(dashboard)` 不會出現在 URL 中，僅用於布局分離。
+
+### 🔴 幾個容易被忽略、但解決特定問題的頁面
+
+| 路徑 | 用途 | 建立於 |
+|------|------|--------|
+| `/admin/companies/duplicate-review` | **疑似重複公司人工審核佇列** —— Stage 1 判為灰帶的 PENDING 公司（含 `suspectedDuplicateOfId`）在此裁決：確認為新公司 / 併入疑似目標。CHANGE-103 Phase 2 組件 4 | 2026-07-16 |
+| `/admin/companies/review` | 公司資料審核 | — |
+| `/admin/model-settings` | per-環節 LLM 模型指派（`StageModelAssignment`） | Epic 23 |
+| `/admin/llm-providers` | LLM Provider 與 model 白名單管理 | Epic 23 |
+
+> ⚠️ 本檔曾在 2026-02-09 至 2026-08-06 間未更新，`duplicate-review` 等頁面雖已上線卻未被記載，
+> 導致依本檔判斷「功能不存在」。**新增頁面請同步更新本檔**；查功能是否存在時以檔案系統為準。
 
 ---
 
@@ -277,5 +294,5 @@ src/app/[locale]/(dashboard)/admin/{module-name}/
 ---
 
 **維護者**: Development Team
-**最後更新**: 2026-02-09
+**最後更新**: 2026-08-06
 **版本**: 1.0.0

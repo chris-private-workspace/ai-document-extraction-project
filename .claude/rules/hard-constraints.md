@@ -197,7 +197,7 @@
 
 ### Trigger 完整定義
 
-- 實作偏離已 approve 的 Tech Spec（`docs/03-stories/tech-specs/`）
+- 實作偏離已 approve 的 Tech Spec（`docs/04-implementation/tech-specs/`）
 - 偏離 PRD（`docs/01-planning/prd/`）的功能定義
 - 改變既定 UX pattern（例如：本來用 Modal 確認的操作改成 inline confirm）
 - 改變既定組件用法（例如：本來用 shadcn `<Dialog>` 改用自製 modal）

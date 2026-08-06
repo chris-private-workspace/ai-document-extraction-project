@@ -117,7 +117,7 @@ TIER 3: LLM Classification（AI 智能分類）      — 以上都無法匹配�
 
 ```
 docs/01-planning/prd/ v1.0 （frozen baseline）
-  > docs/03-stories/tech-specs/ （feature-level approved spec）
+  > docs/04-implementation/tech-specs/ （feature-level approved spec）
   > 根目錄 CLAUDE.md v4.0.0 + .claude/CLAUDE.md + .claude/rules/*.md （standing instructions）
   > docs/04-implementation/sprint-status.yaml （sprint 唯一真實來源）
   > docs/06-codebase-analyze/ （codebase 實況 80 份分析）
@@ -151,7 +151,7 @@ docs/01-planning/prd/ v1.0 （frozen baseline）
   - SITUATION-6 SERVICE-STARTUP（服務啟動）
   - SITUATION-7 SEED-DATA-MAINTENANCE（Seed 數據維護）
 - **規劃文件**（按 task 類型）：
-  - 新功能 → `docs/03-stories/tech-specs/` + Story 文件
+  - 新功能 → `docs/04-implementation/tech-specs/` + Story 文件
   - 功能變更 → `claudedocs/4-changes/feature-changes/CHANGE-XXX-*.md`
   - Bug 修復 → `claudedocs/4-changes/bug-fixes/FIX-XXX-*.md`
 - **Reference 文件**：
@@ -177,7 +177,7 @@ docs/01-planning/prd/ v1.0 （frozen baseline）
 - **CHANGE/FIX 編號搜尋必須用全量 Glob**（`CHANGE-*.md` / `FIX-*.md`，**不加數字前綴**）— 避免漏看高編號（FIX-044 事件教訓）
 - **每個 CHANGE/FIX 對應獨立 commit 序列**（不混合多個 CHANGE/FIX 改動）
 - **完成後必須更新規劃文件狀態為 ✅ 已完成**（dev-checklists 第 1 條 🔴 必須）
-- **新功能必須有 Tech Spec + Story 文件**（`docs/03-stories/tech-specs/`）
+- **新功能必須有 Tech Spec + Story 文件**（`docs/04-implementation/tech-specs/`）
 - **跨 Epic 修改前先讀對應 Story 文件 + tech-spec**
 
 ### ❌ 禁止做法

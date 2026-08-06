@@ -1,9 +1,11 @@
 # Services 目錄 - 業務邏輯服務層
 
-> **服務數量**: **200** 服務文件（~100K LOC）
+> **服務數量**: **209** 服務文件
 > **子目錄數量**: 13 個子目錄（含巢狀更多）
-> **最後更新**: 2026-04-21（同步 codebase-analyze 2026-04-09 掃瞄）
-> **版本**: 2.1.0
+> **LLM 模型**: 🔴 全部 LLM 環節使用 `gpt-5.6-luna`（CHANGE-115）—— 本文件各處提到的
+> GPT-5.2 / GPT-5-nano 皆為**歷史記載**，實際模型由 `LlmModelConfigService.getStageModel()` 執行時解析
+> **最後更新**: 2026-08-06（重新計數；標註 CHANGE-115 模型切換）
+> **版本**: 2.2.0
 > **深度分析**: `docs/06-codebase-analyze/02-module-mapping/services-overview.md`
 
 ---
@@ -67,7 +69,7 @@ src/services/
 
 | 服務 | 說明 | Epic |
 |------|------|------|
-| `gpt-vision.service.ts` | Azure OpenAI GPT-5.2 Vision 處理 | Epic 2 |
+| `gpt-vision.service.ts` | Azure OpenAI Vision 處理（`gpt-5.6-luna`） | Epic 2 |
 | `azure-di.service.ts` | Azure Document Intelligence | Epic 2 |
 | `confidence.service.ts` | 信心度計算 | Epic 2 |
 | `term-classification.service.ts` | 術語分類（Tier 3） | Epic 4 |
@@ -256,7 +258,7 @@ src/services/
 ### 15. V3 提取管線 (Extraction V3 Pipeline) - Epic 15
 
 > **架構**: 三階段提取管線 (3-Stage Pipeline)
-> **檔案總數**: 17 個服務文件（6 核心 + 7 stages + 4 utils）
+> **檔案總數**: 20 個服務文件（6 核心 + 8 stages + 5 utils + index）
 
 **核心服務**
 | 服務 | 說明 |
@@ -476,7 +478,7 @@ export const exampleService = new ExampleService();
 │ → mapping.service.ts (companyMappings)                          │
 ├─────────────────────────────────────────────────────────────────┤
 │ Tier 3: LLM Classification                                      │
-│ → term-classification.service.ts (GPT-5.2)                      │
+│ → term-classification.service.ts (gpt-5.6-luna)                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

@@ -43,8 +43,10 @@ messages/
 | Constant File | Constant Name | i18n File | Key Prefix |
 |---------------|---------------|-----------|------------|
 | `src/types/prompt-config.ts` | `PROMPT_TYPES` | `promptConfig.json` | `types.` |
-| `src/constants/status.ts` | `DOCUMENT_STATUS` | `common.json` | `status.` |
-| `src/constants/roles.ts` | `USER_ROLES` | `common.json` | `roles.` |
+| `src/lib/document-status.ts` | `DOCUMENT_STATUS` | `common.json` | `status.` |
+
+> ⚠️ Verified 2026-08-06: `src/constants/status.ts` and `src/constants/roles.ts` do **not** exist,
+> and `USER_ROLES` is absent from `src/` entirely. See `.claude/rules/i18n.md` for the full table.
 
 ### ICU MessageFormat Rules
 

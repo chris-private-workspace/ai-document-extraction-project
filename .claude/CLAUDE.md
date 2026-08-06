@@ -151,15 +151,24 @@ docker-compose up -d azurite
 
 ```
 關鍵目錄:
-├── src/services/          # 業務邏輯服務
-├── src/app/api/           # API 路由
-├── src/components/        # React 組件
-├── prisma/                # 資料庫 Schema
-├── claudedocs/            # AI 助手文檔
+├── src/services/          # 業務邏輯服務（有自己的 CLAUDE.md）
+├── src/app/api/           # API 路由（有自己的 CLAUDE.md）
+├── src/app/[locale]/      # 頁面路由（有自己的 CLAUDE.md）
+├── src/components/        # React 組件（有自己的 CLAUDE.md）
+├── src/lib/ types/ hooks/ i18n/   # 各有自己的 CLAUDE.md
+├── prisma/                # 資料庫 Schema（有自己的 CLAUDE.md）
+├── messages/              # i18n 翻譯（有自己的 CLAUDE.md）
+├── claudedocs/            # AI 助手文檔（有自己的 CLAUDE.md）
 │   ├── 4-changes/         # Bug/Feature 變更記錄
 │   └── 5-status/testing/  # 測試報告
-└── scripts/               # 工具腳本
+├── docs/                  # 項目正式文檔（PRD / architecture / tech-specs / codebase-analyze）
+├── tests/                 # unit / integration / e2e
+├── python-services/       # Python 後端（extraction / mapping）
+├── scripts/               # 工具腳本（有自己的 CLAUDE.md）
+└── .snapshots/            # 不可逆資料操作的前置快照（FIX-15x 起）
 ```
+
+> 📋 完整 sub-CLAUDE.md 地圖：`claudedocs/reference/sub-claude-md-map.md`
 
 ---
 
@@ -184,4 +193,4 @@ docker-compose up -d azurite
 ---
 
 *文件建立日期: 2026-01-06*
-*最後更新: 2026-01-14*
+*最後更新: 2026-08-06（補上 sub-CLAUDE.md 覆蓋標示與 docs/ tests/ python-services/ .snapshots/ 目錄）*
