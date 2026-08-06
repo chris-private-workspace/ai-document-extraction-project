@@ -184,5 +184,25 @@ case "$RUN_CONFIG_DIAGNOSE_20260806" in
     ;;
 esac
 
+# (選用)FIX-159 移植:拆分 Toll 泰國 / 香港跨國實體 —— 由
+# RUN_TOLL_SPLIT_20260806=inspect|dryrun|write 觸發,非致命。
+# 🔴 **write 會寫入資料**(companies / documents.company_id / extraction_results.company_id)。
+# 依 §不可逆資料操作紀律:單一交易 + 數量閘 + 樂觀鎖 + 冪等;容器內無可保留檔案系統,
+# 故前置快照**印進 log**(Log Analytics 的 AppServiceConsoleLogs 是唯一還原依據)。
+# 🔴 比照 FIX-140:本旗標是「三模式」非布林 —— **關閉方式是清空設定,設成 false 不會關閉**。
+# 有效值須與 prisma/split-toll-hk-20260806.js 的 VALID_MODES 保持一致。
+case "$RUN_TOLL_SPLIT_20260806" in
+  inspect|dryrun|write)
+    echo "[entrypoint] (optional) Toll HK split: mode=$RUN_TOLL_SPLIT_20260806"
+    node prisma/split-toll-hk-20260806.js || echo "[entrypoint] Toll HK split failed (non-fatal), continuing"
+    ;;
+  "")
+    : # 未設定 = 關閉(正常情況,不輸出)
+    ;;
+  *)
+    echo "[entrypoint] (optional) Toll HK split skipped: mode=$RUN_TOLL_SPLIT_20260806 not recognised (expected inspect|dryrun|write; clear the app setting to disable)"
+    ;;
+esac
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js

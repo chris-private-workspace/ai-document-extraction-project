@@ -82,7 +82,7 @@
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
 | [FIX-149](4-changes/bug-fixes/FIX-149-dhl-charge-field-mapping.md) | dhl charge field mapping | 🚧 已實作（本機與 Azure DEV 皆已寫入並驗證；既有 instance 列需重新匹配才會套用） |
 | [FIX-150](4-changes/bug-fixes/FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) | nippon charge fields lost mapping slot contention | 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項設定變更皆已寫入本機與 Azure DEV 並回讀確認；映射層效果已… |
-| [FIX-159](4-changes/bug-fixes/FIX-159-toll-cross-border-entities-merged-by-normalization.md) | toll cross border entities merged by normalization | 🚧 部分完成 —— 本機已修復並雙向驗證通過（gated 腳本，見 §驗證）；拆分後的設定缺口已於 2026-08-06 補齊（見 §拆… |
+| [FIX-159](4-changes/bug-fixes/FIX-159-toll-cross-border-entities-merged-by-normalization.md) | toll cross border entities merged by normalization | 🚧 部分完成 —— 拆分本身兩個環境皆已完成並雙向驗證通過（本機 2026-08-04、Azure DEV 2026-08-06，殘餘皆… |
 | [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 🚧 部分完成（2026-08-04，2 項已修並驗證通過，見 §已修正；原列的 9 項經逐條追查後為 4 項誤報 + 5 項真缺陷，其餘… |
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 | [FIX-169](4-changes/bug-fixes/FIX-169-e2e-coverage-audit-residual-gaps.md) | e2e coverage audit residual gaps | 🚧 部分完成（2026-08-06 —— 補救與量測已完成並重新驗證，見 §量測結果；殘餘 4 份缺口逐份根因已查明但皆未處理，見 §殘… |

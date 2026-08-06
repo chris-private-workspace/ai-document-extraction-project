@@ -88,16 +88,17 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
   --settings RUN_DEV_DATA_IMPORT=false FORCE_SCHEMA_RESET=false
 ```
 
-**非布林旗標(5 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
+**非布林旗標(6 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
 - `RUN_TEMPLATE_MAPPING_SEED`(三模式 `inspect|dryrun|write`)
 - `RUN_CHANGE113_DHL_SETUP`(三模式 `inspect|dryrun|write`)
 - `RUN_CONFIG_SYNC_20260803`(三模式 `inspect|dryrun|write`,見 §17)
 - `RUN_CONFIG_DIAGNOSE_20260806`(單模式 `inspect`,**唯讀**,見 §18)
+- `RUN_TOLL_SPLIT_20260806`(三模式 `inspect|dryrun|write`,**會寫入**,見 §19)
 - `GRANT_GLOBAL_ADMIN_EMAIL`(值是 email)
 ```bash
 az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
   --setting-names RUN_TEMPLATE_MAPPING_SEED RUN_CHANGE113_DHL_SETUP RUN_CONFIG_SYNC_20260803 \
-                  RUN_CONFIG_DIAGNOSE_20260806 GRANT_GLOBAL_ADMIN_EMAIL
+                  RUN_CONFIG_DIAGNOSE_20260806 RUN_TOLL_SPLIT_20260806 GRANT_GLOBAL_ADMIN_EMAIL
 ```
 > FIX-140 前這 2 個用 `[ -n "$X" ]`(非空即執行),`"false"` 非空故仍觸發 —— 2026-07-28 FIX-139 部署的 log 就出現 `template field mapping seed: mode=false`(當時該設定確實是 `false`)。FIX-140 已改為明確列舉/形狀檢查:值無法辨識時**印出 skip 訊息並跳過**,不再靜默執行。設成 `false` 現在會看到 `... skipped: mode=false not recognised`,**但那仍代表設定沒清乾淨**,請照上方 `delete` 清掉。
 
@@ -564,6 +565,54 @@ with working directory '/app'. No such file or directory
 
 `az acr build` 的背景執行回報 `exit code 1`,但控制面顯示 `ck1v` 仍 `Running`,最後 `Succeeded`。
 **判定建置成敗一律看 `az acr task show-run --run-id`,不要看本機 exit code。**
+
+---
+
+## 19. 2026-08-06:FIX-159 移植 —— 容器內執行不可逆寫入的範式(`RUN_TOLL_SPLIT_20260806`)
+
+完整記錄:[`deployment-records/2026-08-06-dev-toll-split.md`](./deployment-records/2026-08-06-dev-toll-split.md)
+
+這是第一次在 Azure 上跑**完整三段式 gated 寫入**,以下三點可作為後續同類操作的範式。
+
+### 🔴 前置快照要印進 log,因為容器沒有可保留的檔案系統
+
+本機腳本把快照寫成檔(`.snapshots/*.json`);容器內做不到 —— 重啟即消失。
+改為在寫入前把變更前的完整值印進 stdout,以 `--- SNAPSHOT BEGIN/END ---` 包住,
+**Log Analytics 的 `AppServiceConsoleLogs` 就是唯一還原依據**。
+
+⚠️ 這個依據**有保留期限**。涉及大量筆數或關鍵資料時,write 完成後應立即把該段 log 匯出另存。
+
+### 🔴 三個模式靠 appsetting 切換,不需要重建映像
+
+映像建一次即可,`inspect` → `dryrun` → `write` 只改 appsetting + 重啟(改 appsetting 會自動觸發重啟)。
+每一步都要**讀 log 確認再往下**,不要連續改旗標。
+
+判斷新程序是否已起來:`/api/health` 的 `uptime` 歸零(舊程序常是數天)。
+
+### 🔴 目標環境的資料不會等於本機,清單類設定必須現地實測
+
+本次 Azure 有兩種本機從未出現的中英混排公司印法。若照抄本機的 `nameVariants`,
+那 6 份文件仍會誤歸 —— **看起來成功、實際漏掉**。
+
+通則:凡「列舉字串」類的設定(nameVariants / aliases / 欄位 key 清單),
+移植前必須先用唯讀診斷把**目標環境的實際值**撈出來,以它為準,不要以本機清單為準。
+
+### 執行結果摘要
+
+| 動作 | 數量閘 |
+|---|---:|
+| `INSERT` 香港公司(6 項 variants) | 1 |
+| `UPDATE` 泰國記錄補 2 項 variants(樂觀鎖) | 1 |
+| `UPDATE documents.company_id` | 35 |
+| `UPDATE extraction_results.company_id` | 35 |
+
+事後對帳:泰國 51 筆/1 種原文、香港 35 筆/3 種原文,**殘餘 0**,51+35=86 對得上分母。
+
+### ⚠️ 拆分不等於完成
+
+新實體目前沒有欄位定義集、沒有 mapping。補齊要寫 `template_field_mappings`,
+仍受 §17 的通案限制 —— 對帳工具(`check-orphan-charge-keys.js` / `snapshot-template-values.js`)
+尚未移植進 `prisma/`,安全網無法在容器內執行。
 
 ---
 
