@@ -126,3 +126,6 @@ docs/12-development-log/
 
 # 業務 master data Excel — 本地參考資料，不入 git（含 20MB+ 二進位，2026-06-28 使用者決定）
 docs/15-master-data/
+
+# FIX-159 gated 腳本的前置快照（本機診斷用，不進版控）
+.tmp-toll-split/

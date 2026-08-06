@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
-| FIX | 169 | FIX-168 | **FIX-169** |
+| FIX | 170 | FIX-168 | **FIX-169** |
 
 ## 📋 未開始（36）
 
@@ -53,7 +53,7 @@
 | [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（影響面已量化：全庫 9 筆；路由實測 9/9 為 `AUTO_APPROVE`，正對照 7/7 為 `FULL_REVIEW… |
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%） |
 
-## 🚧 進行中 / 部分完成（25）
+## 🚧 進行中 / 部分完成（26）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -82,6 +82,7 @@
 | [FIX-134](4-changes/bug-fixes/FIX-134-global-admin-permission-identification-inconsistent.md) | global admin permission identification inconsistent | ✅ 已修復（2026-07-27 本地四閘全過 —— `npm run build` / `type-check` / `lint` / … |
 | [FIX-149](4-changes/bug-fixes/FIX-149-dhl-charge-field-mapping.md) | dhl charge field mapping | 🚧 已實作（本機與 Azure DEV 皆已寫入並驗證；既有 instance 列需重新匹配才會套用） |
 | [FIX-150](4-changes/bug-fixes/FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) | nippon charge fields lost mapping slot contention | 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項設定變更皆已寫入本機與 Azure DEV 並回讀確認；映射層效果已… |
+| [FIX-159](4-changes/bug-fixes/FIX-159-toll-cross-border-entities-merged-by-normalization.md) | toll cross border entities merged by normalization | 🚧 部分完成 —— 本機已修復並雙向驗證通過（gated 腳本，見 §驗證）；拆分後的設定缺口已於 2026-08-06 補齊（見 §拆… |
 | [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 🚧 部分完成（2026-08-04，2 項已修並驗證通過，見 §已修正；原列的 9 項經逐條追查後為 4 項誤報 + 5 項真缺陷，其餘… |
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 
