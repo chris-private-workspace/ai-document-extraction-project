@@ -165,5 +165,24 @@ case "$RUN_CONFIG_SYNC_20260803" in
     ;;
 esac
 
+# (選用)2026-08-06 設定落差診斷 —— 由 RUN_CONFIG_DIAGNOSE_20260806=inspect 觸發,非致命。
+# 🔴 **唯讀**:只查詢、不寫入任何資料,可安全重複執行。
+# 用途:在決定要不要把 FIX-159~169 的資料層設定同步過來之前,先看目標環境的實際現況 ——
+# 本機無法直連私有 PG,任何查詢只能在容器啟動時於 VNet 內跑。
+# 🔴 比照 FIX-140:本旗標是單值非布林 —— **關閉方式是清空設定,設成 false 不會關閉**。
+# 有效值須與 prisma/diagnose-config-20260806.js 的 VALID_MODES 保持一致。
+case "$RUN_CONFIG_DIAGNOSE_20260806" in
+  inspect)
+    echo "[entrypoint] (optional) config diagnose 20260806: mode=$RUN_CONFIG_DIAGNOSE_20260806 (read-only)"
+    node prisma/diagnose-config-20260806.js || echo "[entrypoint] config diagnose 20260806 failed (non-fatal), continuing"
+    ;;
+  "")
+    : # 未設定 = 關閉(正常情況,不輸出)
+    ;;
+  *)
+    echo "[entrypoint] (optional) config diagnose 20260806 skipped: mode=$RUN_CONFIG_DIAGNOSE_20260806 not recognised (expected inspect; clear the app setting to disable)"
+    ;;
+esac
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js

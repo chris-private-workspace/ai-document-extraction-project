@@ -88,14 +88,16 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
   --settings RUN_DEV_DATA_IMPORT=false FORCE_SCHEMA_RESET=false
 ```
 
-**非布林旗標(4 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
+**非布林旗標(5 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
 - `RUN_TEMPLATE_MAPPING_SEED`(三模式 `inspect|dryrun|write`)
 - `RUN_CHANGE113_DHL_SETUP`(三模式 `inspect|dryrun|write`)
 - `RUN_CONFIG_SYNC_20260803`(三模式 `inspect|dryrun|write`,見 §17)
+- `RUN_CONFIG_DIAGNOSE_20260806`(單模式 `inspect`,**唯讀**,見 §18)
 - `GRANT_GLOBAL_ADMIN_EMAIL`(值是 email)
 ```bash
 az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
-  --setting-names RUN_TEMPLATE_MAPPING_SEED RUN_CHANGE113_DHL_SETUP RUN_CONFIG_SYNC_20260803 GRANT_GLOBAL_ADMIN_EMAIL
+  --setting-names RUN_TEMPLATE_MAPPING_SEED RUN_CHANGE113_DHL_SETUP RUN_CONFIG_SYNC_20260803 \
+                  RUN_CONFIG_DIAGNOSE_20260806 GRANT_GLOBAL_ADMIN_EMAIL
 ```
 > FIX-140 前這 2 個用 `[ -n "$X" ]`(非空即執行),`"false"` 非空故仍觸發 —— 2026-07-28 FIX-139 部署的 log 就出現 `template field mapping seed: mode=false`(當時該設定確實是 `false`)。FIX-140 已改為明確列舉/形狀檢查:值無法辨識時**印出 skip 訊息並跳過**,不再靜默執行。設成 `false` 現在會看到 `... skipped: mode=false not recognised`,**但那仍代表設定沒清乾淨**,請照上方 `delete` 清掉。
 
@@ -510,5 +512,60 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
 
 ---
 
+## 18. 2026-08-06:先診斷再決定寫入(`RUN_CONFIG_DIAGNOSE_20260806`)
+
+### 這次部署的實質是「查證」,不是「上線新功能」
+
+線上映像 `dev-sync20260803b`(≈ `31e5123`)到 `938ec7a` 累積 13 個 commit,但照 §A.0 diff 之後發現:
+
+```bash
+git diff --stat 31e5123..origin/main -- src/ prisma/ Dockerfile package.json next.config.ts scripts/docker-entrypoint.sh
+# → 只有 src/**/CLAUDE.md ×10 + prisma/CLAUDE.md,零 .ts/.tsx/schema/entrypoint 變更
+```
+
+**重建映像是 no-op**。真正沒到 Azure 的是 FIX-159~169 期間的**資料層設定**,那些不隨映像走。
+所以這次先建一支唯讀診斷腳本上線查現況,再決定要不要寫入。
+
+### `prisma/diagnose-config-20260806.js`(唯讀)
+
+六個區塊,任一失敗不影響其餘:基準計數 / 通案實體歸屬對帳 / Toll 專項 / RICOH 專項 /
+欄位定義集現況 / 孤兒 key 對帳。**不寫入任何資料**,故不套用三段式 gated 流程,可安全重跑。
+
+放 `prisma/` 而非 `scripts/` 的理由同 §15:runner 映像不含 `scripts/` 與 tsx。
+
+### 🔴 Kudu `/api/command` 跑不到 app 容器
+
+想省事直接用 Kudu 查 DB 是行不通的 —— Kudu 在 sidecar,看不到 app 容器的檔案系統:
+
+```
+An error occurred trying to start process '/opt/Kudu/Scripts/starter.sh'
+with working directory '/app'. No such file or directory
+```
+
+§8 用它跑 `nslookup` / `curl` 可以(那是 Kudu 容器自帶的),但 `node` + `node_modules/pg` 不行。
+**任何要讀 DB 的診斷,都只能做成 `prisma/*.js` + gated 旗標,在容器啟動時跑。**
+
+### 查證結果(節錄,完整見 deployment-records/2026-08-06-dev-diagnose.md)
+
+| 項目 | Azure DEV 現況 |
+|---|---|
+| Toll 跨國誤歸(FIX-159 型) | 🔴 **有,35 份**。單一 `Toll Global Forwarder Limited`、`nameVariants` 為 0 |
+| Azure 獨有的印法 | 🔴 `拓領環球貨運(香港)有限公司` / `拓環球貨運(香港)有限公司` 共 6 份 —— **本機沒有**,移植不能照抄本機 variants |
+| FIX-161 的 CEVA 缺陷 | 🔴 存在:`awb_fee` / `pick_up_at_origin` / `x_ray` / `cfs` / `gate_charge` |
+| RICOH 重複公司 | ✅ 無(Azure 只有 1 筆 ACTIVE) |
+| 資料量 | Azure `documents` **901** vs 本機 645 —— **Azure 比本機多**,不是單向覆蓋的關係 |
+
+### 🔴 `_ref_number` 是孤兒 key 對帳的通案誤報
+
+50 筆 mapping 幾乎每筆都報 `_ref_number` 未定義 —— 它是系統欄位不是費用 key。
+下次要拿區塊 6 當判準,得先排除底線前綴的系統欄位,否則真正的缺陷會被淹沒。
+
+### 本機串流 exit 1 ≠ 建置失敗(§11 再次應驗)
+
+`az acr build` 的背景執行回報 `exit code 1`,但控制面顯示 `ck1v` 仍 `Running`,最後 `Succeeded`。
+**判定建置成敗一律看 `az acr task show-run --run-id`,不要看本機 exit code。**
+
+---
+
 *維護者: AI 助手 + 開發團隊*
-*最後更新: 2026-08-03*
+*最後更新: 2026-08-06*
