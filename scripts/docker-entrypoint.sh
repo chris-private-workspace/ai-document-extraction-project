@@ -242,5 +242,26 @@ case "$RUN_TEMPLATE_SNAPSHOT" in
     ;;
 esac
 
+# (選用)FIX-161 移植:CEVA export 的 sourceField 誤填為 targetField 名 —— 由
+# RUN_FIX161_CEVA_20260806=inspect|dryrun|write 觸發,非致命。
+# 🔴 **write 會寫入 template_field_mappings**。只改 2 條規則(cfs_charge / gate_charge 的
+# sourceField),不是診斷報的 6 個 key —— 其餘經 FIX-161 逐條追查為誤報或需另新增欄位定義。
+# 🔴 只動 `CEVA LOGISTICS (HONG KONG) LTD`,**不動**另一家
+# `CEVA LOGISTICS (HONG KONG) LIMITED(CEVA Logistics)`(它的 sourceField 是有效的)。
+# 腳本 write 前會逐項驗證本環境的欄位定義集,不符即中止,不照抄本機。
+# 🔴 比照 FIX-140:三模式非布林 —— **關閉方式是清空設定,設成 false 不會關閉**。
+case "$RUN_FIX161_CEVA_20260806" in
+  inspect|dryrun|write)
+    echo "[entrypoint] (optional) FIX-161 CEVA export sourceField: mode=$RUN_FIX161_CEVA_20260806"
+    node prisma/fix-161-ceva-export-20260806.js || echo "[entrypoint] FIX-161 CEVA fix failed (non-fatal), continuing"
+    ;;
+  "")
+    : # 未設定 = 關閉(正常情況,不輸出)
+    ;;
+  *)
+    echo "[entrypoint] (optional) FIX-161 CEVA fix skipped: mode=$RUN_FIX161_CEVA_20260806 not recognised (expected inspect|dryrun|write; clear the app setting to disable)"
+    ;;
+esac
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js
