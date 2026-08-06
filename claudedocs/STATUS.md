@@ -7,10 +7,10 @@
 
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
-| CHANGE | 113 | CHANGE-115 | **CHANGE-116** |
-| FIX | 161 | FIX-159 | **FIX-160** |
+| CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
+| FIX | 170 | FIX-168 | **FIX-169** |
 
-## 📋 未開始（29）
+## 📋 未開始（36）
 
 > 完全未動工的規劃。
 
@@ -38,6 +38,7 @@
 | [CHANGE-080](4-changes/feature-changes/CHANGE-080-python-services-auth-rate-limit.md) | python services auth rate limit | ⏳ 待實作（H1 架構，用戶暫未 approve，需先確認部署網路拓撲） |
 | [CHANGE-102](4-changes/feature-changes/CHANGE-102-cleanup-legacy-llm-models-stage-config-rename.md) | cleanup legacy llm models stage config rename | ⏳ 待實作 |
 | [CHANGE-114](4-changes/feature-changes/CHANGE-114-extraction-result-version-history-and-file-hash.md) | extraction result version history and file hash | ⏳ 待實作 |
+| [CHANGE-116](4-changes/feature-changes/CHANGE-116-upload-client-side-batching.md) | upload client side batching | 📋 規劃中 |
 | [FIX-055](4-changes/bug-fixes/FIX-055-residual-pii-alert-services.md) | residual pii alert services | 📋 規劃中 |
 | [FIX-056](4-changes/bug-fixes/FIX-056-x-dev-bypass-auth-hardening.md) | x dev bypass auth hardening | 📋 規劃中 |
 | [FIX-060](4-changes/bug-fixes/FIX-060-template-matching-test-existing-documents-stub.md) | template matching test existing documents stub | 🚧 待修復 |
@@ -45,8 +46,14 @@
 | [FIX-148](4-changes/bug-fixes/FIX-148-v31-pipeline-discards-routing-decision.md) | v31 pipeline discards routing decision | ⏳ 待實作（使用者 2026-07-31 決定：FIX-147 先以最小範圍繞過，本 FIX 另行評估）。影響評估已於 2026-08-0… |
 | [FIX-152](4-changes/bug-fixes/FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) | dhl multi shipment aggregate amount leak | 📋 規劃中（根因已確認、修復方案待拍板） |
 | [FIX-155](4-changes/bug-fixes/FIX-155-line-item-amount-currency-unstable.md) | line item amount currency unstable | 📋 規劃中 —— 傾向不修（2026-08-02 以 gpt-5.6-luna 重跑 3 次，幣別全部正確且穩定，問題不重現；歷史錯誤資… |
+| [FIX-160](4-changes/bug-fixes/FIX-160-template-mapping-unreferenced-extracted-charges.md) | template mapping unreferenced extracted charges | 📋 規劃中（尚未拍板修法 —— 改 mapping 會影響其他費用的去處，需逐項確認） |
+| [FIX-163](4-changes/bug-fixes/FIX-163-refmatch-missing-r-prefix.md) | refmatch missing r prefix | 📋 規劃中 |
+| [FIX-164](4-changes/bug-fixes/FIX-164-companies-without-template-mapping.md) | companies without template mapping | 📋 規劃中 |
+| [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中（2026-08-05 第二次修訂：初版的統計數字全部作廢，改以代碼演繹論證，見 §實測資料） |
+| [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（影響面已量化：全庫 9 筆；路由實測 9/9 為 `AUTO_APPROVE`，正對照 7/7 為 `FULL_REVIEW… |
+| [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%） |
 
-## 🚧 進行中 / 部分完成（24）
+## 🚧 進行中 / 部分完成（26）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -76,6 +83,8 @@
 | [FIX-149](4-changes/bug-fixes/FIX-149-dhl-charge-field-mapping.md) | dhl charge field mapping | 🚧 已實作（本機與 Azure DEV 皆已寫入並驗證；既有 instance 列需重新匹配才會套用） |
 | [FIX-150](4-changes/bug-fixes/FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) | nippon charge fields lost mapping slot contention | 🚧 進行中（防護腳本、NEHK B/L fee、VAT 獨立成欄三項設定變更皆已寫入本機與 Azure DEV 並回讀確認；映射層效果已… |
 | [FIX-159](4-changes/bug-fixes/FIX-159-toll-cross-border-entities-merged-by-normalization.md) | toll cross border entities merged by normalization | 🚧 部分完成 —— 本機已修復並雙向驗證通過（gated 腳本，見 §驗證）；拆分後的設定缺口已於 2026-08-06 補齊（見 §拆… |
+| [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 🚧 部分完成（2026-08-04，2 項已修並驗證通過，見 §已修正；原列的 9 項經逐條追查後為 4 項誤報 + 5 項真缺陷，其餘… |
+| [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 
 ## ❓ 狀態無法解析（2）
 
@@ -94,7 +103,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（216）
+## ✅ 已完成（217）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -314,4 +323,5 @@
 | [FIX-156](4-changes/bug-fixes/FIX-156-dhl-prompt-omits-subtotal-definition.md) | dhl prompt omits subtotal definition | ✅ 已完成（2026-08-02 本機寫入 version 2→3 並重跑驗證，六項驗收全數達標；2026-08-03 已同步 Azure… |
 | [FIX-157](4-changes/bug-fixes/FIX-157-formula-all-null-writes-zero.md) | formula all null writes zero | ✅ 已完成（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / … |
 | [FIX-158](4-changes/bug-fixes/FIX-158-mapping-field-definition-misalignment.md) | mapping field definition misalignment | ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入本機與 Azure DEV。問題一已實機驗證通過，見 §實機驗證… |
+| [FIX-168](4-changes/bug-fixes/FIX-168-vat-mapping-inconsistent-across-companies.md) | vat mapping inconsistent across companies | ✅ 已結案（2026-08-05 決定維持現狀、不修改任何 mapping —— 見 §結案決定與保留的已知影響） |
 

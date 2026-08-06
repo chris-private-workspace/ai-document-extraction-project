@@ -21,6 +21,8 @@ prisma/dist/
 # 本地業務資料快照（開發/Azure 資料同步產物，每機不同，不入 git）
 # CHANGE-115: gated 腳本的前置快照（§不可逆資料操作紀律的還原依據，內容隨環境而異）
 .snapshots/
+# gated 腳本的工作目錄（前置快照與前後對帳檔，每次執行內容不同）
+.tmp-*/
 
 # IDE
 .idea/
