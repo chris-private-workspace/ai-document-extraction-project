@@ -1,9 +1,9 @@
 # Messages 目錄 - i18n 翻譯文件
 
 > **語言數量**: 3 種（en, zh-TW, zh-CN）
-> **命名空間數量**: **34** 個/語言（共 **102** 個 JSON 文件）
-> **最後更新**: 2026-04-21（同步 codebase-analyze 2026-04-09 掃瞄）
-> **版本**: 1.1.0
+> **命名空間數量**: **41** 個/語言（共 **123** 個 JSON 文件）
+> **最後更新**: 2026-08-06（重新計數；含 CHANGE-089 新增的 7 個命名空間 + `llmProviders`）
+> **版本**: 1.2.0
 > **深度分析**: `docs/06-codebase-analyze/06-i18n-analysis/i18n-coverage.md`
 
 ---
@@ -21,7 +21,7 @@ messages/
 ├── en/              # English（預設語言，fallback）
 │   ├── common.json
 │   ├── navigation.json
-│   ├── ... (共 34 個 JSON)
+│   ├── ... (共 41 個 JSON)
 │   └── systemSettings.json
 ├── zh-TW/           # 繁體中文（主要目標語言）
 │   └── (同 en/)
@@ -31,11 +31,21 @@ messages/
 
 ---
 
-## 命名空間完整列表（34 個）
+## 命名空間完整列表（41 個）
 
-> **實際命名空間清單**（依字母排序）：`admin, auth, common, companies, confidence, dashboard, dataTemplates, dialogs, documentPreview, documents, errors, escalation, exchangeRate, fieldDefinitionSet, fieldMappingConfig, formats, global, historicalData, navigation, pipelineConfig, profile, promptConfig, referenceNumber, region, reports, review, rules, standardFields, systemSettings, templateFieldMapping, templateInstance, templateMatchingTest, termAnalysis, validation`
+> 🔴 **權威來源是 `src/i18n/request.ts` 的 `namespaces` 陣列**，不是本清單。新增命名空間時
+> 兩處都要改，且以該陣列為準（`npm run i18n:check` 依它 gate）。
 >
-> **新增項目**（相對於原 31 個）：`fieldDefinitionSet`、`profile`、`systemSettings`（新增 3 個）
+> **實際命名空間清單**（2026-08-06 由 `request.ts` 核對，依註冊順序）：
+> `common, navigation, dialogs, auth, validation, errors, dashboard, global, escalation, review,
+> documents, rules, companies, reports, admin, historicalData, termAnalysis, documentPreview,
+> fieldMappingConfig, promptConfig, dataTemplates, formats, templateFieldMapping, templateInstance,
+> templateMatchingTest, standardFields, referenceNumber, confidence, exchangeRate, region,
+> pipelineConfig, fieldDefinitionSet, profile, systemSettings, documentSource, dataRetention,
+> integrations, changeHistory, ruleSimulation, cityAccess, llmProviders`
+>
+> **相對於原 34 個新增 7 個**：CHANGE-089 的 `documentSource`、`dataRetention`、`integrations`、
+> `changeHistory`、`ruleSimulation`、`cityAccess`，以及 Epic 23 的 `llmProviders`
 
 ### 通用基礎（6 個）
 
@@ -159,8 +169,10 @@ npm run i18n:check    # 檢查所有語言文件同步狀態
 | 常量文件 | i18n 命名空間 | Key 前綴 |
 |----------|---------------|----------|
 | `src/types/prompt-config.ts` → `PROMPT_TYPES` | `promptConfig` | `types.` |
-| `src/constants/status.ts` → `DOCUMENT_STATUS` | `common` | `status.` |
-| `src/constants/roles.ts` → `USER_ROLES` | `common` | `roles.` |
+| `src/lib/document-status.ts` → `DOCUMENT_STATUS` | `common` | `status.` |
+
+> ⚠️ 2026-08-06 核對：原表的 `src/constants/status.ts` / `src/constants/roles.ts` **兩個檔案都不存在**，
+> `USER_ROLES` 在 `src/` 中也找不到。完整表格見 `.claude/rules/i18n.md`。
 
 ---
 
@@ -174,5 +186,5 @@ npm run i18n:check    # 檢查所有語言文件同步狀態
 ---
 
 **維護者**: Development Team
-**最後更新**: 2026-02-09
-**版本**: 1.0.0
+**最後更新**: 2026-08-06
+**版本**: 1.2.0

@@ -1,9 +1,9 @@
 # Scripts 目錄 - 工具腳本
 
-> **腳本數量**: 104 個文件
+> **腳本數量**: **162** 個文件
 > **主要類型**: 測試腳本、調試工具、資料檢查、管理操作
-> **最後更新**: 2026-02-09
-> **版本**: 1.0.0
+> **最後更新**: 2026-08-06（重新計數）
+> **版本**: 1.1.0
 
 ---
 
@@ -155,7 +155,7 @@
 | `analyze-*` | 資料分析 | `analyze-batch-results.mjs` |
 | `debug-*` | 問題調試 | `debug-format-issue.mjs` |
 | `verify-*` | 結果驗證 | `verify-fix-005.ts` |
-| `run-*` | 執行任務 | `run-test-plan-003.mjs` |
+| `run-*` | 執行任務 | `run-test-plan-003-full.mjs` |
 | `fix-*` | 修復操作 | `fix-file-detected-type.mjs` |
 
 ---

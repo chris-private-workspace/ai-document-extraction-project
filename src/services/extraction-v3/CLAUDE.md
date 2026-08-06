@@ -1,9 +1,16 @@
 # Extraction V3 管線 - 三階段提取架構
 
-> **文件數量**: 19 個服務文件（6 核心 + 7 stages + 4 utils + 2 index）
+> **文件數量**: 20 個服務文件（6 核心 + 8 stages + 5 utils + index）
 > **架構版本**: V3（單次 GPT） + V3.1（三階段分離）
-> **最後更新**: 2026-02-09
-> **版本**: 1.0.0
+> **LLM 模型**: 🔴 三階段**全部**使用 `gpt-5.6-luna`（CHANGE-115 全面切換，白名單只剩此一模型）
+> **最後更新**: 2026-08-06（同步實際計數；修正過時的 GPT-5-nano / GPT-5.2 記載）
+> **版本**: 1.1.0
+
+> ⚠️ **模型不要看方法名**：`stage-1-company.service.ts` 的 `callGptNano()` 與錯誤字串
+> `'GPT-5-nano 調用失敗'` 都是 CHANGE-115 之前的殘留命名，**與實際模型無關**。
+> 實際模型由 `LlmModelConfigService.getStageModel(stage)` 於執行時解析，fallback 鏈為
+> `StageModelAssignment`（DB）→ 舊 `SystemConfig` key → `DEFAULT_STAGE_MODELS`（`src/lib/constants/llm-models.ts`）。
+> 要知道當下生效值，請查 DB 或呼叫該方法，**不要憑常數或本文件推斷**。
 
 ---
 
@@ -32,7 +39,7 @@ V3 提取管線是本項目的核心 AI 處理引擎，負責從文件（PDF/Ima
 │    │    ▼               ▼               ▼              │        │
 │    │ Stage 1         Stage 2         Stage 3           │        │
 │    │ 公司識別        格式匹配        欄位提取           │ stages/│
-│    │ (GPT-5-nano)   (GPT-5-nano)   (GPT-5.2)          │        │
+│    │ (gpt-5.6-luna) (gpt-5.6-luna) (gpt-5.6-luna)     │        │
 │    │    │               │               │              │        │
 │    │    │               │           ┌───┼───┐          │        │
 │    │    │               │           │   │   │          │        │
@@ -80,7 +87,8 @@ src/services/extraction-v3/
     ├── pdf-converter.ts              # PDF → Base64 圖片轉換
     ├── prompt-builder.ts             # Prompt 構建器
     ├── prompt-merger.ts              # Prompt 合併器 (CHANGE-026)
-    └── variable-replacer.ts          # 變數替換器 (CHANGE-026)
+    ├── variable-replacer.ts          # 變數替換器 (CHANGE-026)
+    └── classify-normalizer.ts        # 分類結果正規化
 ```
 
 ---
@@ -115,21 +123,25 @@ src/services/extraction-v3/
 ### Stage 1: 公司識別 (`stage-1-company.service.ts`)
 
 - **目的**: 從文件圖片中識別發送公司
-- **模型**: GPT-5-nano（成本最低）
+- **模型**: `gpt-5.6-luna`（由 `getStageModel('stage1')` 解析，非方法名 `callGptNano` 暗示的 nano）
 - **輸入**: 文件圖片 + 已知公司列表
 - **輸出**: `Stage1CompanyResult`（公司名稱、匹配方式、信心度）
+- 🔴 **輸出的 `companyName` 是匹配到的既有公司 `company.name`，不是 GPT 從發票讀到的原印法**
+  （`resolveCompanyId` 回傳時覆蓋）。持久化的 `stage1Result` 只有
+  `companyId` / `confidence` / `companyName` / `isNewCompany` 四個欄位，**原印法不會被保存**，
+  因此無法從資料回推「這份文件為何被判給這家公司」。
 
 ### Stage 2: 格式匹配 (`stage-2-format.service.ts`)
 
 - **目的**: 匹配文件格式模板
-- **模型**: GPT-5-nano
+- **模型**: `gpt-5.6-luna`
 - **輸入**: Stage 1 結果 + 格式模板列表
 - **輸出**: `Stage2FormatResult`（格式 ID、配置來源、信心度）
 
 ### Stage 3: 欄位提取 (`stage-3-extraction.service.ts`)
 
 - **目的**: 根據已識別的公司和格式，提取所有欄位
-- **模型**: GPT-5.2（最強推理能力）
+- **模型**: `gpt-5.6-luna`
 - **輸入**: Stage 1 + Stage 2 結果 + 動態 Prompt
 - **輸出**: `Stage3ExtractionResult`（標準欄位、行項目、附加費用）
 - **後處理**: 參考編號匹配、匯率轉換
@@ -142,7 +154,9 @@ src/services/extraction-v3/
 ### GPT 呼叫器 (`gpt-caller.service.ts`)
 
 - **目的**: 統一封裝 Azure OpenAI GPT API 呼叫
-- **功能**: 支援多種模型（GPT-5-nano、GPT-5.2）、圖片詳細度控制
+- **功能**: 圖片詳細度控制、Epic 23 灰度雜湊鍵
+- **模型白名單**: CHANGE-115 後 `GptModelType` 只剩 `'gpt-5.6-luna'`；
+  `nanoDeploymentName` / `fullDeploymentName` 兩個常數**同指** `gpt-5.6-luna`（名稱是歷史殘留）
 
 ### 參考編號匹配 (`reference-number-matcher.service.ts`) - Epic 20
 
@@ -217,7 +231,9 @@ StageOrchestrator
 | CHANGE-024 | V3.1 三階段架構 | 2026-02 |
 | CHANGE-025 | Stage Prompt 載入 + 智能路由 | 2026-02 |
 | CHANGE-026 | Prompt 合併器 + 變數替換器 | 2026-02 |
-| CHANGE-032 | 參考編號匹配 + 匯率轉換（規劃中） | 2026-02 |
+| CHANGE-032 | 參考編號匹配 + 匯率轉換 | 2026-02 |
+| CHANGE-099 | LLM 模型選擇管理（`getStageModel` fallback 鏈） | 2026-07 |
+| CHANGE-115 | **全面切換 `gpt-5.6-luna`**，白名單只剩單一模型 | 2026-08 |
 
 ---
 
@@ -231,5 +247,5 @@ StageOrchestrator
 ---
 
 **維護者**: Development Team
-**最後更新**: 2026-02-09
-**版本**: 1.0.0
+**最後更新**: 2026-08-06
+**版本**: 1.1.0
