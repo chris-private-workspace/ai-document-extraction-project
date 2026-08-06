@@ -50,7 +50,7 @@
 | [FIX-163](4-changes/bug-fixes/FIX-163-refmatch-missing-r-prefix.md) | refmatch missing r prefix | 📋 規劃中 |
 | [FIX-164](4-changes/bug-fixes/FIX-164-companies-without-template-mapping.md) | companies without template mapping | 📋 規劃中 |
 | [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中（2026-08-05 第二次修訂：初版的統計數字全部作廢，改以代碼演繹論證，見 §實測資料） |
-| [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（影響面已量化：全庫 9 筆，且 9/9 全部繞過對帳閘） |
+| [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（影響面已量化：全庫 9 筆；路由實測 9/9 為 `AUTO_APPROVE`，正對照 7/7 為 `FULL_REVIEW… |
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%） |
 
 ## 🚧 進行中 / 部分完成（25）

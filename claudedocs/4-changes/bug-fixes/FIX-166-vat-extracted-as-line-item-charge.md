@@ -4,7 +4,7 @@
 > **發現方式**: 掃描件抽樣核對，對發票原文逐項比對（[TEST-REPORT-006 §8.4](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md)）
 > **影響範圍**: Stage 3 欄位提取（`stage-3-extraction.service.ts` + Stage 3 Prompt）；後果落在 `lineItems` 與對帳閘
 > **優先級**: 高（不是金額抽錯，是**讓唯一生效的品質閘失效**）
-> **狀態**: 📋 規劃中（影響面已量化：全庫 9 筆，且 **9/9 全部繞過對帳閘**）
+> **狀態**: 📋 規劃中（影響面已量化：全庫 9 筆；**路由實測 9/9 為 `AUTO_APPROVE`，正對照 7/7 為 `FULL_REVIEW`**）
 > **相關**: [FIX-147](FIX-147-stage3-wrapped-line-description-misjoin.md)（對帳閘）、[FIX-148](FIX-148-v31-pipeline-discards-routing-decision.md)（其餘降級全部失效，對帳閘是唯一實際作用者）、[FIX-151](FIX-151-reconcile-uses-tax-inclusive-total.md)（對帳基準改用 `subtotal`）
 
 ---
@@ -120,6 +120,50 @@ TOLL_RCEX260051_77741.pdf               5筆 合計235.63   total235.63   subtot
 
 `subtotal` 是系統獨立抽出的欄位。「明細多出的那一列，其金額恰等於系統自己抽的含稅總額與不含稅小計之差」——這個等式九次成立，已足以判定該列是稅額而非服務費。**初版關於確認偏誤的但書因此可以撤銷**（見 §證據強度說明）。
 
+### 🔴 A2. 路由實測：9/9 全部 `AUTO_APPROVE`，而對帳不符者 7/7 被攔下
+
+2026-08-05 補查 `Document.processingPath`（原記為「限制 1：繞過閘屬代碼推導，未直接觀測」——**此限制已解除**）。
+
+單看那 9 筆不足以下結論：若閘本來就從未觸發，「9 筆沒被攔」就無從歸因。因此同時建立對照組：
+
+| 組別 | 定義 | 筆數 | `processingPath` |
+|---|---|---:|---|
+| **B（正對照）** | 對帳**不符** | 7 | 🔴 **FULL_REVIEW 7 / 7 = 100%** |
+| **A（待證）** | 含稅額列且合計恰等 `total_amount` | 9 | 🔴 **AUTO_APPROVE 9 / 9 = 100%** |
+| C（負對照） | 對帳相符、無稅額列 | 495 | AUTO_APPROVE 488、QUICK_REVIEW 6、FULL_REVIEW 1 |
+
+**閘確實會作用**（B 組 7/7 被強制 FULL_REVIEW），**而這 9 筆全部逃過**。
+
+歸因依據是分佈對比：對帳不符者 **7/7** 進 FULL_REVIEW，對帳相符者僅 **1/495**。兩者相差三個數量級，FULL_REVIEW 由其他原因造成的可能性可以排除。
+
+A 組 9 筆的對帳基準**全部**是 `total_amount`（而非 `subtotal`），與 §為什麼這比「抽錯一個數字」嚴重 推導的機制完全一致：
+
+```
+NEX_RCIM250007_2168.pdf    AUTO_APPROVE   合計58395   基準 total_amount(58395)
+TOLL_RCEX260051_77741.pdf  AUTO_APPROVE   合計235.63  基準 total_amount(235.63)
+（另七筆同）
+```
+
+#### 順帶印證 FIX-148
+
+全庫 645 份的路由分佈：`AUTO_APPROVE` 499、`QUICK_REVIEW` 10、`FULL_REVIEW` 8、未設 128。
+
+**8 筆 FULL_REVIEW 中有 7 筆來自對帳不符**。這是 [FIX-148](FIX-148-v31-pipeline-discards-routing-decision.md)「對帳閘是線上唯一實際生效的降級機制」的**直接資料佐證** —— 若其他降級（新公司／新格式／配置來源／>3 項待分類／Stage 失敗）仍在作用，FULL_REVIEW 不會只有 8 筆且幾乎全來自同一個閘。
+
+#### 🔴 附帶發現：降級原因沒有被持久化
+
+`Document.routingDecision` 的實際結構只有兩個欄位：
+
+```json
+{ "decision": "AUTO_APPROVE", "confidence": 0.9815 }
+```
+
+`extraction-v3.service.ts` 在對帳不符時會 `warnings.push('行項合計 … 不符 …')`，但**該 warnings 並未寫入 `routingDecision`**（517 份非空的 `routingDecision` 中無一含 warnings）。
+
+後果：即使閘正確觸發，**「為什麼被降級」在資料庫裡查不到**，只能靠事後重算推斷。本次歸因之所以必須依賴分佈對比而非逐筆確認，原因就在這裡。是否另立 FIX 待定。
+
+---
+
 ### B. 確定性：同一份重跑 10 次
 
 以 `scripts/tmp-quantify-stage3-nondeterminism.ts` 重跑（Stage 1/2 固定，只重跑 Stage 3，不持久化）：
@@ -160,6 +204,7 @@ TOLL_RCEX260051_77741.pdf               5筆 合計235.63   total235.63   subtot
 1. **確定性**的樣本仍小 —— 目前僅 3 份 ×10 次；1/10 的信賴區間很寬。**影響面已不需再擴樣**（A 已全庫掃描）
 2. 修法 D 上線後的**誤報**驗證 —— 現有 9 筆中誤報 0 筆，但樣本僅 9 筆，需在更大的資料上確認不會誤傷真的含稅字樣的服務費
 3. ~~釐清 Prompt 版本干擾~~ —— 已由同日兩次提取的對照收窄，見上方
+4. ~~查那 9 筆的實際 `routingPath`~~ —— 已完成，9/9 `AUTO_APPROVE`，見 §已量化 A2
 
 ⚠️ **不可用「重新處理文件」的方式重跑** —— `extraction_results` 對 document 有唯一約束且採 upsert，會**覆蓋**既有結果並銷毀證據。應直接呼叫 Stage 3、不持久化（`Stage3ExtractionService.execute()` 在**不傳 `documentId`** 時為純讀取，其唯一寫入路徑 `recordExtractionFeedback` 的守衛即為 `input.documentId`）。
 
@@ -210,9 +255,11 @@ TOLL_RCEX260051_77741.pdf               5筆 合計235.63   total235.63   subtot
 | 核對者與被核對者同為視覺模型 | ✅ **已排除**。判定改由算術比對完成，無視覺核對參與 |
 | 發生率完全未知 | ✅ **已量化**。影響面 9 / 511 = 1.8%，且 9/9 繞過閘 |
 
+| ~~「繞過對帳閘」僅為代碼推導~~ | ✅ **已解除**（2026-08-05）。實測 A 組 9/9 為 `AUTO_APPROVE`、正對照 B 組 7/7 為 `FULL_REVIEW`，見 §已量化 A2 |
+
 仍存在的限制：
 
-1. **「繞過對帳閘」是依代碼推導**（`reconcileLineItemTotal` 的分支邏輯 + FIX-148 指出其為唯一生效降級），非直接觀測到閘未觸發。要直接證實，需查這 9 筆的實際 `routingPath` 是否確為非 `FULL_REVIEW` —— **本 FIX 尚未做**
+1. **降級原因無法逐筆確認** —— `Document.routingDecision` 只存 `{decision, confidence}`，不含 warnings（見 §已量化 A2 附帶發現）。因此 B 組「因對帳而降級」是依**分佈對比**歸因（7/7 vs 1/495），非逐筆直證
 2. 「明細含 VAT/GST 字樣」用正則篩選，可能漏掉以其他寫法表達稅額的列（如泰文、或僅寫 `7%`）。因此 9 筆是**下限**，非確數
 
 ---
@@ -221,9 +268,9 @@ TOLL_RCEX260051_77741.pdf               5筆 合計235.63   total235.63   subtot
 
 修法 D 屬確定性規則，可直接以既有資料驗證，**不需重跑 Stage 3**（省去 Azure OpenAI 費用）：
 
-1. 以 §已量化 A 的 9 筆為**正樣本**：套用 D 後全部必須被判定為降級
-2. 以其餘 502 筆有明細者為**負樣本**：套用 D 後不得有任何一筆被誤降級
-3. 補驗 §證據強度說明 限制 1：查這 9 筆的實際 `routingPath`，確認修法前確實未進 `FULL_REVIEW`
+1. 以 §已量化 A 的 9 筆為**正樣本**：套用 D 後全部必須從 `AUTO_APPROVE` 轉為降級
+2. 以負對照 C 的 495 筆為**負樣本**：套用 D 後不得有任何一筆被誤降級（現況 488 `AUTO_APPROVE` / 6 `QUICK_REVIEW` / 1 `FULL_REVIEW` 應維持不變）
+3. 以正對照 B 的 7 筆為**回歸樣本**：套用 D 後必須仍是 `FULL_REVIEW`（確認未破壞既有對帳閘）
 
 修法 A（Prompt 約束）才需要重跑比較：
 
@@ -233,4 +280,4 @@ TOLL_RCEX260051_77741.pdf               5筆 合計235.63   total235.63   subtot
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-05（第二次修訂：全庫掃描取代單案例，撤銷確認偏誤但書，修正對帳機制描述）
+**最後更新**: 2026-08-05（第三次修訂：補路由實測與正負對照，解除「繞過閘僅為推導」的限制；記錄降級原因未持久化）

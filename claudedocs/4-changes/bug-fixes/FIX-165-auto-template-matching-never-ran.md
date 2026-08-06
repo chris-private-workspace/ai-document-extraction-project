@@ -93,11 +93,52 @@ if (!resolved) {
 2026-06-26T09:22:02  CEVA LOGISTICS_CEX240464_39613.pdf
 ```
 
-最可能的成因是 **template instance 被刪除時 `templateInstanceId` 被設為 null，而 `templateMatchedAt` 留著**（未查證 schema 的 `onDelete` 行為，屬推論）。
+#### 成因已查證（2026-08-05）—— 外鍵 `SET NULL`，非推論
 
-無論成因為何，後果是確定的：**「哪些文件曾經匹配過」已無法從這兩個欄位還原**。這既是初版判準失效的第三重原因，也意味著任何依賴這兩欄做歷史統計的分析都不可靠。
+初版標為「推論」，現已由資料庫本身證實：
 
-⚠️ 這是本次查證才發現的訊號，先前完全未注意到。是否另立 FIX 待定 —— 需先查明 `onDelete` 行為再判斷是缺陷還是預期行為。
+```sql
+-- information_schema 查詢結果
+約束    documents_template_instance_id_fkey
+欄位    documents.template_instance_id → template_instances.id
+DELETE  SET NULL          ← 成因在此
+UPDATE  CASCADE
+```
+
+`template_matched_at` 是普通的 `timestamp without time zone` 欄位，不受任何外鍵牽動。因此**刪除一個 template instance 時，`template_instance_id` 被資料庫清為 null，而 `template_matched_at` 原封不動留著**。
+
+`prisma/schema.prisma:351` 的關聯**未顯式指定 `onDelete`**：
+
+```prisma
+templateInstance  TemplateInstance?  @relation("TemplateInstanceDocuments", fields: [templateInstanceId], references: [id])
+```
+
+optional relation 在此情況下採預設的 `SetNull`，與上方查到的實際約束一致。
+
+##### 三項佐證
+
+| 佐證 | 結果 |
+|---|---|
+| **時間線不重疊** | 33 份 orphan 的 `matched_at` 全部落在 **2026-06-02 ~ 06-27**；20 份正常的全部落在 **2026-07-29 之後**。兩批完全不重疊，符合「6 月那批所用的 instance 後來被刪掉」 |
+| **應用層已排除** | 全 `src/` 只有兩處把 `templateInstanceId` 設為 null（`unmatch` 617、`batchUnmatch` 665），**兩處都同時清 `templateMatchedAt`**。應用層不存在造成不同步的路徑 |
+| **反證檢查** | 「`templateInstanceId` 有值但 `templateMatchedAt` 為 null」共 **0 筆**。若另有第三種寫入路徑，應會留下這種形態 |
+
+（規模對照：現存 152 個 template instance，但仍被 `documents` 指向的只有 **13 個**。）
+
+#### 判定：不是功能缺陷，是資料完整性與可觀測性問題
+
+`getMatchStatus`（`auto-template-matching.service.ts:855-860`）的回傳為：
+
+```ts
+isMatched: !!document.templateInstanceId,        // orphan → false ✅ 正確
+matchedAt: document.templateMatchedAt || undefined,  // orphan → 仍回傳一個時間 🔴
+```
+
+**`isMatched` 是對的** —— 不會把未匹配的文件誤判為已匹配，所以匹配流程本身不受影響。但回傳的是 `{ isMatched: false, matchedAt: <6月某時間> }` 這種**邏輯矛盾的組合**，消費端若直接顯示 `matchedAt` 會出現「未匹配 · 匹配於 6/2」。
+
+確定的後果：**「哪些文件曾經匹配過」已無法從這兩個欄位還原**。這既是初版判準失效的第三重原因，也意味著任何依賴這兩欄做歷史統計的分析都不可靠。
+
+⚠️ 是否另立 FIX 由使用者決定。影響有限（不影響匹配正確性），但若要保留匹配歷史，`SET NULL` 這個設計本身就不適合 —— 那需要的是一張匹配歷史表，而非在 `Document` 上放兩個會被外鍵拆散的欄位。
 
 ---
 
@@ -332,4 +373,4 @@ UI 實測後，原本的 A1–A3 都不再是「去設定一下」就能做的 �
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-05（第二次修訂：判準失效、統計數字作廢、改採代碼演繹；修正「完全無聲」定性；新增欄位不同步訊號）
+**最後更新**: 2026-08-05（第三次修訂：查明欄位不同步的成因為外鍵 `SET NULL`，並判定其影響範圍）
