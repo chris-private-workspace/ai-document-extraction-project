@@ -22,8 +22,14 @@
  *
  * ⚠️ 改設定不會回溯既有的模板實例列，必須重新匹配後才擷取 after，否則對照無意義。
  *
- * ⚠️ Azure 執行：runner 映像不含 scripts/，需先上傳至 Kudu /home 再以 node 執行
- *    （見 memory feedback_azure_runner_excludes_scripts_tsx）。
+ * ⚠️ Azure 執行：capture 改用 `prisma/snapshot-template-values.js`
+ *    （`RUN_TEMPLATE_SNAPSHOT=capture`，把快照印進 log），**diff 仍用本檔**在本機跑 ——
+ *    容器的 `/home` 不持久（`WEBSITES_ENABLE_APP_SERVICE_STORAGE=false`），
+ *    且 before/after 中間夾著「重新匹配」這個跨容器生命週期的步驟。見 runbook §20。
+ *
+ *    🔴 本處原寫「上傳至 Kudu /home 再以 node 執行」—— **那條路行不通**。2026-08-06 實測：
+ *    Kudu `/api/command` 跑在 sidecar，working directory `/app` 不存在，也拿不到 app 容器的
+ *    `node_modules/pg`。
  */
 'use strict';
 

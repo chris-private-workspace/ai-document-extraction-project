@@ -204,5 +204,43 @@ case "$RUN_TOLL_SPLIT_20260806" in
     ;;
 esac
 
+# (選用)FIX-150 對帳工具 —— 解除 runbook §17 的通案限制。兩者皆**唯讀**,非致命。
+# §不可逆資料操作紀律要求「改 mapping 前後各跑一次對帳」,原工具在 scripts/、
+# 不在 runner 映像內,安全網無法於容器執行 —— 這兩支是容器內可執行版,判準與本機版相同。
+#
+# RUN_ORPHAN_CHECK=inspect       費用落地對帳(提取總額 vs 模板總額)
+#   選用 RECONCILE_BASELINE=<JSON>  設了就在容器內完成前後比對
+#   選用 RECONCILE_COMPANY=<關鍵字> 公司過濾
+#   選用 RECONCILE_DOCS=true        逐份文件列出
+# RUN_TEMPLATE_SNAPSHOT=capture  模板欄位值快照(輸出 JSON,於本機 diff)
+#   🔴 務必配 RECONCILE_COMPANY 縮小範圍,全庫快照會超過 log 輸出上限而被拒絕
+#
+# 🔴 比照 FIX-140:兩者皆為單值非布林旗標 —— **關閉方式是清空設定,設成 false 不會關閉**。
+case "$RUN_ORPHAN_CHECK" in
+  inspect)
+    echo "[entrypoint] (optional) orphan charge key check: mode=$RUN_ORPHAN_CHECK (read-only)"
+    node prisma/check-orphan-charge-keys.js || echo "[entrypoint] orphan check failed (non-fatal), continuing"
+    ;;
+  "")
+    : # 未設定 = 關閉(正常情況,不輸出)
+    ;;
+  *)
+    echo "[entrypoint] (optional) orphan charge key check skipped: mode=$RUN_ORPHAN_CHECK not recognised (expected inspect; clear the app setting to disable)"
+    ;;
+esac
+
+case "$RUN_TEMPLATE_SNAPSHOT" in
+  capture)
+    echo "[entrypoint] (optional) template value snapshot: mode=$RUN_TEMPLATE_SNAPSHOT (read-only)"
+    node prisma/snapshot-template-values.js || echo "[entrypoint] template snapshot failed (non-fatal), continuing"
+    ;;
+  "")
+    : # 未設定 = 關閉(正常情況,不輸出)
+    ;;
+  *)
+    echo "[entrypoint] (optional) template value snapshot skipped: mode=$RUN_TEMPLATE_SNAPSHOT not recognised (expected capture; clear the app setting to disable)"
+    ;;
+esac
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js

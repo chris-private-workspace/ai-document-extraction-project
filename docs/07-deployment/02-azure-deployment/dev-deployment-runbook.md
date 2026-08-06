@@ -88,17 +88,25 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
   --settings RUN_DEV_DATA_IMPORT=false FORCE_SCHEMA_RESET=false
 ```
 
-**非布林旗標(6 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
+**非布林旗標(8 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
 - `RUN_TEMPLATE_MAPPING_SEED`(三模式 `inspect|dryrun|write`)
 - `RUN_CHANGE113_DHL_SETUP`(三模式 `inspect|dryrun|write`)
 - `RUN_CONFIG_SYNC_20260803`(三模式 `inspect|dryrun|write`,見 §17)
 - `RUN_CONFIG_DIAGNOSE_20260806`(單模式 `inspect`,**唯讀**,見 §18)
 - `RUN_TOLL_SPLIT_20260806`(三模式 `inspect|dryrun|write`,**會寫入**,見 §19)
+- `RUN_ORPHAN_CHECK`(單模式 `inspect`,**唯讀**,見 §20)
+- `RUN_TEMPLATE_SNAPSHOT`(單模式 `capture`,**唯讀**,見 §20)
 - `GRANT_GLOBAL_ADMIN_EMAIL`(值是 email)
+
+另有三個**搭配用**的設定(非旗標,但同樣建議用完清掉,避免下次誤用舊值):
+`RECONCILE_COMPANY`、`RECONCILE_BASELINE`、`RECONCILE_DOCS`。
+
 ```bash
 az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
   --setting-names RUN_TEMPLATE_MAPPING_SEED RUN_CHANGE113_DHL_SETUP RUN_CONFIG_SYNC_20260803 \
-                  RUN_CONFIG_DIAGNOSE_20260806 RUN_TOLL_SPLIT_20260806 GRANT_GLOBAL_ADMIN_EMAIL
+                  RUN_CONFIG_DIAGNOSE_20260806 RUN_TOLL_SPLIT_20260806 \
+                  RUN_ORPHAN_CHECK RUN_TEMPLATE_SNAPSHOT \
+                  RECONCILE_COMPANY RECONCILE_BASELINE RECONCILE_DOCS GRANT_GLOBAL_ADMIN_EMAIL
 ```
 > FIX-140 前這 2 個用 `[ -n "$X" ]`(非空即執行),`"false"` 非空故仍觸發 —— 2026-07-28 FIX-139 部署的 log 就出現 `template field mapping seed: mode=false`(當時該設定確實是 `false`)。FIX-140 已改為明確列舉/形狀檢查:值無法辨識時**印出 skip 訊息並跳過**,不再靜默執行。設成 `false` 現在會看到 `... skipped: mode=false not recognised`,**但那仍代表設定沒清乾淨**,請照上方 `delete` 清掉。
 
@@ -511,6 +519,10 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
 
 > 這是個通案限制,不只影響 FIX-150:**凡「規範要求先跑對帳才能改」的設定,在移植對帳工具之前都不該送進 Azure**。
 
+> ✅ **2026-08-06 更新:上述通案限制已解除** —— 兩支對帳工具已移植進 `prisma/`(見 §20),
+> 判準與本機版驗證過逐項一致(合計漏 38946.27、多算 19656.11,兩版數字相同)。
+> FIX-150 未送 Azure 的**另一個**理由(本身仍 🚧 進行中)仍然成立,不因本次解除而改變。
+
 ---
 
 ## 18. 2026-08-06:先診斷再決定寫入(`RUN_CONFIG_DIAGNOSE_20260806`)
@@ -610,9 +622,76 @@ with working directory '/app'. No such file or directory
 
 ### ⚠️ 拆分不等於完成
 
-新實體目前沒有欄位定義集、沒有 mapping。補齊要寫 `template_field_mappings`,
-仍受 §17 的通案限制 —— 對帳工具(`check-orphan-charge-keys.js` / `snapshot-template-values.js`)
-尚未移植進 `prisma/`,安全網無法在容器內執行。
+新實體目前沒有欄位定義集、沒有 mapping。補齊要寫 `template_field_mappings`。
+
+> 撰寫當下受 §17 的通案限制擋著;該限制已於同日解除(見 §20),對帳工具現已在映像內。
+> 但**工具尚未在 Azure 實跑驗證過**,首次使用時應先單獨跑一次確認輸出正常。
+
+---
+
+## 20. 2026-08-06:對帳工具移植進 `prisma/` —— §17 通案限制解除
+
+### 為什麼原本卡住
+
+§不可逆資料操作紀律要求「改 mapping 前後各跑一次對帳」,工具是
+`scripts/check-orphan-charge-keys.js` + `scripts/snapshot-template-values.js`。
+但 runner 映像只 COPY `prisma/` 與 `scripts/docker-entrypoint.sh` —— 安全網無法在容器內執行。
+於是 §17 立了通案限制:**凡需要對帳才能改的設定,都不該送進 Azure**。
+
+原腳本註解建議「上傳至 Kudu /home 再以 node 執行」。**那條路行不通**(見 §18):
+Kudu 在 sidecar,`/app` 不存在,拿不到 app 容器的 `node_modules/pg`。
+
+### 移植後的兩支
+
+| 檔案 | 旗標 | 性質 |
+|---|---|---|
+| `prisma/check-orphan-charge-keys.js` | `RUN_ORPHAN_CHECK=inspect` | 唯讀,費用落地對帳 |
+| `prisma/snapshot-template-values.js` | `RUN_TEMPLATE_SNAPSHOT=capture` | 唯讀,模板欄位值快照 |
+
+搭配設定:`RECONCILE_COMPANY`(公司過濾)、`RECONCILE_BASELINE`(前次基線 JSON)、
+`RECONCILE_DOCS=true`(逐份列出)。
+
+### 🔴 before/after 怎麼跨執行保存
+
+`WEBSITES_ENABLE_APP_SERVICE_STORAGE=false` → 容器 `/home` **不持久**,寫檔重啟即消失。
+而且 before → after 中間夾著「重新匹配模板實例」,跨越了容器生命週期。兩支的解法不同:
+
+**費用對帳**(findings 小,塞得進 appsetting)—— 前後比對在容器內完成:
+```
+1. 改動前  RUN_ORPHAN_CHECK=inspect          → log 印出 BASELINE JSON
+2. 把該段 JSON 設進 RECONCILE_BASELINE
+3. 改動 + 重新匹配 → 再跑一次                → 容器內直接輸出前後比對結論
+```
+
+**模板快照**(量大)—— capture 在容器、diff 在本機:
+```
+1. 改動前  RUN_TEMPLATE_SNAPSHOT=capture     → 從 log 取 JSON 存成 before.json
+2. 改動 + 重新匹配 → 再跑一次                 → 存成 after.json
+3. 本機 node scripts/snapshot-template-values.js diff before.json after.json
+```
+
+### 🔴 兩個防假綠燈的設計
+
+**分母為 0 時明說**。掃到 0 份文件不會回報「沒有漏接」,而是明確講「沒有可對帳的對象」——
+空迴圈輸出綠燈是最難發現的失敗(綠燈不會被追查)。
+
+**快照超過上限時拒絕輸出,不截斷**。截斷的 JSON 解析不出來,而「解析失敗」比「沒有安全網」
+更危險 —— 會誤以為對過帳。超過 512 KB 即拒絕並列出涵蓋的公司,要求加 `RECONCILE_COMPANY`。
+同理,`RECONCILE_BASELINE` 解析失敗時會**明講「本次沒有前後比對」**,不靜默略過。
+
+### 等價性驗證(本機同一個 DB,兩版對跑)
+
+| 版本 | 合計 |
+|---|---|
+| `scripts/`(原版) | 漏 38946.27、多算 19656.11 |
+| `prisma/`(新版) | 漏 38946.27、多算 19656.11 |
+
+逐家公司數字亦相同。另驗證容器版輸出的 JSON 可被本機 `diff` 直接讀取(82 列全對上、零誤判)。
+
+### ⚠️ 尚未在 Azure 實跑
+
+工具已進映像並通過本機等價性驗證,但**還沒在 Azure 容器內跑過**。
+首次使用時應先單獨跑一次確認輸出正常,再拿它當安全網。
 
 ---
 

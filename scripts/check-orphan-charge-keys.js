@@ -49,8 +49,12 @@
  * ⚠️ 只計入 field_definition_sets 定義的費用欄位。發票通用欄位（invoice_date /
  *    total_amount / subtotal 等）本就不該進費用模板，納入會把日期當金額加總。
  *
- * ⚠️ Azure 執行：runner 映像不含 scripts/，需先上傳至 Kudu /home 再以 node 執行
- *    （見 memory feedback_azure_runner_excludes_scripts_tsx）。
+ * ⚠️ Azure 執行：**改用 `prisma/check-orphan-charge-keys.js`**（判準相同，已驗證數字逐項一致）。
+ *    以 `RUN_ORPHAN_CHECK=inspect` 於容器啟動時執行，見 runbook §20。
+ *
+ *    🔴 本處原寫「上傳至 Kudu /home 再以 node 執行」—— **那條路行不通**。2026-08-06 實測：
+ *    Kudu `/api/command` 跑在 sidecar，working directory `/app` 不存在，也拿不到 app 容器的
+ *    `node_modules/pg`。要讀 DB 只能做成 `prisma/*.js` + gated 旗標（Dockerfile 整包 COPY prisma/）。
  */
 'use strict';
 
