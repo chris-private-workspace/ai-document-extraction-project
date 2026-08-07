@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）。待辦：步驟 4（補 `isProtectedRoute` 11 個路徑）、步驟 5（剩餘 35 個相依漏洞）、步驟 6 / BUG-9（解除 CI advisory）、BUG-7（防暴力破解）、BUG-8（PII 遮罩））
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）。**待決策**：步驟 6 / BUG-9 的三個選項（見該節）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 high 漏洞。**已排除**：步驟 4 另開編號處理）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -569,10 +569,118 @@ beta.32 本身已讓裸檢查 fail closed，此改寫的目的是不把保證寄
 
 ---
 
+## 第三批步驟 5：剩餘漏洞（2026-08-07，部分完成）
+
+### 🔴 教訓：`npm audit fix` 在本專案會造成實質破壞
+
+原本已在 §第三批評估 五 警告過不可用 `npm audit fix`（會把 `next-auth` v5 beta 降級成 v4）。實測發現**第二種破壞形態**，且更隱蔽：
+
+執行 `npm audit fix` 後——
+
+| 套件 | 執行前 | 執行後 |
+|---|---|---|
+| `prisma`（CLI，devDependency `^7.2.0`） | 7.2.0 | **7.9.1** |
+| `@prisma/engines` | 7.2.0 | **7.9.1** |
+| `@prisma/client` | 7.2.0 | **7.2.0（未動）** |
+
+結果 `npx prisma generate` 直接失敗：
+
+```
+Error: Cannot find module '.../node_modules/@prisma/client/runtime/query_compiler_fast_bg.postgresql.wasm-base64.js'
+```
+
+CLI 7.9.1 要求 client 7.9.1 的 runtime 檔案，而 client 停在 7.2.0。
+
+**根因是一個既有的相依宣告缺口**：`@prisma/client` 被 `src/` 大量直接 `import`，卻**沒有宣告在 `package.json`**（`npm ls` 顯示它只透過 `@auth/prisma-adapter` 與頂層 dedupe 存在）。因此 `npm audit fix` 升級 CLI 時，沒有對應的宣告可一併升級 client。
+
+> 📌 **這個宣告缺口本身應該單獨修**（`@prisma/client` 是直接使用的相依，不該只靠傳遞取得），但屬於相依結構變更，不併入本 FIX。
+
+已 `git checkout package-lock.json` + `npm ci` 完整還原，並確認 `prisma generate` 與 `type-check` 恢復正常。
+
+### 實際採用的做法：精準 override
+
+只針對唯一的 critical 做最小改動，`package.json` 新增：
+
+```json
+"overrides": {
+  "fast-xml-parser": "^5.10.1"
+}
+```
+
+`fast-xml-parser` 走兩條相依鏈，皆為傳遞相依、非專案直接使用：
+
+```
+@azure/storage-blob → @azure/core-xml → fast-xml-parser 5.3.3 → 5.10.1
+@types/nodemailer → @aws-sdk/client-sesv2 → @aws-sdk/core → @aws-sdk/xml-builder → 5.2.5 → 5.10.1
+```
+
+advisory 範圍為 `<=5.6.0`，5.10.1 為同 major 內升級。
+
+### 漏洞數變化
+
+| | 原始 | 步驟 1–3 後 | 步驟 5 後 |
+|---|---:|---:|---:|
+| **critical** | **3** | 1 | **0** |
+| high | 21 | 20 | 20 |
+| moderate | 13 | 13 | 13 |
+| low | 1 | 1 | 1 |
+| **總計** | **38** | 35 | **34** |
+
+### 驗證
+
+`prisma generate` ✅ ・ `type-check` ✅ ・ `test` 489 passed / 0 failed ✅ ・ `build` ✅ Compiled successfully
+關鍵套件版本未受 override 影響：`prisma` 7.2.0、`@prisma/client` 7.2.0、`next` 15.5.23、`next-auth` beta.32、`exceljs` 4.4.0、`@azure/storage-blob` 12.29.1
+
+> ⚠️ `fast-xml-parser` 由 Azure Blob SDK 用於 XML 解析。本機未啟動 Azurite，**上傳／下載路徑未實測**，需部署後或在有 Azurite 的環境複驗。
+
+### 剩餘 20 個 high 的結構性約束
+
+| 套件 | 修復途徑 | 阻礙 |
+|---|---|---|
+| `next`、`postcss`、`sharp` | 三者的修復**全部綁定 `next@16.3.0`** | major 升級（15 → 16），屬 H2，需 approval |
+| `nodemailer` | `nodemailer@9.0.4` | major 升級 |
+| `@prisma/config`、`@prisma/dev`、`@hono/node-server`、`hono`、`effect`、`lodash` | 隨 `prisma` CLI 升級 | 受上述 `@prisma/client` 宣告缺口阻擋 |
+| `axios`、`form-data`、`tmp`、`minimatch`、`picomatch`、`brace-expansion`、`defu`、`immutable`、`js-yaml` | 可比照 `fast-xml-parser` 逐一 override | 尚未做——每個都需獨立驗證，且本機無法做登入後回歸 |
+
+---
+
+## 第三批步驟 6 / BUG-9：無法在現況下達成
+
+CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workflows/security-deps.yml:24`）。
+
+**目前仍有 20 個 high，直接移除 `continue-on-error` 會使所有 PR 立即被擋。** 這正是本文件自第一版起就標註的相依順序，現況未改變。
+
+三個選項供決策：
+
+| 選項 | 作法 | 效果 | 代價 |
+|---|---|---|---|
+| A | 維持 advisory 現狀 | 無 | 漏洞持續累積（這正是累積到 38 個的機制） |
+| **B** | 將 gate 改為 `--audit-level=critical` 並**移除** `continue-on-error` | **立即生效**——critical 已歸零，且能擋住任何新引入的 critical | 20 個既有 high 不被擋 |
+| C | 完成 `next@16` + `nodemailer@9` 等 major 升級後，維持 `--audit-level=high` 並移除 `continue-on-error` | 最徹底 | 需 H2 approval + 完整回歸，且本機無法驗證登入後行為 |
+
+> 📌 **建議 B 作為中繼狀態**：它把 gate 從「完全不擋」變成「擋住 critical」，是可立即落地的改善，也符合 workflow 檔頭原本「漸進式 rollout」的設計意圖。但這是 CI gate 行為變更，需使用者裁決後才動手。
+
+---
+
+## 步驟 4（補 `isProtectedRoute` 缺的 11 個路徑）：不納入本 FIX
+
+**決定：另開 FIX 編號處理，不併入 FIX-171。**
+
+理由：
+
+1. **它目前不是漏洞。** 步驟 3 已將 `(dashboard)/layout.tsx` 改為 `!session?.user`，那 11 個路徑的單點防禦是有效的，且用的是 advisory 建議的安全模式。
+2. **性質不同。** 本 FIX 的範圍是「修補公司 DoD Checklist 掃描出的缺口」，28 項中沒有這一條。步驟 4 屬於縱深防禦強化。
+3. **風險與驗證需求不同。** 擴充 `isProtectedRoute()` 可能影響既有導覽行為，需逐路徑實測，而本 FIX 已橫跨三批。
+
+> 📌 待辦已登記於此，避免遺失：`(dashboard)` 路由組的 13 個頂層路徑中，`isProtectedRoute()` 僅涵蓋 `/dashboard`、`/documents`、`/docs`；`/admin`、`/audit`、`/companies`、`/escalations`、`/global`、`/profile`、`/reports`、`/review`、`/rollback-history`、`/rules`、`/template-instances` 共 11 個僅有 layout 一道防線。
+
+---
+
 ## 修改的檔案
 
 | 檔案 | 修改內容 | 批次 | 狀態 |
 |------|----------|------|------|
+| `package.json` | 新增 `overrides.fast-xml-parser: ^5.10.1`（清除唯一 critical） | 三・步驟 5 | ✅ 已完成 |
 | `package.json` / `package-lock.json` | `next` → 15.5.23、`next-auth` → 5.0.0-beta.32、`@auth/prisma-adapter` → 2.11.3 | 三 | ✅ 已完成 |
 | `src/app/[locale]/(dashboard)/layout.tsx` | 裸檢查改為 `!session?.user` | 三 | ✅ 已完成 |
 | `next.config.ts` | 加 `poweredByHeader: false` + `headers()` 五個標頭 + 兩個 CSP header | 一 | ✅ 已完成 |
