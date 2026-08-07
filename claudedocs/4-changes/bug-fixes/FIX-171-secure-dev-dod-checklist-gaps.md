@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）。**待決策**：步驟 6 / BUG-9 的三個選項（見該節）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 high 漏洞。**已排除**：步驟 4 另開編號處理）
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory）。**待人工處理**：將 `npm-audit` 加入 main 的 required status checks（需 repo admin，否則此閘不會擋合併）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 20 個 high、`@prisma/client` 宣告缺口。**已排除**：步驟 4 另開編號處理）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -644,7 +644,56 @@ advisory 範圍為 `<=5.6.0`，5.10.1 為同 major 內升級。
 
 ---
 
-## 第三批步驟 6 / BUG-9：無法在現況下達成
+## 第三批步驟 6 / BUG-9：已採選項 B 實作（2026-08-07）
+
+**使用者裁決採選項 B**：門檻改為 `--audit-level=critical` 並移除 `continue-on-error`。
+
+### 動手前先揭穿了一個假綠燈
+
+`gh pr checks` 顯示 `npm-audit` 與 `pip-audit` 皆為 **pass**，但那是 `continue-on-error` 造成的 —— job 成功不等於指令成功。查 CI 原始輸出後：
+
+| Job | 顯示狀態 | 實際結果 |
+|---|---|---|
+| `npm-audit` | pass | `34 vulnerabilities (1 low, 13 moderate, 20 high)` → **exit code 1** |
+| `pip-audit`（extraction） | pass | `Found 42 known vulnerabilities in 4 packages` → **exit code 1** |
+| `pip-audit`（mapping） | pass | `No known vulnerabilities found` → 真的通過 |
+
+> 📌 這是「紅燈會被追查、綠燈不會」的典型案例。若未查原始輸出，會誤以為相依掃描一直是乾淨的。
+
+### 實作內容
+
+| 位置 | 改動 |
+|---|---|
+| `security-deps.yml` npm-audit | `--audit-level=high` → `--audit-level=critical`；**移除** `continue-on-error` |
+| `security-deps.yml` pip-audit | 維持 advisory，但註解改為記載真實原因（extraction 42 個漏洞、pip-audit 無 severity 門檻） |
+| 檔頭註解 | 改寫為現況說明，取代原本「Week 3 升 required」的過時計畫 |
+
+本機實測門檻行為：
+
+```
+npm audit --audit-level=critical --omit=dev  → exit 0（會通過）
+npm audit --audit-level=high     --omit=dev  → exit 1（會失敗）
+```
+
+### 🔴 這個 gate 目前不會真的擋合併
+
+查 `main` 的分支保護設定：
+
+```
+required status checks: type-check, lint, unit-tests, build, docs-check
+```
+
+**五個 required check 中沒有任何一個安全掃描 job。** 因此即使 `npm-audit` 現在會失敗，也不會阻擋合併 —— 這正是本專案記載過的「workflow 定義 ≠ GitHub 設定」。
+
+**要讓此閘真正生效，需由 repo admin 將 `npm-audit` 加入 required status checks。** 此為分支保護設定變更，影響全團隊的合併流程，未由 AI 代為執行。已在 workflow 檔頭以 🔴 標註。
+
+### 其餘三個安全 workflow 維持 advisory
+
+`security-sast.yml`（semgrep）、`security-secrets.yml`（gitleaks）、`security-container.yml`（trivy）皆未在本次變更範圍內，仍為 advisory。使用者選擇的選項 B 僅涵蓋 npm audit。
+
+---
+
+## 步驟 6 原始評估：三個選項（保留供追溯）
 
 CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workflows/security-deps.yml:24`）。
 
@@ -658,7 +707,7 @@ CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workf
 | **B** | 將 gate 改為 `--audit-level=critical` 並**移除** `continue-on-error` | **立即生效**——critical 已歸零，且能擋住任何新引入的 critical | 20 個既有 high 不被擋 |
 | C | 完成 `next@16` + `nodemailer@9` 等 major 升級後，維持 `--audit-level=high` 並移除 `continue-on-error` | 最徹底 | 需 H2 approval + 完整回歸，且本機無法驗證登入後行為 |
 
-> 📌 **建議 B 作為中繼狀態**：它把 gate 從「完全不擋」變成「擋住 critical」，是可立即落地的改善，也符合 workflow 檔頭原本「漸進式 rollout」的設計意圖。但這是 CI gate 行為變更，需使用者裁決後才動手。
+> ✅ **使用者於 2026-08-07 裁決採 B**，實作內容見上一節。
 
 ---
 
@@ -681,6 +730,8 @@ CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workf
 | 檔案 | 修改內容 | 批次 | 狀態 |
 |------|----------|------|------|
 | `package.json` | 新增 `overrides.fast-xml-parser: ^5.10.1`（清除唯一 critical） | 三・步驟 5 | ✅ 已完成 |
+| `package-lock.json` | 於 Linux 容器（node:22）重新生成，修復 CI `npm ci` 不同步 | 三・步驟 5 附帶 | ✅ 已完成 |
+| `.github/workflows/security-deps.yml` | npm-audit 改 `--audit-level=critical` 並移除 `continue-on-error` | 三・步驟 6 | ✅ 已完成 |
 | `package.json` / `package-lock.json` | `next` → 15.5.23、`next-auth` → 5.0.0-beta.32、`@auth/prisma-adapter` → 2.11.3 | 三 | ✅ 已完成 |
 | `src/app/[locale]/(dashboard)/layout.tsx` | 裸檢查改為 `!session?.user` | 三 | ✅ 已完成 |
 | `next.config.ts` | 加 `poweredByHeader: false` + `headers()` 五個標頭 + 兩個 CSP header | 一 | ✅ 已完成 |

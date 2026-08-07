@@ -1,7 +1,20 @@
 # Dependency Audit — npm audit + pip-audit
 # Story 22-4 AC5 (SDLC-04)：偵測 npm / pip 相依套件的 HIGH/CRITICAL 漏洞
-# 漸進式 rollout：本階段為 advisory（continue-on-error: true）；
-#   Week 3 升 required 時移除 continue-on-error 以強制 block merge。
+#
+# 漸進式 rollout 現況（FIX-171 步驟 6，2026-08-07）：
+#   - npm-audit：已 **enforce**，門檻為 critical。FIX-171 已將 critical 清零
+#     （3 → 0），故此閘現在會通過，並能擋下任何新引入的 critical。
+#     ⚠️ 門檻**尚未**升到 high：仍有 20 個既有 high 漏洞，其中 next / postcss /
+#     sharp 的修復全部綁定 next@16（major 升級），nodemailer 需自身 major，
+#     其餘受 @prisma/client 未在 package.json 宣告的缺口阻擋。詳見 FIX-171。
+#   - pip-audit：維持 advisory。`python-services/extraction/requirements.txt`
+#     現有 **42 個已知漏洞**，且 pip-audit 無 severity 門檻選項，移除
+#     continue-on-error 會立即擋下所有 PR。需先處理該批漏洞。
+#
+# 🔴 重要：workflow 定義 ≠ GitHub 分支保護設定。本 job 目前**不在** main 的
+#    required status checks 清單內（該清單為 type-check / lint / unit-tests /
+#    build / docs-check），因此失敗**不會**阻擋合併。要真正生效，需由 repo admin
+#    將 `npm-audit` 加入 required checks。
 name: Dependency Audit
 
 on:
@@ -21,8 +34,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
-      - run: npm audit --audit-level=high --omit=dev
-        continue-on-error: true # advisory 階段；Week 3 移除以強制 block
+      # FIX-171 步驟 6：門檻設為 critical 並移除 continue-on-error。
+      # 這是可立即落地的中繼狀態 —— 從「完全不擋」變成「擋住 critical」。
+      # 待 high 漏洞清完（需 next@16 等 major 升級）後再改回 --audit-level=high。
+      - run: npm audit --audit-level=critical --omit=dev
 
   pip-audit:
     runs-on: ubuntu-latest
@@ -33,6 +48,8 @@ jobs:
           python-version: '3.11'
       - run: pip install pip-audit
       - run: pip-audit -r python-services/extraction/requirements.txt
-        continue-on-error: true # advisory 階段；Week 3 移除以強制 block
+        continue-on-error: true # 仍為 advisory：extraction 有 42 個已知漏洞，且 pip-audit 無 severity 門檻
       - run: pip-audit -r python-services/mapping/requirements.txt
-        continue-on-error: true # advisory 階段；Week 3 移除以強制 block
+        # 2026-08-07 實測此檔為 "No known vulnerabilities found"，可單獨 enforce；
+        # 暫維持 advisory 以與同 job 的 extraction 步驟一致，待該批漏洞處理後一併升級。
+        continue-on-error: true
