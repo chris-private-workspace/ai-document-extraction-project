@@ -5,6 +5,7 @@
 > **影響範圍**: `template_field_mappings` → 模板實例列值 → 匯出報表金額
 > **優先級**: 高（實測 17 種費用、約 **24,186** 金額在 262 列中未進入 template）
 > **狀態**: 📋 規劃中（**尚未拍板修法** —— 改 mapping 會影響其他費用的去處，需逐項確認）
+> **成因已量化（2026-08-07）**: 🔴 本 FIX 形態（無規則引用）在**本機佔 100%、Azure CEVA 37.4%、Azure 全庫僅 13.7%**；Azure 主因是 [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) 的欄位互搶（四個來源共 489,675.60 搶同一個 `freight`）。見 §成因量化
 > **相關**: [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md)（欄位互搶）、[FIX-158](FIX-158-mapping-field-definition-misalignment.md)（mapping 與定義不對齊）、[FIX-161](FIX-161-mapping-references-undefined-company-fields.md)（反方向：規則引用取不到的 key）
 
 ---
@@ -129,9 +130,10 @@ node scripts/check-orphan-charge-keys.js --baseline=before.json
 
 ---
 
-## Azure DEV：CEVA 漏接 189,073.28，成因尚未查證（2026-08-07）
+## 成因量化：本 FIX 的形態只佔一部分，且各環境比例相反（2026-08-07）
 
-本節記錄的是**已量測的事實**與**待查點**，不是結論。🔴 尚不能斷言它屬於本 FIX 的形態。
+🔴 **本節推翻了本 FIX 的一個隱含前提**：原文假設漏接主要來自「提取到了卻無規則引用」，
+實測後只有**本機**如此。Azure 上該形態僅佔 13.7%，主因另有其事。
 
 ### 已量測
 
@@ -151,7 +153,7 @@ node scripts/check-orphan-charge-keys.js --baseline=before.json
 `destination_cfs_charges` / `destination_gate_fee` 在 **48/48 列**都不存在於提取結果，
 即這批發票沒有這兩項費用（母體未覆蓋）。修復正確，但對這個缺口毫無貢獻。
 
-### 為什麼還不能歸類
+### 為什麼需要專用工具才能歸類
 
 `transformDiagnostics` 只記錄「**規則引用了但取不到值**」，**不記錄**「提取到了但沒有規則引用」——
 而後者正是本 FIX 的形態。所以現有證據**看不見**本 FIX 的徵狀，缺口成因可能是：
@@ -165,13 +167,87 @@ node scripts/check-orphan-charge-keys.js --baseline=before.json
 三者的處置完全不同（(a) 補 mapping、(b) 不處理、(c) 補定義集並重新提取），
 **不查清楚就動手會修錯地方**。
 
-### 查證受阻於什麼
+### 判別工具
 
-`/api/documents/*` 與 `/api/companies/*` 在 Azure 需要認證（實測 401），
-而 `extraction_results` 沒有免認證的讀取途徑。要比對提取結果與 mapping，
-需做成 `prisma/*.js` + gated 旗標在容器內執行（範式見 runbook §19–§21）。
+`prisma/diagnose-orphan-cause-20260807.js`，旗標 `RUN_ORPHAN_CAUSE=inspect`（唯讀）。
+A / B 的定義與 `check-orphan-charge-keys.js` **逐字相同** —— 本機全庫跑出的漏接總額
+`38946.27` 與該腳本實測值完全吻合，兩支的數字可互相解釋。
+
+對每個「計入 A 但未落地」的 key，依有無規則引用分成三類：
+
+| 類別 | 意義 | 處置 |
+|---|---|---|
+| **[1]** 無任何規則引用 | 本 FIX 的形態 | 補 mapping |
+| **[2]** 有規則但 targetField 非模板數值欄位 | 落到了欄位但不計入 B | 改模板欄位型別 |
+| **[3]** 有規則且目標為數值欄位 | 規則在，未落地另有原因 | 需逐案查（互搶／FORMULA 合併／快照過期） |
+
+搭配 `RECONCILE_COMPANY` 過濾公司、`RECONCILE_DOCS=true` 逐份列出。
+
+### 實測結果：三個環境三種分布
+
+| | 本機 CEVA | Azure CEVA | Azure 全庫 |
+|---|---:|---:|---:|
+| 參與判別文件 | 62 | 232 | 628 |
+| 漏接總額 | 8,866.71 | 217,464.03 | 614,693.59 |
+| **[1] 無規則引用** | **100%** | 37.4% | 13.7% |
+| [2] targetField 非數值 | 0% | 0% | 0% |
+| **[3] 有規則未落地** | 0% | **58.0%** | **95.6%** |
+| 未歸類殘額 | 0.00 | +9,989.91 | −56,894.55 |
+
+🔴 **三者結論都不同，拿任何一個推另一個都會錯。** 本機 CEVA 是乾淨的單一成因
+（`destination_thc_terminal_handling_charge` 5,490.55 + `freight_charges` 3,376.16，殘額 0.00），
+Azure CEVA 是混合，Azure 全庫幾乎全是 [3]。
+
+### Azure 全庫的 [3] 集中在同一個 targetField
+
+```
+190395.40  19 筆  express_worldwide_nondoc → freight
+138188.00   5 筆  ocean_freight            → freight
+110666.76   8 筆  freight_charges          → freight
+ 50425.44  17 筆  fuel_surcharge           → freight
+```
+
+四個來源共 **489,675.60** 指向同一個 `freight` 欄位。一個欄位只能存一個值——
+這是 [FIX-150](FIX-150-nippon-charge-fields-lost-mapping-slot-contention.md) 的**欄位互搶**形態，
+不是本 FIX。補 mapping 對這部分無效。
+
+### 同一個 key 可能同時落在兩類
+
+```
+[1]  19508.31   1 筆  freight_charges            ← 無規則引用
+[3] 110666.76   8 筆  freight_charges → freight  ← 有規則
+```
+
+「CEVA」關鍵字涵蓋**多家**公司記錄，各有獨立的 mapping 與定義集。
+所以 CEVA 的漏接不是單一問題，而是**跨公司的設定不一致**。
+
+### 🔴 兩個必須標註的限制
+
+**[3] 是高估的上限。** 未落地的判準是「該金額沒有出現在列的任何數值欄位裡」，
+而 FORMULA 規則把多個 key 加總成一個 targetField，個別 key 的金額本就不會單獨出現——
+會被誤判為未落地。Azure 全庫殘額 **−56,894.55**（負數）即分類總和超過實際漏接，證實有高估。
+
+**[1] 不受影響，是可靠下限。** 沒有規則引用就一定沒落地，這是二元事實。
+本機 CEVA 殘額 0.00 也印證了：不涉及 FORMULA 的公司完全對得上。
+
+### 數字不可與 2026-08-06 的 baseline 直接相比
+
+| | 08-06 baseline | 08-07 實測 |
+|---|---:|---:|
+| 全庫參與對帳 | 607 份 | 628 份 |
+| 全庫漏接 | 586,302.84 | 614,693.59 |
+| CEVA 漏接 | 189,073.28 | 217,464.03 |
+
+期間多了 21 份文件進入實例，**分母變了**。不可據此宣稱「漏接增加」——
+要做前後比較必須用同一時點的 baseline。
+
+### 對修法的意義
+
+本 FIX 的修法（補 mapping）能解決的比例：**本機 100%、Azure CEVA 37.4%、Azure 全庫 13.7%**。
+剩下的 [3] 屬 FIX-150 形態或 FORMULA 部分落地，需先區分兩者才能決定處置——
+那需要逐列重算 FORMULA，且實例列是快照（改設定不回溯），過期本身會造成假陽性。
 
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-07（新增 §Azure DEV：CEVA 漏接 189,073.28，成因尚未查證）
+**最後更新**: 2026-08-07（成因已量化 —— 本 FIX 形態在 Azure 僅佔 13.7%，主因為 FIX-150 的欄位互搶）

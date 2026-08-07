@@ -82,7 +82,13 @@ az webapp restart -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProce
 
 ### A.5 收尾(🔴 一次性旗標關閉 —— 兩類旗標關法不同)
 
-**布林旗標(7 個)** —— 設回 `false` 即關閉:`RUN_SCHEMA_DRIFT_FIX`、`RUN_EMAIL_VERIFIED_BACKFILL`、`RUN_DEV_DATA_IMPORT`、`RUN_STAGE3_PROMPT_FIX`、`RUN_FIX110_ALIAS_BACKFILL`、`RUN_FIX111_DEACTIVATE_FIELD_EXTRACTION`、`RUN_INVOICE_NUMBER_BACKFILL`(+ `FORCE_SCHEMA_RESET`)。
+**布林旗標(7 個)** —— 設回 `false` 即關閉。🔴 **以下為 2026-08-07 實測線上實際存在的 7 個**:
+`RUN_DEV_DATA_IMPORT`、`FORCE_SCHEMA_RESET`、`RUN_SCHEMA_DRIFT_FIX`、`RUN_EMAIL_VERIFIED_BACKFILL`、
+`RUN_STAGE3_PROMPT_FIX`、`RUN_AZURE_SYNC`、`RUN_INVOICE_NUMBER_BACKFILL`。
+
+> ⚠️ 本清單原記有 `RUN_FIX110_ALIAS_BACKFILL` 與 `RUN_FIX111_DEACTIVATE_FIELD_EXTRACTION`,
+> 但線上**並不存在**這兩個設定;而實際存在的 `RUN_AZURE_SYNC` 原本未列。已依實測更正。
+> 清理前請一律以 `az webapp config appsettings list` 的實際結果為準,不要照抄清單。
 ```bash
 az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
   --settings RUN_DEV_DATA_IMPORT=false FORCE_SCHEMA_RESET=false
@@ -97,6 +103,7 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
 - `RUN_ORPHAN_CHECK`(單模式 `inspect`,**唯讀**,見 §20)
 - `RUN_TEMPLATE_SNAPSHOT`(單模式 `capture`,**唯讀**,見 §20)
 - `RUN_FIX161_CEVA_20260806`(三模式 `inspect|dryrun|write`,**會寫入**,見 §21)
+- `RUN_ORPHAN_CAUSE`(單模式 `inspect`,**唯讀**,見 §22)
 - `GRANT_GLOBAL_ADMIN_EMAIL`(值是 email)
 
 另有三個**搭配用**的設定(非旗標,但同樣建議用完清掉,避免下次誤用舊值):
@@ -795,5 +802,66 @@ POST execute → 400  INVALID_INSTANCE_STATUS
 
 ---
 
+## 22. 2026-08-07:診斷腳本的價值在於**推翻**假設(`RUN_ORPHAN_CAUSE`)
+
+`prisma/diagnose-orphan-cause-20260807.js`,旗標 `RUN_ORPHAN_CAUSE=inspect`(唯讀),
+映像 `dev-orphancause-20260807`(ACR run `ck20`)。回答「漏接的錢**為什麼**沒落地」。
+
+### 🔴 本機與 Azure 的成因分布是相反的
+
+| | 本機 CEVA | Azure CEVA | Azure 全庫 |
+|---|---:|---:|---:|
+| 漏接總額 | 8,866.71 | 217,464.03 | 614,693.59 |
+| 無規則引用(FIX-160 形態) | **100%** | 37.4% | **13.7%** |
+| 有規則但未落地(FIX-150 形態) | 0% | 58.0% | **95.6%** |
+
+同一支腳本、同一套判準,三個環境三種結論。
+**若照本機結論在 Azure「補 mapping」,補完錢還是進不去** —— 那些 key 本來就有規則,
+問題是四個來源(`express_worldwide_nondoc` / `ocean_freight` / `freight_charges` /
+`fuel_surcharge`,共 489,675.60)搶同一個 `freight` 欄位。
+
+這是 §樣本 ≠ 母體 在**環境之間**的版本:本機測出來的成因不能外推到 Azure。
+
+### 判準要和既有工具逐字對齊,否則數字無法互相解釋
+
+本腳本的 A / B 定義與 `check-orphan-charge-keys.js` 逐字相同 ——
+本機全庫跑出 `38946.27`,與該腳本實測值完全吻合。這個吻合本身就是正確性驗證:
+若兩支對「什麼算漏接」的定義有一絲差異,總額就對不上,後續的成因拆解也就無從取信。
+
+### 分類要標明哪一類可靠、哪一類是上限
+
+- **無規則引用**:二元事實,不受 FORMULA 影響 → **可靠下限**
+- **有規則未落地**:FORMULA 把多個 key 加總,個別金額本就不會單獨出現在欄位裡,
+  會被誤判為未落地 → **高估上限**
+
+Azure 全庫的未歸類殘額是 **−56,894.55**(負數),即分類總和超過實際漏接 —— 證實有高估。
+腳本主動印出殘額並在非零時警告,而不是讓分類看起來剛好加總為 100%。
+
+### 跨時點的數字不可直接相比
+
+| | 08-06 baseline | 08-07 實測 |
+|---|---:|---:|
+| 全庫參與對帳 | 607 份 | 628 份 |
+| 全庫漏接 | 586,302.84 | 614,693.59 |
+
+期間多了 21 份文件進入實例,**分母變了**。不可據此宣稱「漏接增加了」。
+
+### 讀 log 的兩件事
+
+同一份 log 裡有全庫與 CEVA 兩次執行(行 311 與行 461),訊息格式完全相同,
+只差 `connected` 那行末尾的 `. company~CEVA`。**必須認明該標記**,否則會把上一次的結果當成這次的。
+
+本環境**沒有診斷設定,Log Analytics 這條路不存在**;`az webapp log download` 也會因
+SCM 主機名在本機解析不到而失敗。可行途徑是 Kudu + 公用 DNS:
+
+```bash
+IP=$(nslookup <scm-host> 8.8.8.8 | awk '/^Address: /{a=$2} END{print a}')
+TOKEN=$(az account get-access-token --resource https://management.azure.com --query accessToken -o tsv)
+curl -s --resolve "<scm-host>:443:$IP" -H "Authorization: Bearer $TOKEN" "https://<scm-host>/api/logs/docker"
+# 取回應中 machineName 以 _default 結尾那筆的 href，即容器 stdout
+```
+
+---
+
 *維護者: AI 助手 + 開發團隊*
-*最後更新: 2026-08-06*
+*最後更新: 2026-08-07*

@@ -263,5 +263,24 @@ case "$RUN_FIX161_CEVA_20260806" in
     ;;
 esac
 
+# (選用)FIX-160 成因判別:漏接金額是「沒有規則引用」還是別的原因 —— 由
+# RUN_ORPHAN_CAUSE=inspect 觸發,非致命。
+# 🔴 **唯讀**,只有 SELECT。A / B 的定義與 check-orphan-charge-keys.js 逐字相同,
+# 否則兩支的數字無法互相解釋。
+# 搭配 RECONCILE_COMPANY(公司過濾)、RECONCILE_DOCS=true(逐份列出)。
+# 🔴 比照 FIX-140:單值非布林 —— **關閉方式是清空設定,設成 false 不會關閉**。
+case "$RUN_ORPHAN_CAUSE" in
+  inspect)
+    echo "[entrypoint] (optional) FIX-160 orphan cause diagnosis: mode=$RUN_ORPHAN_CAUSE"
+    node prisma/diagnose-orphan-cause-20260807.js || echo "[entrypoint] orphan cause diagnosis failed (non-fatal), continuing"
+    ;;
+  "")
+    : # 未設定 = 關閉(正常情況,不輸出)
+    ;;
+  *)
+    echo "[entrypoint] (optional) orphan cause diagnosis skipped: mode=$RUN_ORPHAN_CAUSE not recognised (expected inspect; clear the app setting to disable)"
+    ;;
+esac
+
 echo "[entrypoint] Step 3/3: starting Next.js server"
 exec node server.js
