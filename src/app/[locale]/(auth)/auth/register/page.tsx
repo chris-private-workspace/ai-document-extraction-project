@@ -74,7 +74,8 @@ export default async function RegisterPage({
   const safeCallbackUrl = toSafeRedirect(callbackUrl)
 
   // 已登入用戶重定向至儀表板
-  if (session) {
+  // FIX-170：取用 `session?.user` 而非裸物件，理由同登入頁
+  if (session?.user) {
     redirect(safeCallbackUrl)
   }
 

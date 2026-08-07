@@ -74,7 +74,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const safeCallbackUrl = toSafeRedirect(callbackUrl)
 
   // 已登入用戶重定向至儀表板或回調 URL
-  if (session) {
+  // FIX-170：取用 `session?.user` 而非裸物件 —— 配置錯誤時 auth() 會回傳帶 error 的
+  // 物件，裸檢查會把未認證者導向 dashboard，再被 middleware 導回本頁，形成無限重定向
+  // （本機以 beta.30 實測重現，升級 beta.32 後消失）。
+  if (session?.user) {
     redirect(safeCallbackUrl)
   }
 

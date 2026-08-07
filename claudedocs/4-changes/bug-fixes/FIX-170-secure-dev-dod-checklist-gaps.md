@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批「純標頭修復」與第二批的 BUG-2 / BUG-11 / BUG-12 已完成，見 §第一批實作記錄、§第二批實作記錄、§BUG-12；BUG-9 依賴第三批相依升級，第三批整批待處理）
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）。待辦：步驟 4（補 `isProtectedRoute` 11 個路徑）、步驟 5（剩餘 35 個相依漏洞）、步驟 6 / BUG-9（解除 CI advisory）、BUG-7（防暴力破解）、BUG-8（PII 遮罩））
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -476,10 +476,105 @@ npm install next@15.5.23
 
 ---
 
+## 第三批實作記錄：步驟 1–3（2026-08-07 完成）
+
+### 🔴 最重要的發現：fail-open 在本機被實際重現，並非理論風險
+
+驗證過程中意外重現了 GHSA-8fpg-xm3f-6cx3 的完整因果鏈。這不是推論，是可對照的實測。
+
+**觸發源**：臨時 `.env` 使用了 Auth.js v4 的變數名 `NEXTAUTH_URL`，v5 需要 `AUTH_URL`。伺服器日誌因此持續輸出：
+
+```
+[auth][error] UntrustedHost: Host must be trusted. URL was: http://localhost:3300/api/auth/session
+```
+
+這正是 advisory 所述的「server-configuration error」。
+
+**升級前後對照**（同一份程式碼，只換 `next-auth` 版本）：
+
+| 檢查項 | beta.30（升級前） | beta.32（升級後） |
+|---|---|---|
+| `/en/auth/login` 未登入 | **307 → `/dashboard`** | **200 正常顯示** |
+| 重定向鏈 | **`num_redirects=10`（達上限）** | **`num_redirects=0`** |
+| `/en/dashboard` | 307 → 登入頁 | 307 → 登入頁（不變） |
+| `/api/documents` | 401 | 401（不變） |
+
+**故障形態值得記錄**：本專案的 fail-open 表現**不是未授權存取，而是登入頁完全不可用** —— 未認證者被導向 `/dashboard`，middleware（用安全模式判斷）再導回登入頁，形成無限迴圈。使用者根本無法登入。
+
+> ⚠️ **對 Azure 環境的意涵**：任何導致 Auth.js 配置錯誤的狀況（資料庫不可用、環境變數遺漏、`AUTH_URL` 與實際主機不符）都會在升級前觸發此迴圈，使全站登入失效。本專案在 Azure DEV 已有 VNet DNS 導致容器連不到資料庫的前例，屬同類觸發條件。
+
+### 步驟 1：`next` 15.5.9 → 15.5.23
+
+**升級前先建立跨平台相依基準**，因本專案有兩次「Windows 產生的 lock 缺 Linux 相依 → CI `npm ci` 失敗」前例：
+
+| 指標 | 升級前 | 升級後 |
+|---|---:|---:|
+| 套件總數 | 1321 | 1316 |
+| **linux 條目** | **59** | **59** |
+| darwin 條目 | 18 | 18 |
+| win32 條目 | 19 | 19 |
+
+`@next/swc-linux-{x64,arm64}-{gnu,musl}` 等 9 個 Linux 專屬條目完整保留，不會重現該 CI 故障。
+
+**結果**：`next` 的 **DIRECT advisory 已全部清除**，包括四條 middleware bypass（最高 CVSS 8.1，其中一條專指 i18n 應用）。目前 `npm audit` 仍將 `next` 標為 high，但來源是傳遞相依 `postcss` 與 `sharp`，非 Next.js 本體 —— 屬步驟 5 範圍。
+
+### 步驟 2：`next-auth` → 5.0.0-beta.32、`@auth/prisma-adapter` → 2.11.3
+
+`@auth/core` 隨之升到 0.41.3。三者的 advisory **全部清除**。
+
+### 步驟 3：3 處裸物件檢查改寫
+
+| 檔案 | 改動 |
+|---|---|
+| `src/app/[locale]/(dashboard)/layout.tsx` | `if (!session)` → `if (!session?.user)` |
+| `src/app/[locale]/(auth)/auth/login/page.tsx` | `if (session)` → `if (session?.user)` |
+| `src/app/[locale]/(auth)/auth/register/page.tsx` | 同上 |
+
+改寫後全庫裸檢查歸零（`grep -rnE "if \(!?session\)|if \(!?auth\)|if \(!?req\.auth\)" src` 無結果）。
+
+beta.32 本身已讓裸檢查 fail closed，此改寫的目的是不把保證寄託在單一套件版本上。
+
+### 漏洞數變化（`npm audit --omit=dev`）
+
+| | 升級前 | 升級後 |
+|---|---:|---:|
+| critical | 3 | **1** |
+| high | 21 | 20 |
+| moderate | 13 | 13 |
+| low | 1 | 1 |
+| **總計** | **38** | **35** |
+
+剩餘 critical 為 `fast-xml-parser`（7 條 advisory）。剩餘 high 中有 16 個帶直接 advisory：`axios`、`nodemailer`、`lodash`、`form-data`、`postcss`、`sharp`、`js-yaml`、`minimatch`、`picomatch`、`tmp`、`defu`、`immutable`、`brace-expansion`、`hono`、`@hono/node-server`、`effect`。
+
+### 驗證
+
+| 檢查 | 結果 |
+|---|---|
+| `npm run type-check` | 通過 |
+| `npm run test` | 489 passed / 2 skipped / **0 failed** |
+| `npm run build` | **成功**（`Compiled successfully`） |
+| 生產模式路由（`next start`） | 登入頁 200 無迴圈；`/en/dashboard`、`/en/admin/users`、`/en/companies`、`/en/reports/cost`、`/en/docs` 皆 307 導向登入頁；`/api/documents`、`/api/admin/users`、`/api/openapi` 皆 401；`/api/auth/csrf` 200 |
+| 安全標頭（生產模式） | 7 個標頭齊全、無 `X-Powered-By` |
+| **`NEXT_LOCALE` 的 `Secure` 屬性** | ✅ **生產模式實測確認**：`NEXT_LOCALE=en; Path=/; Secure; HttpOnly; SameSite=lax` —— 補上第一批的待驗證項 |
+
+> 📌 過程中 `/api/auth/csrf` 一度回 500，經查為臨時 `.env` 使用 v4 變數名所致（`UntrustedHost`），補上 `AUTH_URL` 後恢復 200。**非升級回歸**。
+
+### ⚠️ 仍未驗證
+
+| 項目 | 原因 |
+|---|---|
+| **登入後的完整回歸** | 本機無可用資料庫，無法登入。Next.js 跨 14 個 patch 的升級應有登入後回歸，目前只驗證到未認證路徑 |
+| standalone 模式 | 驗證用的是 `next start`，Azure 實際跑 `node .next/standalone/server.js`。`next start` 啟動時警告不適用 standalone 配置，但回應正常 |
+| SwaggerUI 登入後載入 `/api/openapi` | 同樣受限於無法登入 |
+
+---
+
 ## 修改的檔案
 
 | 檔案 | 修改內容 | 批次 | 狀態 |
 |------|----------|------|------|
+| `package.json` / `package-lock.json` | `next` → 15.5.23、`next-auth` → 5.0.0-beta.32、`@auth/prisma-adapter` → 2.11.3 | 三 | ✅ 已完成 |
+| `src/app/[locale]/(dashboard)/layout.tsx` | 裸檢查改為 `!session?.user` | 三 | ✅ 已完成 |
 | `next.config.ts` | 加 `poweredByHeader: false` + `headers()` 五個標頭 + 兩個 CSP header | 一 | ✅ 已完成 |
 | `src/middleware.ts` | 新增 `hardenLocaleCookie()` 補強 `NEXT_LOCALE` 屬性 | 一 | ✅ 已完成 |
 | `src/lib/safe-redirect.ts` | **新增** —— 轉址目標白名單驗證 | 二 | ✅ 已完成 |

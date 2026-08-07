@@ -86,7 +86,7 @@
 | [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 🚧 部分完成（2026-08-04，2 項已修並驗證通過，見 §已修正；原列的 9 項經逐條追查後為 4 項誤報 + 5 項真缺陷，其餘… |
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 | [FIX-169](4-changes/bug-fixes/FIX-169-e2e-coverage-audit-residual-gaps.md) | e2e coverage audit residual gaps | 🚧 部分完成（2026-08-06 —— 補救與量測已完成並重新驗證，見 §量測結果；殘餘 4 份缺口逐份根因已查明但皆未處理，見 §殘… |
-| [FIX-170](4-changes/bug-fixes/FIX-170-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 部分完成（2026-08-07 —— 第一批「純標頭修復」與第二批的 BUG-2 / BUG-11 / BUG-12 已完成，見 §… |
+| [FIX-170](4-changes/bug-fixes/FIX-170-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–… |
 
 ## ❓ 狀態無法解析（2）
 
