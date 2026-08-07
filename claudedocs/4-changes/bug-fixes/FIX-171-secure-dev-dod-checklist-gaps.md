@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory，且**已加入 main 的 required status checks**，該閘現會實際擋下合併）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 20 個 high、`@prisma/client` 宣告缺口。**已排除**：步驟 4 另開編號處理）
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory，且**已加入 main 的 required status checks**，該閘現會實際擋下合併）。**Azure DEV 線上驗證完成**：9 個安全標頭 / cookie 強化 / fail-open 修復皆已生效；`API_AUTH_GATE_MODE` 經 monitor 日誌分析後切為 `enforce`，`/api/openapi` 缺口已封；**登入後煙霧測試通過**（6 個頁面、10 個 API 全部正常，console 零錯誤）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 20 個 high、BUG-13 與 SCM 存取限制（需 Azure 寫入權限）。**已排除**：步驟 4 另開編號處理。**測試中另發現 3 個既有缺陷**（非本 FIX 造成），其中登入錯誤訊息誤導性較高，建議另開編號）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -827,9 +827,39 @@ CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workf
 | `ipSecurityRestrictions`（主站） | `Allow all` | 公開站台，預期如此 |
 | `scmIpSecurityRestrictions` | `Allow all` | 🔴 見上表缺口 3 |
 
-### ⚠️ 本次仍未涵蓋
+### 登入後煙霧測試（2026-08-07，Playwright 實測）
 
-**登入後的路徑一項都沒測。** 上述全部是未認證狀態下的黑箱驗證。`next-auth` beta.32 升級、3 處 session 判斷改寫對已登入使用者的實際行為，仍需有效帳號才能驗證。
+使用者提供 Azure DEV 帳號後執行。**這是自第一批以來一直缺席的驗證環節**，也是本 FIX 風險最高的未知 —— 期間動過認證核心（`next-auth` beta.30 → beta.32）、跨 14 個 Next.js patch、改寫 3 處 session 判斷，且切換了 API 認證閘。
+
+**登入結果**：成功，導向 `/en/dashboard`，顯示「Welcome back, System Administrator」、角色 Global Admin。
+
+| 驗證項 | 結果 |
+|---|---|
+| 登入流程（beta.32 `authorize()`） | ✅ 正常 |
+| `(dashboard)/layout.tsx` 的 `!session?.user` | ✅ 正確放行 |
+| 已登入訪問 `/en/auth/login` | ✅ 導向 `/en/dashboard`，**無重導向迴圈**（beta.30 的 fail-open 正是在此處造成 10 跳上限） |
+| enforce 模式下已登入者的 API | ✅ 全部 200（見下表） |
+| Console 錯誤 | ✅ 0（`/en/dashboard`、`/en/documents`、`/en/admin/users` 皆為零） |
+
+**頁面**：`/en/dashboard`、`/en/docs`、`/en/docs/examples`、`/en/documents`、`/en/template-instances`、`/en/admin/users` 全部正常渲染。
+
+**API（全部 200）**：`/api/dashboard/statistics`、`/api/documents`、`/api/v1/template-instances`、`/api/v1/data-templates`、`/api/admin/roles`、`/api/admin/cities`、`/api/admin/users`、`/api/openapi`、`/api/docs/error-codes`、`/api/docs/version`。
+
+> 📌 **關鍵佐證**：`/api/dashboard/statistics`、`/api/documents`、`/api/v1/template-instances` 這三個正是 monitor 日誌中出現未認證記錄的端點（分別 8 / 9 / 148 筆）。它們在已登入狀態下回 200，證明 middleware 在 enforce 模式下能正確識別 session —— 這是切換閘門後最需要確認的一點。
+
+**BUG-12 雙向驗證完成**：`/api/openapi` 未認證 401、已認證 200；`/en/docs` 的 SwaggerUI 完整載入。收攏正確且未誤傷合法使用者。
+
+### 測試中發現的三個既有缺陷（**非本 FIX 造成**，未修）
+
+| # | 缺陷 | 歸因證據 |
+|---|---|---|
+| 1 | `/en/docs` 的「SDK Examples」連結為 `href="./examples"`，從 `/en/docs` 解析成 `/en/examples` → **404**。正確路徑 `/en/docs/examples` 實測可正常訪問 | `git log -S './examples'` 定位到 `eb9d0f9`（Story 17-1/17-2，i18n 基礎建設），早於本 FIX |
+| 2 | 登入失敗時前端顯示「An unknown error occurred. Please try again later.」，而非「帳號或密碼錯誤」。`CredentialsSignin` 被歸類為 unknown | 前端錯誤映射問題。**實際造成過誤導** —— 首次測試憑證不符時，一度被懷疑是切換 enforce 弄壞了登入，追查容器日誌才排除 |
+| 3 | `/favicon.ico` 回 404 | 與認證無關 |
+
+> 缺陷 2 有實質影響：它讓「使用者打錯密碼」與「系統真的故障」在畫面上完全相同，會延誤真實故障的發現。建議另開編號處理。
+
+> 📌 診斷附註：登入失敗的日誌無法區分「帳號不存在」與「密碼錯誤」—— `auth.config.ts:171-174` 刻意合併兩個分支以緩解帳號列舉攻擊，細節僅在 `debug` 級別輸出。這是**預期的安全設計**，不是缺陷。
 
 ---
 
