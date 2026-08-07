@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
-| FIX | 172 | FIX-170 | **FIX-171** |
+| FIX | 173 | FIX-171 | **FIX-172** |
 
 ## 📋 未開始（37）
 
@@ -54,7 +54,7 @@
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%） |
 | [FIX-170](4-changes/bug-fixes/FIX-170-epic19-template-apis-missing-auth.md) | epic19 template apis missing auth | 📋 規劃中 |
 
-## 🚧 進行中 / 部分完成（27）
+## 🚧 進行中 / 部分完成（28）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -87,6 +87,7 @@
 | [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 🚧 部分完成（2026-08-04，2 項已修並驗證通過，見 §已修正；原列的 9 項經逐條追查後為 4 項誤報 + 5 項真缺陷，其餘… |
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 | [FIX-169](4-changes/bug-fixes/FIX-169-e2e-coverage-audit-residual-gaps.md) | e2e coverage audit residual gaps | 🚧 部分完成（2026-08-06 —— 補救與量測已完成並重新驗證，見 §量測結果；殘餘 4 份缺口逐份根因已查明但皆未處理，見 §殘… |
+| [FIX-171](4-changes/bug-fixes/FIX-171-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–… |
 
 ## ❓ 狀態無法解析（2）
 

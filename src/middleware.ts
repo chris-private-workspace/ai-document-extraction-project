@@ -12,10 +12,10 @@
  *
  *   路由分類：
  *   - 公開頁面：/[locale]/auth/*
- *   - 受保護頁面：/[locale]/dashboard/*、/[locale]/documents/*
- *   - 公開 API（無需認證）：/api/auth/*、/api/health、/api/docs、/api/openapi
+ *   - 受保護頁面：/[locale]/dashboard/*、/[locale]/documents/*、/[locale]/docs/*（FIX-171）
+ *   - 公開 API（無需認證）：/api/auth/*、/api/health
  *   - 對外 ApiKey API（middleware 放行，由 handler 驗 ApiKey）：/api/v1/invoices、/api/v1/webhooks、/api/n8n/webhook
- *   - 受保護 API（middleware 要求 session）：其餘所有 /api/*
+ *   - 受保護 API（middleware 要求 session）：其餘所有 /api/*（含 FIX-171 收攏的 /api/docs、/api/openapi）
  *
  *   ⚠️ API 認證閘只負責「第一層：是否登入」；角色與城市範圍仍由各 route handler 驗證
  *   （Edge runtime 不查 DB，故對外 ApiKey 端點放行交由 handler）。
@@ -23,7 +23,7 @@
  * @module src/middleware
  * @author Development Team
  * @since Epic 17 - Story 17.1 (i18n Infrastructure Setup)
- * @lastModified 2026-06-10 (CHANGE-078：新增 /api 統一認證閘，支援監測/強制兩階段)
+ * @lastModified 2026-08-07 (FIX-171：安全標頭、NEXT_LOCALE cookie 補強、API 文件收攏)
  *
  * @features
  *   - Accept-Language header 語言偵測
@@ -74,10 +74,21 @@ function extractLocaleFromPath(pathname: string): { locale: Locale | null; restP
 
 /**
  * 檢查路徑是否為受保護路由
+ *
+ * @description
+ *   FIX-171 / BUG-12：新增 `/docs`。API 文件頁與其載入的 `/api/openapi` 必須同時
+ *   收攏 —— 只鎖 API 會讓公開頁的 SwaggerUI 拿到 401 而壞掉。
+ *
+ *   ⚠️ `/documents` 不會被 `/docs` 誤判：`'/documents'.startsWith('/docs')` 為 false
+ *   （第 5 個字元 `u` ≠ `s`）。兩者各自獨立比對。
  */
 function isProtectedRoute(pathname: string): boolean {
   const { restPath } = extractLocaleFromPath(pathname)
-  return restPath.startsWith('/dashboard') || restPath.startsWith('/documents')
+  return (
+    restPath.startsWith('/dashboard') ||
+    restPath.startsWith('/documents') ||
+    restPath.startsWith('/docs')
+  )
 }
 
 /**
@@ -99,8 +110,11 @@ function isAuthRoute(pathname: string): boolean {
 const PUBLIC_API_PREFIXES = [
   '/api/auth', // NextAuth 回調 + 註冊 / 忘記密碼 / email 驗證等自助流程
   '/api/health', // 健康檢查（負載均衡器探測）
-  '/api/docs', // API 文件
-  '/api/openapi', // OpenAPI 規格
+  // FIX-171 / BUG-12：`/api/docs` 與 `/api/openapi` 已移出白名單。
+  // 兩者原本對未認證者公開完整 API 規格（23 KB，涵蓋 420+ 端點），
+  // 等同免費提供攻擊面地圖。查證後確認呼叫方全部是瀏覽器
+  // （`/[locale]/docs` 頁面與其 SwaggerUI），無 scripts / CI / 外部整合依賴，
+  // 故連同該頁面一併要求登入（見 isProtectedRoute）。
 ]
 
 /**
@@ -171,6 +185,38 @@ async function handleApiAuthGate(request: NextRequest, pathname: string): Promis
     `[API-AUTH-GATE][monitor] 未認證請求（enforce 模式下將回 401）: ${request.method} ${pathname}`
   )
   return NextResponse.next()
+}
+
+/**
+ * 補強 `NEXT_LOCALE` cookie 的安全屬性（FIX-171 / BUG-10）
+ *
+ * @description
+ *   `NEXT_LOCALE` 由 next-intl 中間件寫入，其預設不帶 `Secure` 與 `HttpOnly`，
+ *   線上實測為 `Set-Cookie: NEXT_LOCALE=en; Path=/; SameSite=lax`，
+ *   對應 QID 150122 / 150123（Confirmed Vulnerability - Level 2）。
+ *
+ *   加 `httpOnly` 的前提已查證：本 cookie 的唯一讀取點是本檔第 203 行（伺服器端），
+ *   前端語言偏好走的是 localStorage 的 `preferred-locale`
+ *   （`src/hooks/use-locale-preference.ts`），全庫無 `document.cookie` 使用，
+ *   因此禁止 JavaScript 讀取不會影響語言切換功能。
+ *
+ *   `secure` 依環境判斷：本機 dev 走 http，加上會使 cookie 直接失效。
+ */
+function hardenLocaleCookie(response: NextResponse): NextResponse {
+  const localeCookie = response.cookies.get('NEXT_LOCALE')
+
+  if (localeCookie) {
+    response.cookies.set({
+      name: 'NEXT_LOCALE',
+      value: localeCookie.value,
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    })
+  }
+
+  return response
 }
 
 /**
@@ -279,7 +325,8 @@ export default async function middleware(request: NextRequest) {
     }
   }
 
-  return intlResponse
+  // FIX-171 / BUG-10：intlMiddleware 寫入的 NEXT_LOCALE 需補 Secure / HttpOnly
+  return hardenLocaleCookie(intlResponse)
 }
 
 export const config = {

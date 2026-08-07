@@ -225,6 +225,7 @@ export function ConfigEditDialog({
         return (
           <Input
             type="password"
+            autoComplete="new-password"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={t('config.editDialog.secretPlaceholder')}

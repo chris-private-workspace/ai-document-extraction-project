@@ -15,6 +15,7 @@ import * as React from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
+import { toSafeRedirect } from '@/lib/safe-redirect'
 
 interface DevLoginFormProps {
   callbackUrl?: string
@@ -47,7 +48,8 @@ export function DevLoginForm({ callbackUrl }: DevLoginFormProps) {
 
       // 登錄成功，使用 router.push 進行導航
       // 這會觸發 SessionProvider 刷新
-      router.push(callbackUrl ?? '/dashboard')
+      // FIX-171 / BUG-2：頁面層已收斂過，此處為轉址動作點的縱深防禦
+      router.push(toSafeRedirect(callbackUrl))
       router.refresh() // 強制刷新頁面數據
     } catch (err) {
       setError('登錄失敗，請重試')
