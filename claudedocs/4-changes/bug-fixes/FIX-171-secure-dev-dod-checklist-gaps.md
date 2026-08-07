@@ -349,7 +349,14 @@ CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warni
 
 ### 實測結果（本機 dev server，`API_AUTH_GATE_MODE=enforce`）
 
-線上 Azure DEV 的認證閘為 enforce，本機預設是 monitor（僅記錄後放行），故驗證時明確設定為 enforce 以重現線上行為。
+> 🔴 **本節原寫「線上 Azure DEV 的認證閘為 enforce」——該陳述錯誤，已於 2026-08-07 由線上實測推翻。**
+> Azure DEV 的應用設定中**根本沒有 `API_AUTH_GATE_MODE` 這個 key**（`az webapp config appsettings list` 實測），
+> 而 `src/middleware.ts:167` 的解析是 `=== 'enforce' ? 'enforce' : 'monitor'`，故線上實際為 **monitor**（僅記錄後放行）。
+> 後果：**下表 `/api/*` 的 401 結果只在本機成立，線上並未生效** —— 實測 `/api/openapi` 在 Azure 回 **200 且吐出 23,165 bytes 完整規格**。
+> 頁面層（`isProtectedRoute()`）不受此變數影響，線上實測 `/en/docs` 正常 307 導向登入，該半邊有效。
+> 詳見下方「線上驗證」一節。這是「本機測到綠燈就假定線上同樣為綠燈」的典型誤判，教訓已記錄。
+
+以下為**本機**（明確設定 `API_AUTH_GATE_MODE=enforce`）的結果：
 
 | 請求 | 結果 | 判讀 |
 |---|---|---|
@@ -722,6 +729,107 @@ CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workf
 | C | 完成 `next@16` + `nodemailer@9` 等 major 升級後，維持 `--audit-level=high` 並移除 `continue-on-error` | 最徹底 | 需 H2 approval + 完整回歸，且本機無法驗證登入後行為 |
 
 > ✅ **使用者於 2026-08-07 裁決採 B**，實作內容見上一節。
+
+---
+
+## 線上驗證：Azure DEV 實測（2026-08-07）
+
+### 兩個前提更正
+
+| 本文件原記載 | 實測結果 |
+|---|---|
+| `az` 身分對資源群組無 `Microsoft.Web/sites/read`（`AuthorizationFailed`），Azure 結論皆為黑箱推測 | **權限現已存在**。SP 可讀 `webapp show` / `config show` / `appsettings list` / `access-restriction show`。原「無法驗證」的資源設定**全部已取得實際值** |
+| 線上認證閘為 `enforce` | **錯誤**。`API_AUTH_GATE_MODE` 不在 appsettings 中，線上實為 `monitor` |
+
+> 📌 這兩項都是「文件記載已過時，但被當成現況沿用」的形態。查核項目在轉錄前必須重新查證。
+
+### 已部署的映像
+
+線上 `linuxFxVersion` 指向 `ai-document-extraction:dev-security-20260807`（ACR 建立於 2026-08-07 08:56 UTC）。**非本 session 建置**，故不假設其內容，改以線上實際行為判定 —— 下表證明本 FIX 第一至三批的修復確實已在線上生效。
+
+### 回應標頭（`GET /en/auth/login`，自訂網域）
+
+| 標頭 | 實測值 | 對應 |
+|---|---|---|
+| `Strict-Transport-Security` | `max-age=31536000` | BUG-5 ✅ |
+| `X-Content-Type-Options` | `nosniff` | BUG-3 ✅ |
+| `X-Frame-Options` | `SAMEORIGIN` | BUG-3 ✅ |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | BUG-3 ✅ |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | BUG-3 ✅ |
+| `Content-Security-Policy` | `frame-ancestors 'self'` | BUG-4 ✅ |
+| `Content-Security-Policy-Report-Only` | 完整策略（9 個指令） | BUG-4 ✅ |
+| `X-Powered-By` | **不存在** | BUG-6 ✅ |
+| `Set-Cookie: NEXT_LOCALE` | `Path=/; Secure; HttpOnly; SameSite=lax` | BUG-10 ✅ |
+
+登入頁回 **200 OK**（非 307 導向迴圈）—— 印證 `next-auth` beta.32 的 fail-open 修復已生效。
+
+### 路由保護（未認證）
+
+| 路徑 | 實測 | 判讀 |
+|---|---|---|
+| `/en/dashboard` | 307 → `login?callbackUrl=%2Fen%2Fdashboard` | 對照組，正常 |
+| `/en/docs` | 307 → `login?callbackUrl=%2Fen%2Fdocs` | BUG-12 頁面層 ✅ |
+| `/api/documents` | 401 | handler 自身 `auth()` 生效 |
+| **`/api/openapi`** | **200，23,165 bytes** | 🔴 **BUG-12 API 層未生效** |
+
+### 🔴 線上仍存在的三個缺口
+
+| # | 缺口 | 證據 | 成因 | 現況 |
+|---|---|---|---|---|
+| 1 | `/api/openapi` 完整規格仍未認證可讀 | `HTTP 200`、23,165 bytes | `API_AUTH_GATE_MODE` 未設 → 預設 `monitor` → 僅記錄後放行。**代碼修復正確，是部署設定沒跟上** | ✅ **已修復**（見下節） |
+| 2 | 預設網址 `*.azurewebsites.net` 完全可達 | `/en/auth/login` 回 200 | BUG-13 未處理 | ⚠️ 未處理 |
+| 3 | SCM 管理站台對所有 IP 開放 | `scmIpSecurityRestrictions` = `Allow all access`、`scmIpSecurityRestrictionsDefaultAction` = `Allow` | DoD #6 —— **此項先前記為「無法驗證」，現已有明確答案：未加限制** | ⚠️ 未處理 |
+
+### 缺口 1 的處置：切換 `API_AUTH_GATE_MODE` 為 enforce（2026-08-07）
+
+未直接切換，而是依 `handleApiAuthGate` 原本的兩階段上線設計，**先分析 monitor 期間累積的記錄**，確認白名單無遺漏。
+
+**日誌來源**：Log Analytics workspace `log-raposcm-aidocprocessing-dev`，表 `AppServiceConsoleLogs`，過去 7 天。
+
+**先取分母**（避免「零筆 = 通過」的誤判）：該表 7 天內共 **19,866 筆**，涵蓋 2026-07-31 至 2026-08-07，證明查詢確實掃到資料。其中 `API-AUTH-GATE` 記錄 **230 筆**、**25 個端點前綴**。
+
+| 檢查項 | 結果 | 意義 |
+|---|---|---|
+| ApiKey 端點（`/api/v1/invoices`、`/api/v1/webhooks`、`/api/n8n/webhook`）被記錄 | **0 筆** | 對外整合不受影響 |
+| `/api/auth/*`、`/api/health` 被記錄 | **0 筆** | 白名單正常放行，未進入閘門 |
+| 記錄中出現「本應公開」的端點 | **無** | 全部是需登入的內部業務 API |
+| 最高頻 | `/api/v1/template-instances` 148 筆 / 69 個相異端點 | UI 在未登入或 session 過期時的請求 |
+
+> 📌 附帶佐證：`/api/openapi` 出現 1 筆，正是本次線上探測所留下 —— 證明日誌為即時，查詢反映當下狀態。
+
+**切換影響的正確理解**：已寫 `auth()` 的 handler 本來就回 401（實測 `/api/documents` 即是），切 enforce 只是把 401 提前到 middleware，行為不變。真正改變的是**未寫 `auth()` 的 handler** —— `/api/openapi` 正屬此類，那本就是待修的洞。
+
+**執行**：`az webapp config appsettings set --settings API_AUTH_GATE_MODE=enforce`。獨立重查 `appsettings list` 確認值為 `enforce`（`set` 指令回傳的 `value: null` 是 az CLI 輸出行為，非設定失敗）。
+
+**切換後回歸驗證**：
+
+| 端點 | 結果 | 判定 |
+|---|---|---|
+| `/api/openapi` | **401** | 缺口已封 |
+| `/api/health` | 200 | 白名單有效 —— 若被誤擋，Azure 健康探測會判定站台不健康 |
+| `/api/auth/csrf` | 200 | 登入流程未受影響 |
+| `/en/auth/login` | 200 | 公開頁正常 |
+| `/en/dashboard` | 307 | 頁面保護不變 |
+| `/api/documents` | 401 | 業務 API 正常阻擋 |
+
+⚠️ **此分析的限制**：僅涵蓋 Log Analytics 保留期內的 7 天，低頻使用情境可能未出現。可接受的理由是本專案**無 cron、無自動排程**（背景 job 只能手動 POST），不存在會被打斷的排程作業。
+
+⚠️ **此為 Azure 設定變更，不在版控內**。若日後重建 App Service 或從頭配置環境，**必須記得補上此項**，否則閘門會靜默退回 monitor。
+
+### 資源設定（DoD 相關，先前從未讀取過）
+
+| 設定 | 實測值 | 判定 |
+|---|---|---|
+| `httpsOnly` | `true` | ✅ |
+| `minTlsVersion` | `1.2` | ✅ |
+| `scmMinTlsVersion` | `1.2` | ✅ |
+| `ftpsState` | `FtpsOnly` | ✅ |
+| `ipSecurityRestrictions`（主站） | `Allow all` | 公開站台，預期如此 |
+| `scmIpSecurityRestrictions` | `Allow all` | 🔴 見上表缺口 3 |
+
+### ⚠️ 本次仍未涵蓋
+
+**登入後的路徑一項都沒測。** 上述全部是未認證狀態下的黑箱驗證。`next-auth` beta.32 升級、3 處 session 判斷改寫對已登入使用者的實際行為，仍需有效帳號才能驗證。
 
 ---
 
