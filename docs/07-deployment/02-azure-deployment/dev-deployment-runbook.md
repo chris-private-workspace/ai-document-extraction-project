@@ -88,7 +88,7 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
   --settings RUN_DEV_DATA_IMPORT=false FORCE_SCHEMA_RESET=false
 ```
 
-**非布林旗標(8 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
+**非布林旗標(9 個)** —— 🔴 **必須清空,設 `false` 不會關閉**:
 - `RUN_TEMPLATE_MAPPING_SEED`(三模式 `inspect|dryrun|write`)
 - `RUN_CHANGE113_DHL_SETUP`(三模式 `inspect|dryrun|write`)
 - `RUN_CONFIG_SYNC_20260803`(三模式 `inspect|dryrun|write`,見 §17)
@@ -96,6 +96,7 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
 - `RUN_TOLL_SPLIT_20260806`(三模式 `inspect|dryrun|write`,**會寫入**,見 §19)
 - `RUN_ORPHAN_CHECK`(單模式 `inspect`,**唯讀**,見 §20)
 - `RUN_TEMPLATE_SNAPSHOT`(單模式 `capture`,**唯讀**,見 §20)
+- `RUN_FIX161_CEVA_20260806`(三模式 `inspect|dryrun|write`,**會寫入**,見 §21)
 - `GRANT_GLOBAL_ADMIN_EMAIL`(值是 email)
 
 另有三個**搭配用**的設定(非旗標,但同樣建議用完清掉,避免下次誤用舊值):
@@ -105,7 +106,7 @@ az webapp config appsettings set -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAP
 az webapp config appsettings delete -g RG-RAPOSCM-AIDocProcessing-DEV -n WebApp-RAPOSCM-AIDocProcessing-DEV \
   --setting-names RUN_TEMPLATE_MAPPING_SEED RUN_CHANGE113_DHL_SETUP RUN_CONFIG_SYNC_20260803 \
                   RUN_CONFIG_DIAGNOSE_20260806 RUN_TOLL_SPLIT_20260806 \
-                  RUN_ORPHAN_CHECK RUN_TEMPLATE_SNAPSHOT \
+                  RUN_ORPHAN_CHECK RUN_TEMPLATE_SNAPSHOT RUN_FIX161_CEVA_20260806 \
                   RECONCILE_COMPANY RECONCILE_BASELINE RECONCILE_DOCS GRANT_GLOBAL_ADMIN_EMAIL
 ```
 > FIX-140 前這 2 個用 `[ -n "$X" ]`(非空即執行),`"false"` 非空故仍觸發 —— 2026-07-28 FIX-139 部署的 log 就出現 `template field mapping seed: mode=false`(當時該設定確實是 `false`)。FIX-140 已改為明確列舉/形狀檢查:值無法辨識時**印出 skip 訊息並跳過**,不再靜默執行。設成 `false` 現在會看到 `... skipped: mode=false not recognised`,**但那仍代表設定沒清乾淨**,請照上方 `delete` 清掉。
@@ -688,10 +689,66 @@ Kudu 在 sidecar,`/app` 不存在,拿不到 app 容器的 `node_modules/pg`。
 
 逐家公司數字亦相同。另驗證容器版輸出的 JSON 可被本機 `diff` 直接讀取(82 列全對上、零誤判)。
 
-### ⚠️ 尚未在 Azure 實跑
+### ✅ Azure 首跑結果(2026-08-06)
 
-工具已進映像並通過本機等價性驗證,但**還沒在 Azure 容器內跑過**。
-首次使用時應先單獨跑一次確認輸出正常,再拿它當安全網。
+`RUN_ORPHAN_CHECK=inspect` 已在 Azure 容器內實跑,輸出正常,可當安全網使用。
+
+| 項目 | 值 |
+|---|---|
+| 參與對帳文件 | 607 份(分母有印出,非空迴圈) |
+| 全庫漏接 | 586,302.84 |
+| 全庫多算 | 8,014.58 |
+| CEVA 漏接 | 189,073.28 |
+
+此為 FIX-161 移植的 baseline,已存成 `azure-baseline.json`。
+
+🔴 Azure 的數字比本機大一個量級(本機漏 38,946.27),因為 **Azure 資料比本機多**
+(documents 901 vs 645)。不要拿本機數字當 Azure 的預期值。
+
+---
+
+## 21. 2026-08-06:FIX-161 移植 —— 「腳本跑完」不等於「修好了」
+
+`prisma/fix-161-ceva-export-20260806.js`,旗標 `RUN_FIX161_CEVA_20260806=inspect|dryrun|write`,
+映像 `dev-fix161-20260806`(ACR run `ck1y`)。改 CEVA export mapping 的 2 條 `sourceField`
+(`cfs` → `destination_cfs_charges`、`gate_charge` → `destination_gate_fee`)。
+
+流程與 §19 同範式(三段式 + 五項措施),不重複。以下只記這次**新學到的**。
+
+### 🔴 改設定不回溯 —— 驗收在腳本之外
+
+write 成功、事後對帳「殘餘 0」,看起來像修好了。**沒有。**
+mapping 改了,既有模板實例列不會重算,目標欄位仍是空的。完整鏈是:
+
+```
+dryrun → write → 重新匹配模板實例 → RUN_ORPHAN_CHECK 對帳
+                  ^^^^^^^^^^^^^^^^ 這步不是腳本能做的（需 UI 或 API）
+```
+
+腳本的「殘餘 0」只證明**規則寫對了**,不證明**值取到了**。
+FIX-161 本機驗收之所以可信,是因為它做到了「重建 instance 後 `cfs_charge = 200`」——
+那才是值,不是規則。
+
+### 🔴 grep log 必須帶腳本前綴
+
+第一次找 write 結果時用 `mode=write` 搜尋,抓到行 1836 就當成結果 ——
+那其實是**同日稍早 toll-split 的 write**。多支 gated 腳本共用同一份 log、訊息格式相同,
+只差前綴。改用 `[fix161-ceva] connected . mode=write` 才找到真正的行 3208。
+
+若沒察覺,就會拿別支腳本的 `COMMIT` 當作這次的成功證據。
+**同日跑多支腳本時,log 匹配一律帶 `[腳本前綴]`。**
+
+### 🔴 清單類設定不可照抄本機
+
+腳本 write 前逐項驗證 **Azure 自己的**欄位定義集,不符即中止。這不是多餘的謹慎:
+同批移植中,Azure 的 Toll 誤歸是 **35 份**,且有兩種本機不存在的中英混排印法
+(`拓領環球貨運(香港)有限公司`、`拓環球貨運(香港)有限公司`)。
+另有**兩家 CEVA**,只有 `...LTD` 那家要改,`...LIMITED(CEVA Logistics)` 的寫法本來就對。
+
+### 回滾依據
+
+前置快照 `fix161-before.json` 存於**本機**。Azure `/home` 不持久,log 是唯一還原依據且會過期——
+**跑完 write 當下就要把快照從 log 撈出來存到本機**,不能等。
 
 ---
 

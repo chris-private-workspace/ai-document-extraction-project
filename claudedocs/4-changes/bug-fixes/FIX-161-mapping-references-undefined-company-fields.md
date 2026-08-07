@@ -107,9 +107,42 @@ CEVA 的欄位定義集（`f13aaf3b-ec74-4750-8036-a27dbb554792`，21 個 key）
 
 ---
 
-## ⚠️ 尚未同步 Azure DEV
+## Azure DEV 同步狀態（2026-08-06 更新）
 
-本次僅變更**本機**。[FIX-158](FIX-158-mapping-field-definition-misalignment.md) 已證實本機與 Azure DEV 的欄位定義集可能不同步（該案是 Azure 有、本機缺）。同步前須先確認 Azure 上這條 mapping 的現況，不可直接套用本機的變更。
+原記「尚未同步」。2026-08-06 已移植 mapping 變更，但**尚未完成驗收** —— 兩者不可混為一談。
+
+| 步驟 | 本機 | Azure DEV |
+|---|---|---|
+| mapping `sourceField` 變更 | ✅ 2026-08-04 | ✅ 2026-08-06 |
+| 重新匹配模板實例 | ✅ | ❌ **未做** |
+| 對帳驗收（漏接金額下降） | ✅ 降 280 | ❌ 未做 |
+
+移植方式：`prisma/fix-161-ceva-export-20260806.js`（三段式 gated，由 `RUN_FIX161_CEVA_20260806` 觸發，見 [runbook §21](../../../docs/07-deployment/02-azure-deployment/dev-deployment-runbook.md)）。腳本 write 前會**逐項驗證 Azure 自己的欄位定義集**，不符即中止 —— 不照抄本機。
+
+| 項目 | 值 |
+|---|---|
+| 映像 | `dev-fix161-20260806`（ACR run `ck1y`，Succeeded） |
+| 記錄 | `cmrin1af9000101r6gsv3674m`（與本機同 id，因 Azure 資料源自本機匯入） |
+| 樂觀鎖 | `updated_at = 2026-07-25T10:32:56.093Z`（通過） |
+| 更新筆數 | 1（數量閘通過），單一交易 COMMIT |
+| 事後對帳 | 九條規則重新讀取，僅該 2 條變動，殘餘待修 0 |
+| 前置快照 | `fix161-before.json`（存於本機，🔴 Azure `/home` 不持久，log 會過期） |
+
+### 🔴 剩餘兩步（未做，驗收不算完成）
+
+1. **重新匹配 CEVA 的模板實例** —— 改設定不回溯，Azure 那批 `cfs_charge` / `gate_charge` 目前仍為空
+2. **前後對帳** —— `RUN_ORPHAN_CHECK=inspect` + `RECONCILE_BASELINE`（Azure baseline：全庫 607 份、漏 586,302.84、多算 8,014.58，其中 CEVA 漏 189,073.28）
+
+判準是 CEVA 漏接金額**下降**。降幅**不會是 280** —— 那是本機 31 列的數字，Azure 份數不同。若金額**上升**，代表 `destination_cfs_charges` / `destination_gate_fee` 在 Azure 原本已被別的規則引用、被這次改動搶走去處（§樣本 ≠ 母體 的同型風險），須依 `fix161-before.json` 回滾。
+
+### 兩家 CEVA 必須分辨
+
+Azure 上有**兩筆** CEVA 公司記錄，只動第一筆：
+
+| 公司 | 處置 |
+|---|---|
+| `CEVA LOGISTICS (HONG KONG) LTD`（21 key，無 `cfs`/`gate_charge`） | ✅ 本次變更對象 |
+| `CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics）`（含 `cfs`/`gate_charge`） | 🔴 **不動** —— 其 `sourceField` 本來就有效 |
 
 ---
 
