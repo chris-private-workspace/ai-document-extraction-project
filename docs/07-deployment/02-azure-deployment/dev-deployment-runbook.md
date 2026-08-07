@@ -722,12 +722,51 @@ mapping 改了,既有模板實例列不會重算,目標欄位仍是空的。完�
 
 ```
 dryrun → write → 重新匹配模板實例 → RUN_ORPHAN_CHECK 對帳
-                  ^^^^^^^^^^^^^^^^ 這步不是腳本能做的（需 UI 或 API）
+                  ^^^^^^^^^^^^^^^^ 這步不是腳本能做的（需 API）
 ```
 
 腳本的「殘餘 0」只證明**規則寫對了**,不證明**值取到了**。
 FIX-161 本機驗收之所以可信,是因為它做到了「重建 instance 後 `cfs_charge = 200`」——
 那才是值,不是規則。
+
+### 🔴 COMPLETED 的模板實例改不了 —— 要重跑就建新的
+
+本次重新匹配時實測(Azure DEV):
+
+```
+DELETE 列    → 409  「實例狀態為 COMPLETED,不可刪除行」
+POST execute → 400  INVALID_INSTANCE_STATUS
+```
+
+`src/types/template-instance.ts:358-364` 的白名單:可刪只有 `DRAFT`,可寫只有 `DRAFT`/`ERROR`。
+而同檔 `STATUS_TRANSITIONS`(:346-352)中 `COMPLETED → ['EXPORTED']` —— **單向,沒有回頭路**,
+且 `changeStatus` 嚴格檢查(`template-instance.service.ts:1063-1069`)。
+所以「退回 DRAFT → 改 → 再改回」這條路在應用層是關閉的,只有直接下 SQL 才繞得過。
+
+**不要繞。** 實例是一次性快照 / 交付物(終點 `EXPORTED` 會輸出 Excel),設計上要重跑就建新的。
+對帳腳本的 `DISTINCT ON (doc.id, ti.data_template_id) ORDER BY tir.created_at DESC` 正是配合這個
+模式寫的 —— **新快照自動取代舊快照參與計算,不會重複計**。前提:新實例必須用**同一個**
+`dataTemplate`,用別的模板才會兩邊都算。
+
+正確做法:建新實例(DRAFT,同模板)→ `POST /api/v1/template-matching/execute` 帶
+`options.companyId` → 驗證後刪除驗證用實例。舊實例全程不動,失敗了刪掉新的即可,零殘留。
+
+⚠️ 別帶 `options.rowKeyField` 指向共用編號的欄位(如 `_ref_number`)—— `upsertRow` 以
+`(instanceId, rowKey)` 為唯一鍵,共用編號的多份文件會被**合併成同一列**,列數對不上就無從逐列比對。
+不帶則每份文件各生成 `auto_<時間戳>` key,48 份 → 48 列,與 before 一對一。
+
+### 🔴 驗收要看「值」,而「值」可能證明修復無效果
+
+本次最終結果:規則修對了,但目標欄位 **48/48 列仍取不到值**。
+新列的 `transformDiagnostics` 直接給出原因 —— `destination_cfs_charges` / `destination_gate_fee`
+在提取結果中根本不存在,即**這批發票沒有這兩項費用**(母體未覆蓋),不是映射缺陷。
+
+所以對帳數字不會下降。若當初只看「腳本殘餘 0」就結案,會誤以為修好了並預期金額下降;
+若只看「對帳沒降」就回滾,又會誤刪一個正確的修復。
+**兩者都要看,而且要看 `transformDiagnostics` 才能分辨是哪一種。**
+
+> 這也再次印證 §樣本 ≠ 母體:本機驗出 200 / 80 是因為那批樣本**有一份**收了這兩項費用;
+> Azure 這 48 份沒有,不代表規則錯。
 
 ### 🔴 grep log 必須帶腳本前綴
 
