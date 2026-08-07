@@ -12,10 +12,10 @@
  *
  *   路由分類：
  *   - 公開頁面：/[locale]/auth/*
- *   - 受保護頁面：/[locale]/dashboard/*、/[locale]/documents/*、/[locale]/docs/*（FIX-170）
+ *   - 受保護頁面：/[locale]/dashboard/*、/[locale]/documents/*、/[locale]/docs/*（FIX-171）
  *   - 公開 API（無需認證）：/api/auth/*、/api/health
  *   - 對外 ApiKey API（middleware 放行，由 handler 驗 ApiKey）：/api/v1/invoices、/api/v1/webhooks、/api/n8n/webhook
- *   - 受保護 API（middleware 要求 session）：其餘所有 /api/*（含 FIX-170 收攏的 /api/docs、/api/openapi）
+ *   - 受保護 API（middleware 要求 session）：其餘所有 /api/*（含 FIX-171 收攏的 /api/docs、/api/openapi）
  *
  *   ⚠️ API 認證閘只負責「第一層：是否登入」；角色與城市範圍仍由各 route handler 驗證
  *   （Edge runtime 不查 DB，故對外 ApiKey 端點放行交由 handler）。
@@ -23,7 +23,7 @@
  * @module src/middleware
  * @author Development Team
  * @since Epic 17 - Story 17.1 (i18n Infrastructure Setup)
- * @lastModified 2026-08-07 (FIX-170：安全標頭、NEXT_LOCALE cookie 補強、API 文件收攏)
+ * @lastModified 2026-08-07 (FIX-171：安全標頭、NEXT_LOCALE cookie 補強、API 文件收攏)
  *
  * @features
  *   - Accept-Language header 語言偵測
@@ -76,7 +76,7 @@ function extractLocaleFromPath(pathname: string): { locale: Locale | null; restP
  * 檢查路徑是否為受保護路由
  *
  * @description
- *   FIX-170 / BUG-12：新增 `/docs`。API 文件頁與其載入的 `/api/openapi` 必須同時
+ *   FIX-171 / BUG-12：新增 `/docs`。API 文件頁與其載入的 `/api/openapi` 必須同時
  *   收攏 —— 只鎖 API 會讓公開頁的 SwaggerUI 拿到 401 而壞掉。
  *
  *   ⚠️ `/documents` 不會被 `/docs` 誤判：`'/documents'.startsWith('/docs')` 為 false
@@ -110,7 +110,7 @@ function isAuthRoute(pathname: string): boolean {
 const PUBLIC_API_PREFIXES = [
   '/api/auth', // NextAuth 回調 + 註冊 / 忘記密碼 / email 驗證等自助流程
   '/api/health', // 健康檢查（負載均衡器探測）
-  // FIX-170 / BUG-12：`/api/docs` 與 `/api/openapi` 已移出白名單。
+  // FIX-171 / BUG-12：`/api/docs` 與 `/api/openapi` 已移出白名單。
   // 兩者原本對未認證者公開完整 API 規格（23 KB，涵蓋 420+ 端點），
   // 等同免費提供攻擊面地圖。查證後確認呼叫方全部是瀏覽器
   // （`/[locale]/docs` 頁面與其 SwaggerUI），無 scripts / CI / 外部整合依賴，
@@ -188,7 +188,7 @@ async function handleApiAuthGate(request: NextRequest, pathname: string): Promis
 }
 
 /**
- * 補強 `NEXT_LOCALE` cookie 的安全屬性（FIX-170 / BUG-10）
+ * 補強 `NEXT_LOCALE` cookie 的安全屬性（FIX-171 / BUG-10）
  *
  * @description
  *   `NEXT_LOCALE` 由 next-intl 中間件寫入，其預設不帶 `Secure` 與 `HttpOnly`，
@@ -325,7 +325,7 @@ export default async function middleware(request: NextRequest) {
     }
   }
 
-  // FIX-170 / BUG-10：intlMiddleware 寫入的 NEXT_LOCALE 需補 Secure / HttpOnly
+  // FIX-171 / BUG-10：intlMiddleware 寫入的 NEXT_LOCALE 需補 Secure / HttpOnly
   return hardenLocaleCookie(intlResponse)
 }
 

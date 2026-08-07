@@ -68,13 +68,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await auth()
   const { callbackUrl, error } = await searchParams
 
-  // FIX-170 / BUG-2：callbackUrl 來自查詢參數，屬使用者可控輸入。
+  // FIX-171 / BUG-2：callbackUrl 來自查詢參數，屬使用者可控輸入。
   // 未驗證即轉址會構成 open redirect（真實登入頁 + 外部落點 = 釣魚）。
   // 此處為唯一的不可信入口，收口在此，下游一律使用 safeCallbackUrl。
   const safeCallbackUrl = toSafeRedirect(callbackUrl)
 
   // 已登入用戶重定向至儀表板或回調 URL
-  // FIX-170：取用 `session?.user` 而非裸物件 —— 配置錯誤時 auth() 會回傳帶 error 的
+  // FIX-171：取用 `session?.user` 而非裸物件 —— 配置錯誤時 auth() 會回傳帶 error 的
   // 物件，裸檢查會把未認證者導向 dashboard，再被 middleware 導回本頁，形成無限重定向
   // （本機以 beta.30 實測重現，升級 beta.32 後消失）。
   if (session?.user) {

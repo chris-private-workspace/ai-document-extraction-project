@@ -4,7 +4,7 @@
  *   驗證使用者可控的轉址參數（`callbackUrl` / `returnUrl` 等），只放行站內相對路徑，
  *   阻擋 open redirect。
  *
- *   起因（FIX-170 / BUG-2）：登入與註冊流程直接把查詢參數 `callbackUrl` 餵給
+ *   起因（FIX-171 / BUG-2）：登入與註冊流程直接把查詢參數 `callbackUrl` 餵給
  *   `redirect()` 與 `router.push()`，未做任何驗證。攻擊者可構造
  *   `/en/auth/login?callbackUrl=https://evil.example` 誘使使用者在**真實**登入頁
  *   完成認證後被導向外部站點 —— 這是釣魚常用的手法，因為登入過程本身完全正常。
@@ -13,7 +13,7 @@
  *
  * @module src/lib/safe-redirect
  * @author Development Team
- * @since FIX-170（2026-08-07）
+ * @since FIX-171（2026-08-07）
  * @lastModified 2026-08-07
  */
 

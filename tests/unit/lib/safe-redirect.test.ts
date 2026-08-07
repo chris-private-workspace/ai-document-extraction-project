@@ -1,5 +1,5 @@
 /**
- * @fileoverview FIX-170 轉址白名單單元測試
+ * @fileoverview FIX-171 轉址白名單單元測試
  * @description
  *   涵蓋 open redirect 的常見繞過形態（絕對 URL、protocol-relative、反斜線變形、
  *   控制字元、大小寫與編碼變形），以及站內路徑必須原樣保留的回歸保護。
@@ -7,7 +7,7 @@
  *   判準取自 DoD Checklist #24 與 QID 150084：轉址參數必須以白名單驗證。
  *
  * @module tests/unit/lib/safe-redirect.test
- * @since FIX-170
+ * @since FIX-171
  * @lastModified 2026-08-07
  */
 import { describe, it, expect } from 'vitest'

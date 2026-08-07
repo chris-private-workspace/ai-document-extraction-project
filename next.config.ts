@@ -4,7 +4,7 @@ import createNextIntlPlugin from 'next-intl/plugin'
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
 /**
- * Content-Security-Policy（FIX-170 / BUG-4）
+ * Content-Security-Policy（FIX-171 / BUG-4）
  *
  * 分兩個 header 送出，理由是規範層面的限制：
  * - `frame-ancestors` 在 Report-Only 模式下**會被瀏覽器忽略**（CSP Level 3 §3.1），
@@ -38,11 +38,11 @@ const nextConfig: NextConfig = {
   // Enable React strict mode for better development experience
   reactStrictMode: true,
 
-  // FIX-170 / BUG-6：移除 `X-Powered-By: Next.js`（QID 150210 資訊揭露）
+  // FIX-171 / BUG-6：移除 `X-Powered-By: Next.js`（QID 150210 資訊揭露）
   poweredByHeader: false,
 
   /**
-   * 全站安全標頭（FIX-170 第一批）
+   * 全站安全標頭（FIX-171 第一批）
    *
    * 對應 DoD Checklist #2 / #20 / #21，關閉的掃描項目：
    * 150135(HSTS) / 150202(nosniff) / 150208(Referrer-Policy) /

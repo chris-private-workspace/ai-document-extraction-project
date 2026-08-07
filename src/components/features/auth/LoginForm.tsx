@@ -134,7 +134,7 @@ export function LoginForm({ callbackUrl = '/dashboard' }: LoginFormProps) {
       }
 
       // 登入成功，導航到回調 URL
-      // FIX-170 / BUG-2：頁面層已收斂過，此處為轉址動作點的縱深防禦
+      // FIX-171 / BUG-2：頁面層已收斂過，此處為轉址動作點的縱深防禦
       router.push(toSafeRedirect(callbackUrl))
       router.refresh()
     } catch {

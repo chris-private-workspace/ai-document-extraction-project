@@ -70,11 +70,11 @@ export default async function RegisterPage({
   const t = await getTranslations({ locale, namespace: 'auth' })
   const session = await auth()
 
-  // FIX-170 / BUG-2：callbackUrl 屬使用者可控輸入，需先收斂為站內路徑
+  // FIX-171 / BUG-2：callbackUrl 屬使用者可控輸入，需先收斂為站內路徑
   const safeCallbackUrl = toSafeRedirect(callbackUrl)
 
   // 已登入用戶重定向至儀表板
-  // FIX-170：取用 `session?.user` 而非裸物件，理由同登入頁
+  // FIX-171：取用 `session?.user` 而非裸物件，理由同登入頁
   if (session?.user) {
     redirect(safeCallbackUrl)
   }

@@ -1,4 +1,4 @@
-# FIX-170: 依公司 Secure Development DoD Checklist 對標 —— 13 項安全缺口
+# FIX-171: 依公司 Secure Development DoD Checklist 對標 —— 13 項安全缺口
 
 > **建立日期**: 2026-08-07
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
@@ -455,7 +455,7 @@ npm install next@15.5.23
 | GHSA-492v-c6pp-mqqv | High 8.1 | Middleware bypass via dynamic route parameter injection（`<15.5.16`） |
 | GHSA-36qx-fr4f-26g5 | High 7.5 | Middleware bypass in i18n applications（`<15.5.16`） |
 
-**為何這對本專案特別嚴重**：本專案的 API 認證閘（CHANGE-078）**完全建立在 middleware 上**，FIX-170 第二批把 `/api/openapi` 的保護也放在同一層。middleware 若可被繞過，這道閘就整體失效 —— 且最後一條 advisory 明確點名 i18n 應用，而本專案全站走 `/[locale]/` 路由。
+**為何這對本專案特別嚴重**：本專案的 API 認證閘（CHANGE-078）**完全建立在 middleware 上**，FIX-171 第二批把 `/api/openapi` 的保護也放在同一層。middleware 若可被繞過，這道閘就整體失效 —— 且最後一條 advisory 明確點名 i18n 應用，而本專案全站走 `/[locale]/` 路由。
 
 就「已知可繞過的防線正在承載本專案的主要授權邏輯」而言，這比 fail-open（需要先發生配置錯誤才觸發）**更接近可直接利用**。
 
@@ -472,7 +472,7 @@ npm install next@15.5.23
 
 > ⚠️ 第 1 項的驗證有實質困難：本機無可用資料庫，登入後的頁面無法測。Next.js 跨 14 個 patch 的升級**應該要有登入後的完整回歸**，否則問題只會在部署後才浮現。建議在有資料庫的環境執行，或接受「先部署到 DEV 再驗證」的順序並準備好回滾。
 
-> 📌 第 4 項嚴格說超出 FIX-170 原定範圍（DoD Checklist 沒有這條），但它是第三批盤點的直接產物，且與 BUG-7 同屬認證強化。是否納入本 FIX 或另開編號，待決定。
+> 📌 第 4 項嚴格說超出 FIX-171 原定範圍（DoD Checklist 沒有這條），但它是第三批盤點的直接產物，且與 BUG-7 同屬認證強化。是否納入本 FIX 或另開編號，待決定。
 
 ---
 

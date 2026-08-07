@@ -48,7 +48,7 @@ export default async function DashboardRootLayout({
 
   // 未認證用戶重定向至登入頁面
   //
-  // FIX-170：判斷取用 `session?.user` 而非裸物件。Auth.js 在伺服器配置錯誤時
+  // FIX-171：判斷取用 `session?.user` 而非裸物件。Auth.js 在伺服器配置錯誤時
   // （AUTH_SECRET 未設、provider 配置缺失、資料庫不可用）會讓 auth() 回傳帶 error
   // 的物件而非 null，裸檢查 `!session` 因而 fail open（GHSA-8fpg-xm3f-6cx3）。
   // next-auth 5.0.0-beta.32 已修正該行為，此處改寫是不把保證寄託在單一套件版本上。

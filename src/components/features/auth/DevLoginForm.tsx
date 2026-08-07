@@ -48,7 +48,7 @@ export function DevLoginForm({ callbackUrl }: DevLoginFormProps) {
 
       // 登錄成功，使用 router.push 進行導航
       // 這會觸發 SessionProvider 刷新
-      // FIX-170 / BUG-2：頁面層已收斂過，此處為轉址動作點的縱深防禦
+      // FIX-171 / BUG-2：頁面層已收斂過，此處為轉址動作點的縱深防禦
       router.push(toSafeRedirect(callbackUrl))
       router.refresh() // 強制刷新頁面數據
     } catch (err) {
