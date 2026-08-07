@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
-| FIX | 171 | FIX-169 | **FIX-170** |
+| FIX | 172 | FIX-170 | **FIX-171** |
 
-## 📋 未開始（36）
+## 📋 未開始（37）
 
 > 完全未動工的規劃。
 
@@ -52,6 +52,7 @@
 | [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中（2026-08-05 第二次修訂：初版的統計數字全部作廢，改以代碼演繹論證，見 §實測資料） |
 | [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（影響面已量化：全庫 9 筆；路由實測 9/9 為 `AUTO_APPROVE`，正對照 7/7 為 `FULL_REVIEW… |
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%） |
+| [FIX-170](4-changes/bug-fixes/FIX-170-epic19-template-apis-missing-auth.md) | epic19 template apis missing auth | 📋 規劃中 |
 
 ## 🚧 進行中 / 部分完成（27）
 
