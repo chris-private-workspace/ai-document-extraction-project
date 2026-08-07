@@ -31,6 +31,7 @@ import { redirect } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { auth } from '@/lib/auth'
 import { RegisterForm } from '@/components/features/auth/RegisterForm'
+import { toSafeRedirect } from '@/lib/safe-redirect'
 
 // ============================================================
 // Types
@@ -69,9 +70,12 @@ export default async function RegisterPage({
   const t = await getTranslations({ locale, namespace: 'auth' })
   const session = await auth()
 
+  // FIX-170 / BUG-2：callbackUrl 屬使用者可控輸入，需先收斂為站內路徑
+  const safeCallbackUrl = toSafeRedirect(callbackUrl)
+
   // 已登入用戶重定向至儀表板
   if (session) {
-    redirect(callbackUrl ?? '/dashboard')
+    redirect(safeCallbackUrl)
   }
 
   return (
@@ -102,7 +106,7 @@ export default async function RegisterPage({
       </div>
 
       {/* 註冊表單 */}
-      <RegisterForm callbackUrl={callbackUrl} />
+      <RegisterForm callbackUrl={safeCallbackUrl} />
     </>
   )
 }

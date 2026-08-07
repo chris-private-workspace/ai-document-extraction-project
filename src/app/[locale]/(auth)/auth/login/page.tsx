@@ -38,6 +38,7 @@ import { auth, signIn } from '@/lib/auth'
 import { LoginForm } from '@/components/features/auth/LoginForm'
 import { DevLoginForm } from '@/components/features/auth/DevLoginForm'
 import { Separator } from '@/components/ui/separator'
+import { toSafeRedirect } from '@/lib/safe-redirect'
 
 /**
  * 檢查 Azure AD 是否已正確配置
@@ -67,9 +68,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await auth()
   const { callbackUrl, error } = await searchParams
 
+  // FIX-170 / BUG-2：callbackUrl 來自查詢參數，屬使用者可控輸入。
+  // 未驗證即轉址會構成 open redirect（真實登入頁 + 外部落點 = 釣魚）。
+  // 此處為唯一的不可信入口，收口在此，下游一律使用 safeCallbackUrl。
+  const safeCallbackUrl = toSafeRedirect(callbackUrl)
+
   // 已登入用戶重定向至儀表板或回調 URL
   if (session) {
-    redirect(callbackUrl ?? '/dashboard')
+    redirect(safeCallbackUrl)
   }
 
   const errorMessage = error ? t(`errors.${error}`) ?? t('errors.Default') : null
@@ -136,7 +142,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
         {/* 開發模式登入 */}
         {showDevMode ? (
-          <DevLoginForm callbackUrl={callbackUrl} />
+          <DevLoginForm callbackUrl={safeCallbackUrl} />
         ) : (
           <>
             {/* Azure AD 登入 */}
@@ -146,7 +152,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   action={async () => {
                     'use server'
                     await signIn('microsoft-entra-id', {
-                      redirectTo: callbackUrl ?? '/dashboard',
+                      redirectTo: safeCallbackUrl,
                     })
                   }}
                 >
@@ -175,7 +181,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             )}
 
             {/* 本地帳號登入表單 */}
-            <LoginForm callbackUrl={callbackUrl ?? '/dashboard'} />
+            <LoginForm callbackUrl={safeCallbackUrl} />
           </>
         )}
       </div>

@@ -269,6 +269,7 @@ export function SharePointConfigForm({
             <Input
               id="clientSecret"
               type="password"
+              autoComplete="new-password"
               {...register('clientSecret')}
               placeholder={
                 isEditing

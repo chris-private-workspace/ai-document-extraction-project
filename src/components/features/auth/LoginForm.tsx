@@ -42,6 +42,7 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Link } from '@/i18n/routing'
 import { loginSchema, type LoginInput } from '@/validations/auth'
+import { toSafeRedirect } from '@/lib/safe-redirect'
 
 // ============================================================
 // Types
@@ -133,7 +134,8 @@ export function LoginForm({ callbackUrl = '/dashboard' }: LoginFormProps) {
       }
 
       // 登入成功，導航到回調 URL
-      router.push(callbackUrl)
+      // FIX-170 / BUG-2：頁面層已收斂過，此處為轉址動作點的縱深防禦
+      router.push(toSafeRedirect(callbackUrl))
       router.refresh()
     } catch {
       setError(t('errors.networkError'))

@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批「純標頭修復」已實作並於本機實測驗證，見 §第一批實作記錄；第二、三批待處理）
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批「純標頭修復」與第二批的 BUG-2 / BUG-11 已完成，見 §第一批實作記錄、§第二批實作記錄；BUG-12 查證後**待決策**、BUG-9 依賴第三批、第三批整批待處理）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -269,13 +269,90 @@ CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warni
 
 ---
 
+## 第二批實作記錄（2026-08-07，BUG-2 / BUG-11 完成）
+
+### BUG-2：`callbackUrl` open redirect
+
+新增 `src/lib/safe-redirect.ts`，採兩道關卡：
+
+1. **語法排除** —— 必須以單一 `/` 開頭，擋掉絕對 URL、protocol-relative（`//evil`）、反斜線變形（`/\evil`、`\\evil`）、偽協定（`javascript:`、`data:`）
+2. **解析驗證** —— 以哨兵 base（`https://safe-redirect.invalid`）解析，確認 origin 未被改寫。此為縱深防禦，涵蓋第一道未列舉的變形
+
+通過後回傳正規化的 `pathname + search + hash`，保留使用者原本要返回的位置。
+
+**收口策略**：不可信輸入的唯一入口是兩個頁面的 `searchParams`，因此在頁面層收斂一次，下游全部使用 `safeCallbackUrl`；另在 `router.push()` 這個實際轉址動作點再套一層，避免未來重構時元件被別處複用而失去保護。
+
+| 位置 | 原本 | 改為 |
+|---|---|---|
+| `login/page.tsx` | `redirect(callbackUrl ?? '/dashboard')` | `redirect(safeCallbackUrl)` |
+| `login/page.tsx` | `signIn('microsoft-entra-id', { redirectTo: callbackUrl ?? '/dashboard' })` | `redirectTo: safeCallbackUrl` |
+| `login/page.tsx` | `<LoginForm callbackUrl={callbackUrl ?? '/dashboard'} />`、`<DevLoginForm callbackUrl={callbackUrl} />` | 皆傳 `safeCallbackUrl` |
+| `register/page.tsx` | `redirect(callbackUrl ?? '/dashboard')`、`<RegisterForm callbackUrl={callbackUrl} />` | 同上 |
+| `LoginForm.tsx` | `router.push(callbackUrl)` | `router.push(toSafeRedirect(callbackUrl))` |
+| `DevLoginForm.tsx` | `router.push(callbackUrl ?? '/dashboard')` | `router.push(toSafeRedirect(callbackUrl))` |
+
+`src/components/layout/SessionGuard.tsx` 產生 callbackUrl 的來源是 `window.location.pathname`，屬內部值；且它產生的 URL 仍會經過登入頁的 `searchParams`，因此同樣被收斂，無須另改。
+
+**測試**：新增 `tests/unit/lib/safe-redirect.test.ts`，22 個案例涵蓋 6 種放行形態、12 種繞過形態、空值與自訂 fallback，全部通過。
+
+### BUG-11：設定表單密碼欄位
+
+三處補上 `autoComplete="new-password"`：`ConfigEditDialog.tsx`（系統設定 SECRET 值）、`OutlookConfigForm.tsx`、`SharePointConfigForm.tsx`（Azure AD client secret）。
+
+取 `new-password` 而非規劃時寫的 `off`，理由有二：這三個欄位是**機器憑證**，主要風險是瀏覽器把使用者的既有密碼填進去，`new-password` 才是有效的抑制信號（瀏覽器早已不遵循 `type="password"` 上的 `off`）；且此值與專案既有做法一致（`LlmProviderForm.tsx:305` 的 API key 欄位、`AddUserDialog`、`EditUserDialog` 皆用 `new-password`）。
+
+### 驗證
+
+| 檢查 | 結果 |
+|---|---|
+| `npx vitest run tests/unit/lib/safe-redirect.test.ts` | 22 passed |
+| `npm run test`（全套件） | 489 passed / 2 skipped / **0 failed**，無回歸 |
+| `npm run type-check` | 通過 |
+| `eslint`（8 個改動檔案） | 0 error（1 warning 為 `DevLoginForm` 既有的未使用 `catch (err)`，非本次引入，依 §Surgical Changes 不順手改） |
+
+---
+
+## BUG-12 查證結果：待決策，未實作
+
+規劃時寫的前提是「需先確認是否有對外整合方依賴未認證存取」。查證後發現**依賴方在內部**：
+
+| 依賴點 | 說明 |
+|---|---|
+| `src/app/[locale]/docs/page.tsx:54` | `href="/api/openapi"` 超連結 |
+| `src/app/[locale]/docs/examples/page.tsx:54` | 同上 |
+| `src/app/[locale]/docs/page.tsx:78,86` | `/api/docs/error-codes`、`/api/docs/version` |
+| `SwaggerUIWrapper` 組件 | 載入 `/api/openapi` 渲染互動式文件 |
+
+關鍵在於 **`/[locale]/docs` 頁面本身也是公開的** —— 它不在 `(dashboard)` 路由組，而 `src/middleware.ts` 的 `isProtectedRoute()` 只涵蓋 `/dashboard` 與 `/documents`。因此若只收攏 API 而不動頁面，未登入者點該頁連結會拿到 401，形成壞掉的公開頁。
+
+這已經不是單純的安全修復，而是**產品決策**：API 文件要不要對未登入者公開。三個選項：
+
+| 選項 | 作法 | 影響 |
+|---|---|---|
+| A | 維持公開，在文件記錄為「刻意的設計」 | 掃描仍可能標記；攻擊面維持現狀（完整 API 規格 23 KB 對外可讀） |
+| B | API 與 `/[locale]/docs` 頁面一併要求登入 | 需擴充 `isProtectedRoute()`，屬頁面層存取控制變更 |
+| C | 只收攏 `/api/openapi`，保留 `/api/docs/*` 靜態資訊 | 折衷，但 docs 頁的 SwaggerUI 對未登入者會壞 |
+
+> 📌 **此項需使用者裁決後才動手**，不由 AI 單方面決定既有功能的公開性。
+
+---
+
 ## 修改的檔案
 
 | 檔案 | 修改內容 | 批次 | 狀態 |
 |------|----------|------|------|
 | `next.config.ts` | 加 `poweredByHeader: false` + `headers()` 五個標頭 + 兩個 CSP header | 一 | ✅ 已完成 |
 | `src/middleware.ts` | 新增 `hardenLocaleCookie()` 補強 `NEXT_LOCALE` 屬性 | 一 | ✅ 已完成 |
-| `src/middleware.ts` | 調整 `PUBLIC_API_PREFIXES`（收攏 `/api/openapi`） | 二 | 待處理 |
+| `src/lib/safe-redirect.ts` | **新增** —— 轉址目標白名單驗證 | 二 | ✅ 已完成 |
+| `tests/unit/lib/safe-redirect.test.ts` | **新增** —— 22 個案例 | 二 | ✅ 已完成 |
+| `src/app/[locale]/(auth)/auth/login/page.tsx` | 四處改用 `safeCallbackUrl` | 二 | ✅ 已完成 |
+| `src/app/[locale]/(auth)/auth/register/page.tsx` | 兩處改用 `safeCallbackUrl` | 二 | ✅ 已完成 |
+| `src/components/features/auth/LoginForm.tsx` | `router.push()` 套用 `toSafeRedirect()` | 二 | ✅ 已完成 |
+| `src/components/features/auth/DevLoginForm.tsx` | 同上 | 二 | ✅ 已完成 |
+| `src/components/features/admin/config/ConfigEditDialog.tsx` | 補 `autoComplete="new-password"` | 二 | ✅ 已完成 |
+| `src/components/features/outlook/OutlookConfigForm.tsx` | 同上 | 二 | ✅ 已完成 |
+| `src/components/features/sharepoint/SharePointConfigForm.tsx` | 同上 | 二 | ✅ 已完成 |
+| `src/middleware.ts` | 調整 `PUBLIC_API_PREFIXES`（收攏 `/api/openapi`） | 二 | ⏸️ 待決策（見 §BUG-12） |
 | `src/lib/safe-redirect.ts` | **新增** —— 站內路徑白名單驗證 | 二 |
 | `src/app/[locale]/(auth)/auth/login/page.tsx` | 第 72 行套用 `toSafeRedirect()` | 二 |
 | `src/components/features/auth/LoginForm.tsx` | 第 136 行套用 `toSafeRedirect()` | 二 |
@@ -311,12 +388,15 @@ CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warni
 
 ### 第二批
 
-- [ ] `/{locale}/auth/login?callbackUrl=https://example.com` 登入後導向 `/dashboard`，**不**導向外部網域
-- [ ] `callbackUrl=//example.com` 與 `callbackUrl=/\evil` 同樣被擋
-- [ ] 正常站內路徑（如 `/zh-TW/documents`）登入後仍正確返回
-- [ ] 三個設定表單的密碼欄位不再被瀏覽器自動填入既有密碼
-- [ ] `/api/openapi` 未登入時回 401（若決定收攏）
-- [ ] CI 四個安全 workflow 在有 high 漏洞時確實使 PR 失敗
+- [x] `callbackUrl=https://evil.example` 被收斂為 `/dashboard`（單元測試涵蓋）
+- [x] `callbackUrl=//evil.example` 與 `callbackUrl=/\evil.example` 同樣被擋（單元測試涵蓋）
+- [x] `javascript:` / `data:` 偽協定被擋（單元測試涵蓋）
+- [x] 正常站內路徑連同 query 與 hash 原樣保留（單元測試涵蓋）
+- [x] 全套件無回歸（489 passed / 0 failed）
+- [x] 三個設定表單的密碼欄位已補 `autoComplete="new-password"`
+- [ ] **端到端實測**：實際以瀏覽器走一次帶惡意 `callbackUrl` 的登入流程 —— 本機無可用資料庫，未執行
+- [ ] `/api/openapi` 未登入時回 401 —— **待決策，見 §BUG-12 查證結果**
+- [ ] CI 四個安全 workflow 在有 high 漏洞時確實使 PR 失敗 —— **必須排在第三批相依升級之後**
 
 ### 第三批
 
