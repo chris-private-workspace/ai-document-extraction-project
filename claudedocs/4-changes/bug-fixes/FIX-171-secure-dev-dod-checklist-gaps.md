@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory，且**已加入 main 的 required status checks**，該閘現會實際擋下合併）。**Azure DEV 線上驗證完成**：9 個安全標頭 / cookie 強化 / fail-open 修復皆已生效；`API_AUTH_GATE_MODE` 經 monitor 日誌分析後切為 `enforce`，`/api/openapi` 缺口已封；**登入後煙霧測試通過**（6 個頁面、10 個 API 全部正常，console 零錯誤）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 20 個 high、BUG-13 與 SCM 存取限制（需 Azure 寫入權限）。**已排除**：步驟 4 另開編號處理。**測試中另發現 3 個既有缺陷**（非本 FIX 造成），其中登入錯誤訊息誤導性較高，建議另開編號）
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory，且**已加入 main 的 required status checks**，該閘現會實際擋下合併）。**Azure DEV 線上驗證完成**：9 個安全標頭 / cookie 強化 / fail-open 修復皆已生效；`API_AUTH_GATE_MODE` 經 monitor 日誌分析後切為 `enforce`，`/api/openapi` 缺口已封；**登入後煙霧測試通過**（6 個頁面、10 個 API 全部正常，console 零錯誤）。**BUG-7 已實作**（閾值 5 次 + 管理員手動解鎖 + `prisma/unlock-user.js` CLI 死鎖後備；schema / migration / drift script 三處同步，解鎖腳本端到端驗證含冪等 —— 但 `authorize()` 的「連續失敗 5 次會鎖住」尚未執行時驗證）。**待辦**：BUG-8（PII 遮罩）、剩餘 20 個 high、BUG-13 與 SCM 存取限制（需 Azure 寫入權限）、登入路徑的 IP 層速率限制（BUG-7 的可被用於阻斷他人風險）。**已排除**：步驟 4 另開編號處理。**測試中另發現 3 個既有缺陷**（非本 FIX 造成），其中登入錯誤訊息誤導性較高，建議另開編號）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -729,6 +729,90 @@ CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workf
 | C | 完成 `next@16` + `nodemailer@9` 等 major 升級後，維持 `--audit-level=high` 並移除 `continue-on-error` | 最徹底 | 需 H2 approval + 完整回歸，且本機無法驗證登入後行為 |
 
 > ✅ **使用者於 2026-08-07 裁決採 B**，實作內容見上一節。
+
+---
+
+## BUG-7 實作記錄：登入防暴力破解（2026-08-07）
+
+### 使用者裁決
+
+| 決策點 | 選擇 | 理由 |
+|---|---|---|
+| 鎖定閾值 | **5 次** | DoD 允許 3–5。因解鎖為「管理員手動」、無自動到期，誤鎖代價是使用者必須找到管理員才能回來，故取上限以降低誤鎖率 |
+| 解鎖途徑 | **管理員手動** | DoD #14 允許時間 / 自助 / 管理員三選一 |
+| 死鎖防護 | **CLI 解鎖腳本** | 手動解鎖的固有風險：管理員自己被鎖就沒人能解。不採「全域管理員豁免」是因為管理員帳號正是攻擊者最想破的目標，豁免等於在最高價值的帳號上開洞 |
+
+### 現況盤點（動手前）
+
+意外地，多數基礎設施已存在，真正要新增的只有兩個欄位：
+
+| 項目 | 現況 |
+|---|---|
+| `authorize()` 已檢查 `status !== 'ACTIVE'` 並拋出自定義錯誤 | 攔截點與錯誤類別模式現成可用 |
+| `PATCH /api/admin/users/[id]/status` | 管理員操作端點已存在（含 `USER_MANAGE` 權限檢查與審計日誌） |
+| `EmailNotVerifiedError` / `AccountSuspendedError` / `AccountDisabledError` | `extends CredentialsSignin` + `code` 的模式可直接沿用 |
+| rate limit | 已是 Redis 優先 + in-memory fallback（FIX-052 完成）—— 順帶更正：`src/app/api/CLAUDE.md` 與 `claudedocs/CLAUDE.md` 仍寫「使用 in-memory Map（非 Redis）」，該記載已過時 |
+
+### 改動
+
+| 檔案 | 內容 |
+|---|---|
+| `prisma/schema.prisma` | `User` 新增 `failedLoginAttempts Int @default(0)`、`lockedUntil DateTime?` |
+| `prisma/migrations/20260807120000_fix171_add_login_lockout_to_users/migration.sql` | 對應 DDL（冪等） |
+| `prisma/apply-schema-drift.js` | 新增兩筆 FIX-171 條目 —— **Azure 實際靠這條路徑**，`migrate deploy` 不會自動套用 |
+| `src/lib/auth.config.ts` | 新增 `AccountLockedError`、`MAX_FAILED_LOGIN_ATTEMPTS = 5`、`MANUAL_UNLOCK_SENTINEL`；`authorize()` 加入鎖定檢查、失敗累加、成功歸零；catch 區塊放行新錯誤 |
+| `src/components/features/auth/LoginForm.tsx` | `errorMap` 新增 `AccountLocked` |
+| `messages/{en,zh-TW,zh-CN}/auth.json` | 新增 `errorPage.AccountLocked`（三語言） |
+| `prisma/unlock-user.js` | **新增** —— 三段式 gated CLI 解鎖腳本 |
+
+### 三個設計決定
+
+**一、用獨立 `lockedUntil` 欄位，不複用 `status = SUSPENDED`**
+SUSPENDED 的語義是「管理員主動停權」。混用會讓管理員看到 SUSPENDED 時無法判斷該帳號是人為停權還是自動鎖定，也就無從決定該不該解鎖 —— 這個資訊一旦混淆就永久失去。
+
+**二、鎖定檢查置於密碼驗證之前**
+已鎖定的帳號不再消耗 bcrypt 運算，也避免出現「密碼其實猜對了但帳號鎖著」這種需要額外處理的中間狀態。
+
+**三、失敗計數在密碼正確時即歸零，早於狀態與郵件驗證檢查**
+那兩項失敗與密碼猜測無關。若不先歸零，被停權的使用者重試幾次就會再被鎖一層，解鎖時徒增困惑。
+
+### ⚠️ 兩個已知取捨（非缺陷，但需知悉）
+
+| 取捨 | 說明 |
+|---|---|
+| **帳號列舉** | 拋出 `AccountLockedError` 等同確認「該帳號存在」，與 `authorize()` 刻意合併「帳號不存在／密碼錯誤」的做法方向相反。這是帳號鎖定機制的固有代價：要讓合法使用者知道自己為何登不進去，就無法對攻擊者隱藏。DoD #14 明確要求鎖定，故接受 |
+| **可被用於阻斷他人** | 攻擊者輸入受害者 email + 5 次錯誤密碼即可鎖住該帳號。手動解鎖放大了此影響（無自動到期）。標準緩解是 IP 層速率限制 —— 專案已有 Redis 版 `rate-limit.service`，但**尚未接到登入路徑**。建議另開編號處理 |
+
+### 驗證
+
+| 項目 | 結果 |
+|---|---|
+| `npx prisma validate` | ✅ |
+| `npm run type-check` | ✅ exit 0 |
+| `npm run lint` | ✅ exit 0，改動的三個檔案均未出現在 warning 清單 |
+| `npm run i18n:check` | ✅ exit 0。⚠️ 但該檢查的 `LOCALE_SYNC_CHECKS` **不含 `auth.json`**，其綠燈並未覆蓋本次改動 —— 另以 Grep 確認三語言各有一筆 `AccountLocked` |
+| `apply-schema-drift.js` 實測 | ✅ 24 條全部套用成功、0 失敗，含新增的兩條 FIX-171 |
+| `unlock-user.js` 端到端 | ✅ 見下 |
+
+**解鎖腳本端到端驗證**（對本機 DB，測試對象為系統內部帳號）：
+
+1. `inspect` 初始回 **0 筆** —— 但零筆無證明力，故繼續
+2. 手動將該帳號設為鎖定（`UPDATE 1`）
+3. `inspect` 回 **1 筆** —— 反證成立，前一步的零是真實掃描結果而非查詢失效
+4. `dryrun` 正確印出 before/after
+5. `write` 的 BEFORE 仍顯示鎖定 → **證明 dryrun 沒有偷寫**；解鎖成功
+6. 再跑一次 `write` → 偵測已解鎖並跳過（**冪等成立**）
+7. 最終 `inspect` 回到 0 / null / ACTIVE，**與測試前完全一致**（測試資料自我還原，無殘留）
+
+### 🔴 尚未驗證：`authorize()` 的執行時行為
+
+上述驗證涵蓋 schema、SQL、解鎖腳本與靜態檢查，但**「連續失敗 5 次真的會鎖住」這條路徑尚未實際跑過**。
+
+本機測試的障礙：`isDevelopmentMode = NODE_ENV === 'development' && !isAzureADConfigured()`，dev 模式會接受任何密碼、繞過整段生產邏輯。要在本機重現需設非 mock 前綴的假 Azure AD 值 + 臨時 `.env`（目前 `.env` 不存在）。
+
+> 📌 部署 Azure DEV 後務必確認 `RUN_SCHEMA_DRIFT_FIX=true` 已跑過再放行流量 ——
+> `authorize()` 每次登入都會讀 `failed_login_attempts`，欄位不存在即 P2022，
+> 後果是**所有人都無法登入**，而非單一新功能失效。
 
 ---
 

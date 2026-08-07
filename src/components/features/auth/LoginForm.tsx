@@ -95,6 +95,8 @@ export function LoginForm({ callbackUrl = '/dashboard' }: LoginFormProps) {
       const errorMap: Record<string, string> = {
         AccountSuspended: t('errorPage.AccountSuspended.description'),
         AccountDisabled: t('errorPage.AccountDisabled.description'),
+        // FIX-171 / BUG-7：連續登入失敗達上限後的鎖定訊息
+        AccountLocked: t('errorPage.AccountLocked.description'),
         EmailNotVerified: t('login.error.emailNotVerified'),
         CredentialsSignin: t('errors.invalidCredentials'),
       }

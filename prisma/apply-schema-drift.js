@@ -208,6 +208,19 @@ const MIGRATIONS = [
     sql: `alter table "data_templates" add column if not exists "line_item_mode"
       varchar(20) not null default 'PIVOT';`,
   },
+  // FIX-171 / BUG-7：登入防暴力破解的帳號鎖定欄位。對應 migration 20260807120000。
+  // ⚠️ 這兩筆漏掉的後果比一般漂移嚴重：authorize() 每次登入都會讀 failed_login_attempts，
+  //    欄位不存在即 P2022 → **所有人都無法登入**（不只是新功能失效）。部署後務必確認
+  //    RUN_SCHEMA_DRIFT_FIX=true 已跑過再放行流量。
+  {
+    id: 'FIX-171 column users.failed_login_attempts',
+    sql: `alter table "users" add column if not exists "failed_login_attempts"
+      integer not null default 0;`,
+  },
+  {
+    id: 'FIX-171 column users.locked_until',
+    sql: `alter table "users" add column if not exists "locked_until" timestamp(3);`,
+  },
 ]
 
 async function main() {

@@ -63,10 +63,42 @@ class AccountDisabledError extends CredentialsSignin {
 }
 
 /**
+ * 帳號因連續登入失敗被鎖定（FIX-171 / BUG-7）
+ *
+ * @description
+ *   ⚠️ 拋出此錯誤等同向請求方確認「該帳號存在」，與上方 `Credential check failed`
+ *   刻意合併帳號不存在/密碼錯誤的做法方向相反。這是帳號鎖定機制的固有取捨：
+ *   要讓合法使用者知道自己為何登不進去，就無法對攻擊者隱藏。DoD #14 明確要求
+ *   鎖定機制，故接受此取捨。
+ */
+class AccountLockedError extends CredentialsSignin {
+  code = 'AccountLocked'
+}
+
+/**
  * Session 最大存活時間（秒）
  * 8 小時 = 8 * 60 * 60 = 28800 秒
  */
 const SESSION_MAX_AGE = 8 * 60 * 60
+
+/**
+ * 連續密碼錯誤達此次數即鎖定帳號（FIX-171 / BUG-7）
+ *
+ * @description
+ *   DoD #14 建議 3–5 次。使用者於 2026-08-07 選 5 —— 因為解鎖方式是「管理員手動」、
+ *   無自動到期，誤鎖的代價是使用者必須找到管理員才能回來，故取範圍上限以降低誤鎖率。
+ */
+const MAX_FAILED_LOGIN_ATTEMPTS = 5
+
+/**
+ * 手動解鎖模式的鎖定期限哨兵值（FIX-171 / BUG-7）
+ *
+ * @description
+ *   使用者選擇「管理員手動解鎖」，沒有自動到期，故寫入一個遠期時間表示
+ *   「鎖定直到管理員介入」。判斷邏輯統一為 `lockedUntil > now`，
+ *   未來若要改採時間解鎖，只需改寫入的值，判斷式不必動。
+ */
+const MANUAL_UNLOCK_SENTINEL = new Date('9999-12-31T23:59:59.000Z')
 
 /**
  * 檢查 Azure AD 環境變數是否已正確配置
@@ -165,11 +197,13 @@ function buildProviders(): Provider[] {
               password: true,
               status: true,
               emailVerified: true,
+              failedLoginAttempts: true,
+              lockedUntil: true,
             },
           })
 
           // 用戶不存在或密碼無效（合併兩個分支以緩解帳號列舉攻擊）
-          // 注意：L175 的密碼驗證只在 user 存在時執行，故此處合併後的訊息
+          // 注意：下方的密碼驗證只在 user 存在時執行，故此處合併後的訊息
           // 在外觀上無法區分「帳號不存在」vs「密碼錯誤」
           if (!user || !user.password) {
             edgeLogger.info('[Auth] Credential check failed')
@@ -180,15 +214,55 @@ function buildProviders(): Provider[] {
             return null
           }
 
+          // FIX-171 / BUG-7：鎖定檢查置於密碼驗證之前 —— 已鎖定的帳號不必再消耗
+          // bcrypt 運算，也避免出現「密碼其實猜對了但帳號鎖著」這種需額外處理的狀態
+          if (user.lockedUntil && user.lockedUntil > new Date()) {
+            edgeLogger.info('[Auth] Login blocked: account locked', { userId: user.id })
+            throw new AccountLockedError()
+          }
+
           // 驗證密碼
           const isValidPassword = await verifyPassword(password, user.password)
           if (!isValidPassword) {
+            // FIX-171 / BUG-7：累加失敗次數，達閾值即鎖定
+            const attempts = user.failedLoginAttempts + 1
+            const shouldLock = attempts >= MAX_FAILED_LOGIN_ATTEMPTS
+
+            await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                failedLoginAttempts: attempts,
+                ...(shouldLock ? { lockedUntil: MANUAL_UNLOCK_SENTINEL } : {}),
+              },
+            })
+
             edgeLogger.info('[Auth] Credential check failed')
             edgeLogger.debug('[Auth] Failure detail', {
               email,
               reason: 'INVALID_PASSWORD',
+              attempts,
+              locked: shouldLock,
             })
+
+            if (shouldLock) {
+              // userId 非 PII，可於 info 級別記錄；管理員需靠這行得知有帳號被鎖
+              edgeLogger.info('[Auth] Account locked after repeated failures', {
+                userId: user.id,
+                attempts,
+              })
+              throw new AccountLockedError()
+            }
             return null
+          }
+
+          // FIX-171 / BUG-7：密碼正確即歸零計數 —— 密碼對了就不是暴力破解。
+          // 置於狀態與郵件驗證檢查之前：那兩者失敗與密碼猜測無關，不該留下失敗計數，
+          // 否則被停權的使用者重試幾次就會再被鎖一層，解鎖時徒增困惑。
+          if (user.failedLoginAttempts > 0) {
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { failedLoginAttempts: 0 },
+            })
           }
 
           // 檢查帳號狀態
@@ -222,9 +296,12 @@ function buildProviders(): Provider[] {
           }
         } catch (error) {
           // 重新拋出已知的認證錯誤
+          // ⚠️ 新增自定義認證錯誤時必須同步加進這個清單，否則會被下方吞掉、
+          //    退化成一般的 return null，前端就看不到專屬訊息
           if (error instanceof EmailNotVerifiedError ||
               error instanceof AccountSuspendedError ||
-              error instanceof AccountDisabledError) {
+              error instanceof AccountDisabledError ||
+              error instanceof AccountLockedError) {
             throw error
           }
           // 記錄未預期的錯誤（不含 PII）
