@@ -5,6 +5,7 @@
 > **影響範圍**: `template_field_mappings` 的 `sourceField` → 模板實例列值
 > **優先級**: 高（CEVA export 有 4 條規則在 **31/31 列**全部落空）
 > **狀態**: 🚧 部分完成（2026-08-04，**2 項已修並驗證通過**，見 §已修正；原列的 9 項經逐條追查後為 **4 項誤報 + 5 項真缺陷**，其餘 3 項屬欄位定義缺失，待決策）
+> **Azure DEV**: ✅ 2026-08-06 已同步並完成驗收 —— 規則修正正確，但該環境 48 份樣本**皆無**這兩項費用，故無可見效果、對帳金額不變（見 §Azure DEV 同步狀態）
 > **相關**: [FIX-158](FIX-158-mapping-field-definition-misalignment.md)（同型，已修 RIL 與 CEVA 各一例）、[FIX-160](FIX-160-template-mapping-unreferenced-extracted-charges.md)（反方向：提取到卻無規則引用）
 
 ---
@@ -109,13 +110,14 @@ CEVA 的欄位定義集（`f13aaf3b-ec74-4750-8036-a27dbb554792`，21 個 key）
 
 ## Azure DEV 同步狀態（2026-08-06 更新）
 
-原記「尚未同步」。2026-08-06 已移植 mapping 變更，但**尚未完成驗收** —— 兩者不可混為一談。
+原記「尚未同步」。2026-08-06 已完成移植與驗收 —— **修復正確，但在 Azure 現有資料上不產生可見效果**。
 
 | 步驟 | 本機 | Azure DEV |
 |---|---|---|
 | mapping `sourceField` 變更 | ✅ 2026-08-04 | ✅ 2026-08-06 |
-| 重新匹配模板實例 | ✅ | ❌ **未做** |
-| 對帳驗收（漏接金額下降） | ✅ 降 280 | ❌ 未做 |
+| 重新匹配模板實例 | ✅ | ✅ 2026-08-06（建新實例，見下） |
+| 目標欄位取到值 | ✅ `cfs_charge=200`、`gate_charge=80` | ❌ **48/48 列皆取不到** |
+| 對帳驗收 | ✅ 降 280 | ➖ 不會下降（原因見下） |
 
 移植方式：`prisma/fix-161-ceva-export-20260806.js`（三段式 gated，由 `RUN_FIX161_CEVA_20260806` 觸發，見 [runbook §21](../../../docs/07-deployment/02-azure-deployment/dev-deployment-runbook.md)）。腳本 write 前會**逐項驗證 Azure 自己的欄位定義集**，不符即中止 —— 不照抄本機。
 
@@ -128,21 +130,70 @@ CEVA 的欄位定義集（`f13aaf3b-ec74-4750-8036-a27dbb554792`，21 個 key）
 | 事後對帳 | 九條規則重新讀取，僅該 2 條變動，殘餘待修 0 |
 | 前置快照 | `fix161-before.json`（存於本機，🔴 Azure `/home` 不持久，log 會過期） |
 
-### 🔴 剩餘兩步（未做，驗收不算完成）
+### 重新匹配為什麼要建新實例（而非重跑舊的）
 
-1. **重新匹配 CEVA 的模板實例** —— 改設定不回溯，Azure 那批 `cfs_charge` / `gate_charge` 目前仍為空
-2. **前後對帳** —— `RUN_ORPHAN_CHECK=inspect` + `RECONCILE_BASELINE`（Azure baseline：全庫 607 份、漏 586,302.84、多算 8,014.58，其中 CEVA 漏 189,073.28）
+受影響的是 5 個實例、48 列（`dataTemplateId=cmrbhjbl4033101o3n77yg0sh`）。**它們一列都改不了**：
 
-判準是 CEVA 漏接金額**下降**。降幅**不會是 280** —— 那是本機 31 列的數字，Azure 份數不同。若金額**上升**，代表 `destination_cfs_charges` / `destination_gate_fee` 在 Azure 原本已被別的規則引用、被這次改動搶走去處（§樣本 ≠ 母體 的同型風險），須依 `fix161-before.json` 回滾。
+```
+DELETE 列 → 409  「實例狀態為 COMPLETED，不可刪除行」
+POST execute → 400  INVALID_INSTANCE_STATUS
+```
 
-### 兩家 CEVA 必須分辨
+`template-instance.ts:358-364` 的白名單只放行 `DRAFT`（可刪）與 `DRAFT`/`ERROR`（可寫），而
+`STATUS_TRANSITIONS`（同檔 :346-352）中 `COMPLETED → ['EXPORTED']` —— **沒有回頭路**，
+`changeStatus` 嚴格檢查（`template-instance.service.ts:1063-1069`），所以「退回 DRAFT 再改」也走不通。
 
-Azure 上有**兩筆** CEVA 公司記錄，只動第一筆：
+這不是缺陷：實例是**一次性快照 / 交付物**（終點 `EXPORTED` 會輸出 Excel），設計上要重跑就建新的。
+對帳腳本的 `DISTINCT ON (doc.id, ti.data_template_id) ORDER BY tir.created_at DESC` 正是配合這個模式——
+**新快照自動取代舊快照參與計算，不會重複計**。前提是新實例必須用**同一個** `dataTemplate`。
 
-| 公司 | 處置 |
+實際做法：建新實例 `cmshcs6ce000v01o4trvbsu3m`（DRAFT，同模板）→ execute 48 份文件
+（`options.companyId=0d02b680-165b-4cfd-8c1b-7ebfa6da8424`）→ 48 列全 VALID、零錯誤。舊 5 個實例未動。
+
+> ✅ 該驗證實例已於驗收後刪除（DRAFT 可刪，回 200；覆查回 404）。留著會讓它的 48 列因
+> `created_at` 較新而**永久取代**舊列參與對帳，故不保留。
+> 刪除後覆查舊 5 個實例：狀態皆 `COMPLETED`、列數 20+2+7+9+10 = **48**，與 before 快照一致。
+> Azure DEV 除 mapping 修復外回到原狀。
+
+### 🔴 驗收結果：規則修對了，但這批資料沒有這兩項費用
+
+新列的 `transformDiagnostics`（系統自留診斷，記錄取不到值的 sourceField）：
+
+| 次數 | 診斷 | 意義 |
+|---:|---|---|
+| **48/48** | `cfs_charge ← destination_cfs_charges` | 提取結果沒有這個 key 的值 |
+| **48/48** | `gate_charge ← destination_gate_fee` | 同上 |
+
+即：**這 48 份 CEVA export 發票本來就沒有 CFS 與 Gate 這兩項費用**，屬本文件 §對照 所述的
+「母體未覆蓋」，不是映射缺陷。本機之所以能驗出 200 / 80，是因為那批樣本中**有一份**收了這兩項費用。
+
+因此 CEVA 漏接金額（189,073.28）**不會**因本次修復下降。修復本身仍然正確——
+對未來確實收取這兩項費用的 CEVA export 發票會生效。
+
+🔴 **推論**：CEVA 那 189,073.28 的漏接**另有原因**。48 列中實際取到值的只有 5 個欄位
+（`shipment_number` 48、`document_fee` 42、`thc` 26、`seal_fee` 23、`vgm` 13），而模板有 36 個
+number 欄位。缺口在別處，需另案追查。
+
+### 順帶驗證的兩項原有判斷
+
+| 診斷 | 佐證了什麼 |
 |---|---|
-| `CEVA LOGISTICS (HONG KONG) LTD`（21 key，無 `cfs`/`gate_charge`） | ✅ 本次變更對象 |
-| `CEVA LOGISTICS (HONG KONG) LIMITED（CEVA Logistics）`（含 `cfs`/`gate_charge`） | 🔴 **不動** —— 其 `sourceField` 本來就有效 |
+| `document_fee ← awb_fee` 48/48 取不到，但 42/48 列 `document_fee` **有值** | §逐條追查 第 1 項判為**誤報**是對的——FORMULA 只要另有 key 有值即可 |
+| `delivery ← pick_up_at_origin`、`x_ray_fee ← x_ray` 各 48/48 取不到 | §待處理的 3 項 中的第 2、3 項，Azure 同樣未修，符合預期 |
+
+### 兩家 CEVA 必須分辨（已於 Azure 實測驗證）
+
+Azure 上有**兩筆** CEVA 公司記錄，同一個 Outbound(Full List) 模板下**各有一條 mapping**，
+只動第一筆：
+
+| 公司 | 定義集 | `cfs` / `gate_charge` | mapping | 處置 |
+|---|---|---|---|---|
+| `0d02b680-…`（…LTD） | `f13aaf3b-…`（21 key） | ❌ 無 / ❌ 無 | `cmrin1af9…` | ✅ 本次變更對象 |
+| `7448b7c5-…`（…Limited） | `90e7e76e-…`（26 key） | ✅ 有 / ✅ 有 | `cmrcxw6ul…` | 🔴 **不動** |
+
+兩條 mapping 的九條規則**只差 `cfs_charge` 與 `gate_charge` 兩行**。第二家寫 `← cfs` 是**有效的**
+（它的定義集有這個 key），第一家寫 `← cfs` 必然落空——這正是 FIX-161 的根因。
+判準是各公司**自己的**定義集，不是規則長相。
 
 ---
 
