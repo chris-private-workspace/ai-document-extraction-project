@@ -175,10 +175,18 @@ Toll Global Forwarding (Hong Kong) Ltd
 - 但**重新處理**香港件 → Stage 3 沒有費用科目可注入 prompt，費用會塌縮成單一項
 - **重跑模板匹配** → `resolveMapping` 拿不到任何規則
 
-補齊要寫 `template_field_mappings`，受 runbook §17 的通案限制擋著
-（對帳工具 `check-orphan-charge-keys.js` / `snapshot-template-values.js` 尚未移植進 `prisma/`）。
+補齊要寫 `template_field_mappings`。~~受 runbook §17 的通案限制擋著~~ ——
+**該限制已於同日解除**：對帳工具已移植進 `prisma/`（`check-orphan-charge-keys.js` /
+`snapshot-template-values.js`，見 runbook §20），並已在 Azure 實跑驗證。安全網齊備，可以動手。
 
 本機那份 37 科目的欄位集與兩筆 mapping 可作範本，但同樣要**按 Azure 實測調整**，不可照抄。
+🔴 尤其 **companyId 不可互抄**：本機拆出的香港記錄是 `1ce60466-…`，Azure 是
+`6df1b84d-…` —— 兩環境各自拆分，id 不同。
+
+### 現況（2026-08-07 覆查）
+
+**仍未補齊**：實測 `6df1b84d-…` 有 **0 組欄位定義集、0 條模板映射**（分母：全庫 30 組 / 50 條）。
+追蹤於 [FIX-164](../../../../claudedocs/4-changes/bug-fixes/FIX-164-companies-without-template-mapping.md)。
 
 ---
 

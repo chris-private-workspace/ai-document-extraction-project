@@ -129,5 +129,49 @@ node scripts/check-orphan-charge-keys.js --baseline=before.json
 
 ---
 
+## Azure DEV：CEVA 漏接 189,073.28，成因尚未查證（2026-08-07）
+
+本節記錄的是**已量測的事實**與**待查點**，不是結論。🔴 尚不能斷言它屬於本 FIX 的形態。
+
+### 已量測
+
+| 項目 | 值 | 來源 |
+|---|---|---|
+| Azure 全庫漏接 | 586,302.84（多算 8,014.58），607 份參與對帳 | `RUN_ORPHAN_CHECK=inspect`，2026-08-06 |
+| 其中 CEVA 漏接 | **189,073.28** | 同上 |
+| CEVA export 實例列取到值的欄位 | 僅 5 個：`shipment_number` 48、`document_fee` 42、`thc` 26、`seal_fee` 23、`vgm` 13 | 48 列實測 |
+| 該模板的 number 欄位總數 | **36** | `data_templates` 實測 |
+
+即 36 個費用欄位中只有 4 個真正承載金額。缺口顯著。
+
+### 已排除的一個成因
+
+[FIX-161](FIX-161-mapping-references-undefined-company-fields.md) 修好的 `cfs_charge` /
+`gate_charge` **不是**原因 —— 重新匹配後 `transformDiagnostics` 顯示
+`destination_cfs_charges` / `destination_gate_fee` 在 **48/48 列**都不存在於提取結果，
+即這批發票沒有這兩項費用（母體未覆蓋）。修復正確，但對這個缺口毫無貢獻。
+
+### 為什麼還不能歸類
+
+`transformDiagnostics` 只記錄「**規則引用了但取不到值**」，**不記錄**「提取到了但沒有規則引用」——
+而後者正是本 FIX 的形態。所以現有證據**看不見**本 FIX 的徵狀，缺口成因可能是：
+
+| 可能 | 判別方式 |
+|---|---|
+| (a) 本 FIX 形態：提取到了但無規則引用 | 比對 `extraction_results.field_mappings` 的 key 與 mapping 引用的 key |
+| (b) 母體未覆蓋：這批發票本來就沒那些費用 | 同上——差別在提取結果**有沒有**那些 key |
+| (c) 欄位定義集缺 key，Stage 3 根本沒提取 | 比對定義集 key 與提取結果 |
+
+三者的處置完全不同（(a) 補 mapping、(b) 不處理、(c) 補定義集並重新提取），
+**不查清楚就動手會修錯地方**。
+
+### 查證受阻於什麼
+
+`/api/documents/*` 與 `/api/companies/*` 在 Azure 需要認證（實測 401），
+而 `extraction_results` 沒有免認證的讀取途徑。要比對提取結果與 mapping，
+需做成 `prisma/*.js` + gated 旗標在容器內執行（範式見 runbook §19–§21）。
+
+---
+
 **建立者**: AI 助手
-**最後更新**: 2026-08-05（新增 §查證後排除：稅額不屬於本 FIX，已另立 FIX-168）
+**最後更新**: 2026-08-07（新增 §Azure DEV：CEVA 漏接 189,073.28，成因尚未查證）

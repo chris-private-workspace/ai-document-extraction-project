@@ -82,5 +82,40 @@
 
 ---
 
+## Azure DEV 也有同一個缺口（2026-08-07 實測）
+
+FIX-159 的 Toll 拆分已於 2026-08-06 移植到 Azure DEV（見
+[部署記錄](../../../docs/07-deployment/02-azure-deployment/deployment-records/2026-08-06-dev-toll-split.md)），
+**同樣只完成拆分、未補設定**：
+
+| 環境 | 香港實體 `companyId` | 欄位定義集 | 模板映射 |
+|---|---|---:|---:|
+| 本機 | `1ce60466-ecfa-4e82-aee0-13c3ccccc192` | 見上文 | 見上文 |
+| **Azure DEV** | **`6df1b84d-b527-4318-b8a7-152a0a64bf5e`** | **0 組** | **0 條** |
+
+> 分母：Azure 全庫 30 組欄位定義集、50 條模板映射（`/api/v1/field-definition-sets`、
+> `/api/v1/template-field-mappings` 實測）。
+
+🔴 **兩環境的 companyId 不同**，各自拆分產生。修法落地時**不可互抄 id**，
+腳本必須以各環境實測值為準——這與 FIX-161 移植時「清單類設定不可照抄本機」是同一條紀律。
+
+🔴 Azure 的誤歸規模也與本機不同：本機 34 份，Azure **35 份**，且 Azure 另有兩種本機不存在的
+中英混排印法（`拓領環球貨運(香港)有限公司`、`拓環球貨運(香港)有限公司`）。
+
+### 安全網現已齊備
+
+原記「受 runbook §17 通案限制擋著（對帳工具未移植進 `prisma/`）」已不成立 ——
+對帳工具已移植並在 Azure 實跑驗證（runbook §20）。Azure 上的修法可走
+三段式 gated 腳本 + 前後對帳，不再缺安全網。
+
+### 動手前必讀的一條
+
+Azure 的模板實例若已是 `COMPLETED`，**改不了也刪不了列**
+（`DELETE` → 409、`execute` → `INVALID_INSTANCE_STATUS`，且 `COMPLETED` 無法退回 `DRAFT`）。
+補完 mapping 後要驗證效果，須**建新實例**重跑，舊實例保持不動 ——
+對帳查詢的 `DISTINCT ON … ORDER BY created_at DESC` 會自動採用新快照。詳見 runbook §21。
+
+---
+
 **建立者**: AI 助手
-**最後更新**: 2026-08-04
+**最後更新**: 2026-08-07（新增 §Azure DEV 也有同一個缺口）
