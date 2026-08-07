@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 待修復
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批「純標頭修復」已實作並於本機實測驗證，見 §第一批實作記錄；第二、三批待處理）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -212,12 +212,70 @@ export function toSafeRedirect(url: string | undefined, fallback = '/dashboard')
 
 ---
 
-## 修改的檔案（預估，修復後須更新為實際清單）
+## 第一批實作記錄（2026-08-07 完成）
 
-| 檔案 | 修改內容 | 批次 |
-|------|----------|------|
-| `next.config.ts` | 加 `poweredByHeader: false` + `headers()` 五個標頭 + CSP Report-Only | 一 |
-| `src/middleware.ts` | 覆寫 `NEXT_LOCALE` cookie 屬性；（第二批）調整 `PUBLIC_API_PREFIXES` | 一 / 二 |
+### 實際改動
+
+| 檔案 | 改動 |
+|------|------|
+| `next.config.ts` | 新增 `poweredByHeader: false`；新增 `headers()` 套用 5 個標頭 + 2 個 CSP header；新增模組層級常數 `CSP_REPORT_ONLY` |
+| `src/middleware.ts` | 新增 `hardenLocaleCookie()`；主函式最終回傳改為 `hardenLocaleCookie(intlResponse)` |
+
+### 三個實作決定與理由
+
+**一、CSP 拆成兩個 header 送出。** `frame-ancestors` 在 Report-Only 模式下會被瀏覽器忽略（CSP Level 3 §3.1），必須放在 enforce 的 header 才有效；而它不影響資源載入，可安全直接 enforce。因此 `Content-Security-Policy: frame-ancestors 'self'` 立即生效（關閉 QID 531006 與 150082），其餘指令走 `Content-Security-Policy-Report-Only` 觀察。
+
+**二、`X-Frame-Options` 用 `SAMEORIGIN` 而非 `DENY`。** 與同時送出的 `frame-ancestors 'self'` 語義一致；規劃階段寫的 `DENY` 會與 CSP 產生語義落差（`DENY` 連同源嵌入都禁止），且本專案的 PDF 預覽有同源 iframe 的可能用法。
+
+**三、HSTS 只送 `max-age=31536000`，不含 `includeSubDomains` 與 `preload`。** 兩者皆難以回退：`preload` 進入瀏覽器內建清單後移除需數月；`includeSubDomains` 需先確認 `rci-t.com` 全部子網域都支援 HTTPS，此事未經查證。
+
+### 驗證方式與實測結果
+
+以 Windows 排程任務啟動本機 dev server（port 3300，`NODE_ENV=development`），`curl -D -` 取回應標頭：
+
+```
+Strict-Transport-Security: max-age=31536000
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Content-Security-Policy: frame-ancestors 'self'
+Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; ...
+set-cookie: NEXT_LOCALE=en; Path=/; HttpOnly; SameSite=lax
+```
+
+回應中**不再出現 `X-Powered-By`**。
+
+`NEXT_LOCALE` 此處無 `Secure` 屬於預期 —— 本機 dev 走 http，`secure` 依 `NODE_ENV === 'production'` 判斷，加上會使 cookie 直接失效。Azure 環境的 standalone 容器為 `NODE_ENV=production`，該屬性會生效，**此點需於部署後複驗**。
+
+語言偵測未被 `httpOnly` 影響（伺服器端讀取不受限），三種情況實測：
+
+| 請求 | 結果 |
+|---|---|
+| `Cookie: NEXT_LOCALE=zh-TW` → `/documents` | 307 → `/zh-TW/documents` |
+| `Cookie: NEXT_LOCALE=zh-CN` → `/documents` | 307 → `/zh-CN/documents` |
+| 無 cookie → `/documents` | 307 → `/en/documents` |
+
+CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warning**（唯一的 console error 是 `favicon.ico` 404，與 CSP 無關）。
+
+### ⚠️ 本次驗證未涵蓋的範圍
+
+| 未涵蓋 | 原因 |
+|---|---|
+| 登入後的頁面（dashboard、文件預覽、報表、PDF viewer） | 本機無可用資料庫，無法登入。**這些頁面才是 CSP 違規最可能出現的地方**（react-pdf、圖表、blob URL），觀察期必須涵蓋 |
+| 生產模式（`next build` + `next start`）下的 CSP | 本次僅在 dev 模式驗證。dev 有 HMR 與 eval，生產的 inline script 形態不同 |
+| `NEXT_LOCALE` 的 `Secure` 屬性 | 需 `NODE_ENV=production` 環境，部署後複驗 |
+| CSP 違規的集中收集 | 目前無 `report-uri` / `report-to` 端點，違規只出現在各使用者的瀏覽器 console。若要在觀察期系統性收集，需另建端點（屬新增 API，未納入本批） |
+
+---
+
+## 修改的檔案
+
+| 檔案 | 修改內容 | 批次 | 狀態 |
+|------|----------|------|------|
+| `next.config.ts` | 加 `poweredByHeader: false` + `headers()` 五個標頭 + 兩個 CSP header | 一 | ✅ 已完成 |
+| `src/middleware.ts` | 新增 `hardenLocaleCookie()` 補強 `NEXT_LOCALE` 屬性 | 一 | ✅ 已完成 |
+| `src/middleware.ts` | 調整 `PUBLIC_API_PREFIXES`（收攏 `/api/openapi`） | 二 | 待處理 |
 | `src/lib/safe-redirect.ts` | **新增** —— 站內路徑白名單驗證 | 二 |
 | `src/app/[locale]/(auth)/auth/login/page.tsx` | 第 72 行套用 `toSafeRedirect()` | 二 |
 | `src/components/features/auth/LoginForm.tsx` | 第 136 行套用 `toSafeRedirect()` | 二 |
@@ -240,12 +298,16 @@ export function toSafeRedirect(url: string | undefined, fallback = '/dashboard')
 
 ### 第一批
 
-- [ ] `curl -s -D - https://<host>/en/auth/login` 回應含 HSTS、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`
-- [ ] 同一回應**不含** `X-Powered-By`
-- [ ] `Set-Cookie: NEXT_LOCALE=...` 帶 `Secure` 與 `HttpOnly`
-- [ ] 語言切換功能仍正常（`NEXT_LOCALE` 改為 `httpOnly` 後）
-- [ ] CSP Report-Only 觀察期內收集到的違規已逐項確認來源
-- [ ] 頁面在三種語言下皆無白畫面、無 console CSP 錯誤
+- [x] `curl -s -D -` 回應含 HSTS、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`（本機 dev 實測，2026-08-07）
+- [x] 同一回應**不含** `X-Powered-By`
+- [x] `Set-Cookie: NEXT_LOCALE=...` 帶 `HttpOnly`
+- [ ] `Set-Cookie: NEXT_LOCALE=...` 帶 `Secure` —— **需 `NODE_ENV=production`，部署到 Azure 後複驗**
+- [x] 語言切換功能仍正常（三種 locale 導向皆正確）
+- [x] 登入頁在 CSP Report-Only 下無違規
+- [ ] **登入後頁面**（dashboard / 文件預覽 / 報表）在 CSP Report-Only 下的違規已逐項確認 —— 本機無資料庫，未涵蓋
+- [ ] 生產模式（`next build`）下的 CSP 違規已確認 —— 未涵蓋
+- [ ] 決定是否建立 CSP `report-uri` 端點以系統性收集違規
+- [ ] 觀察期結束後，將 CSP 由 Report-Only 改為 enforce（需先導入 per-request nonce）
 
 ### 第二批
 
@@ -272,6 +334,8 @@ export function toSafeRedirect(url: string | undefined, fallback = '/dashboard')
 ---
 
 ## 附錄：28 項完整對照
+
+> 🔴 本表是 **2026-08-07 對標當下的掃描結果，不隨修復進度更新**。第一批完成後，項次 2 / 18 / 20 / 21 與項次 7 的 `NEXT_LOCALE` 部分已改善（見 §第一批實作記錄），但本表刻意維持原值以保留發現當下的基準，供日後重新掃描時對照。
 
 | # | 類別 | 檢查點 | 結果 | 依據 |
 |---|------|--------|------|------|

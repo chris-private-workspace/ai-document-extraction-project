@@ -174,6 +174,38 @@ async function handleApiAuthGate(request: NextRequest, pathname: string): Promis
 }
 
 /**
+ * 補強 `NEXT_LOCALE` cookie 的安全屬性（FIX-170 / BUG-10）
+ *
+ * @description
+ *   `NEXT_LOCALE` 由 next-intl 中間件寫入，其預設不帶 `Secure` 與 `HttpOnly`，
+ *   線上實測為 `Set-Cookie: NEXT_LOCALE=en; Path=/; SameSite=lax`，
+ *   對應 QID 150122 / 150123（Confirmed Vulnerability - Level 2）。
+ *
+ *   加 `httpOnly` 的前提已查證：本 cookie 的唯一讀取點是本檔第 203 行（伺服器端），
+ *   前端語言偏好走的是 localStorage 的 `preferred-locale`
+ *   （`src/hooks/use-locale-preference.ts`），全庫無 `document.cookie` 使用，
+ *   因此禁止 JavaScript 讀取不會影響語言切換功能。
+ *
+ *   `secure` 依環境判斷：本機 dev 走 http，加上會使 cookie 直接失效。
+ */
+function hardenLocaleCookie(response: NextResponse): NextResponse {
+  const localeCookie = response.cookies.get('NEXT_LOCALE')
+
+  if (localeCookie) {
+    response.cookies.set({
+      name: 'NEXT_LOCALE',
+      value: localeCookie.value,
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    })
+  }
+
+  return response
+}
+
+/**
  * 主中間件函數
  */
 export default async function middleware(request: NextRequest) {
@@ -279,7 +311,8 @@ export default async function middleware(request: NextRequest) {
     }
   }
 
-  return intlResponse
+  // FIX-170 / BUG-10：intlMiddleware 寫入的 NEXT_LOCALE 需補 Secure / HttpOnly
+  return hardenLocaleCookie(intlResponse)
 }
 
 export const config = {

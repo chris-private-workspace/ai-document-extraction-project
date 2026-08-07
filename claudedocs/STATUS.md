@@ -10,7 +10,7 @@
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
 | FIX | 172 | FIX-170 | **FIX-171** |
 
-## 📋 未開始（37）
+## 📋 未開始（36）
 
 > 完全未動工的規劃。
 
@@ -52,9 +52,8 @@
 | [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中（2026-08-05 第二次修訂：初版的統計數字全部作廢，改以代碼演繹論證，見 §實測資料） |
 | [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（影響面已量化：全庫 9 筆；路由實測 9/9 為 `AUTO_APPROVE`，正對照 7/7 為 `FULL_REVIEW… |
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%） |
-| [FIX-170](4-changes/bug-fixes/FIX-170-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 待修復 |
 
-## 🚧 進行中 / 部分完成（27）
+## 🚧 進行中 / 部分完成（28）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -87,6 +86,7 @@
 | [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 🚧 部分完成（2026-08-04，2 項已修並驗證通過，見 §已修正；原列的 9 項經逐條追查後為 4 項誤報 + 5 項真缺陷，其餘… |
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 | [FIX-169](4-changes/bug-fixes/FIX-169-e2e-coverage-audit-residual-gaps.md) | e2e coverage audit residual gaps | 🚧 部分完成（2026-08-06 —— 補救與量測已完成並重新驗證，見 §量測結果；殘餘 4 份缺口逐份根因已查明但皆未處理，見 §殘… |
+| [FIX-170](4-changes/bug-fixes/FIX-170-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 部分完成（2026-08-07 —— 第一批「純標頭修復」已實作並於本機實測驗證，見 §第一批實作記錄；第二、三批待處理） |
 
 ## ❓ 狀態無法解析（2）
 
