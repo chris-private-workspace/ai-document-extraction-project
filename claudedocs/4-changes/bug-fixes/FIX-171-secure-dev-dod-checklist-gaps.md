@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory）。**待人工處理**：將 `npm-audit` 加入 main 的 required status checks（需 repo admin，否則此閘不會擋合併）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 20 個 high、`@prisma/client` 宣告缺口。**已排除**：步驟 4 另開編號處理）
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory，且**已加入 main 的 required status checks**，該閘現會實際擋下合併）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 20 個 high、`@prisma/client` 宣告缺口。**已排除**：步驟 4 另開編號處理）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -675,17 +675,31 @@ npm audit --audit-level=critical --omit=dev  → exit 0（會通過）
 npm audit --audit-level=high     --omit=dev  → exit 1（會失敗）
 ```
 
-### 🔴 這個 gate 目前不會真的擋合併
+### 分支保護同步（2026-08-07 已完成）
 
-查 `main` 的分支保護設定：
+改 workflow 之初，`main` 的 required status checks 為：
 
 ```
-required status checks: type-check, lint, unit-tests, build, docs-check
+type-check, lint, unit-tests, build, docs-check
 ```
 
-**五個 required check 中沒有任何一個安全掃描 job。** 因此即使 `npm-audit` 現在會失敗，也不會阻擋合併 —— 這正是本專案記載過的「workflow 定義 ≠ GitHub 設定」。
+**五個 required check 中沒有任何一個安全掃描 job**，因此即使 `npm-audit` 會失敗也不阻擋合併 —— 這正是本專案記載過的「workflow 定義 ≠ GitHub 設定」。
 
-**要讓此閘真正生效，需由 repo admin 將 `npm-audit` 加入 required status checks。** 此為分支保護設定變更，影響全團隊的合併流程，未由 AI 代為執行。已在 workflow 檔頭以 🔴 標註。
+經使用者指示，已將 `npm-audit` 加入該清單（現為 6 個）。作法與驗證：
+
+| 項目 | 內容 |
+|------|------|
+| 端點 | `PATCH /repos/{owner}/{repo}/branches/main/protection/required_status_checks` |
+| 為何不用 PUT | `PUT /protection` 需重列**所有**保護欄位，漏列者會被清空；此專用端點只改 required checks |
+| 前置快照 | 變更前完整拉取 `/protection` 存檔，作為還原依據 |
+| 事後驗證 | 重新獨立拉取 `/protection`，逐欄比對 —— 除 `contexts` 由 5 → 6 外，其餘 10 項（`strict`、`enforce_admins`、`required_signatures`、`allow_force_pushes`、`allow_deletions`、`required_linear_history`、`block_creations`、`required_conversation_resolution`、`lock_branch`、`allow_fork_syncing`）**全部未變** |
+
+動手前確認過兩個會鎖死 PR 的前提：
+
+1. `security-deps.yml` 的 `on.pull_request` **無 `paths` 過濾** —— 若有，未觸及該路徑的 PR 會因 check 從不回報而永遠卡在 pending
+2. context 名稱確為 `npm-audit`（由 PR #232 實際回報的 check 清單核對，非從 workflow 檔推測）
+
+⚠️ **`enforce_admins` 為 `false`（既有設定，本次未動）**：此閘擋得住一般成員，但 repo admin 仍可強制合併。要完全封死需另行評估，因為那會同時影響緊急修復流程。
 
 ### 其餘三個安全 workflow 維持 advisory
 

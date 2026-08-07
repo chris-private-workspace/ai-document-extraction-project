@@ -11,10 +11,15 @@
 #     現有 **42 個已知漏洞**，且 pip-audit 無 severity 門檻選項，移除
 #     continue-on-error 會立即擋下所有 PR。需先處理該批漏洞。
 #
-# 🔴 重要：workflow 定義 ≠ GitHub 分支保護設定。本 job 目前**不在** main 的
-#    required status checks 清單內（該清單為 type-check / lint / unit-tests /
-#    build / docs-check），因此失敗**不會**阻擋合併。要真正生效，需由 repo admin
-#    將 `npm-audit` 加入 required checks。
+# 分支保護（workflow 定義 ≠ GitHub 設定，兩者需分別維護）：
+#   2026-08-07 已將 `npm-audit` 加入 main 的 required status checks，
+#   該清單現為 type-check / lint / unit-tests / build / docs-check / npm-audit。
+#   本 job 失敗**會**阻擋合併。
+#   ⚠️ 若日後改動本 job 的 `name` 或 job id，required check 的 context 名稱會對不上，
+#      PR 將永遠停在 pending —— 改名時必須同步更新分支保護設定。
+#   ⚠️ 同理，若為本 workflow 加上 `paths` 過濾，未觸及該路徑的 PR 會因 check
+#      從不回報而卡死。目前刻意不設 paths 過濾。
+#   ⚠️ `enforce_admins` 為 false，repo admin 仍可繞過此閘。
 name: Dependency Audit
 
 on:
