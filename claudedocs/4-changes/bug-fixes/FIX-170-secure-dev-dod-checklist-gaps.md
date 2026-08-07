@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批「純標頭修復」與第二批的 BUG-2 / BUG-11 已完成，見 §第一批實作記錄、§第二批實作記錄；BUG-12 查證後**待決策**、BUG-9 依賴第三批、第三批整批待處理）
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批「純標頭修復」與第二批的 BUG-2 / BUG-11 / BUG-12 已完成，見 §第一批實作記錄、§第二批實作記錄、§BUG-12；BUG-9 依賴第三批相依升級，第三批整批待處理）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -312,7 +312,7 @@ CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warni
 
 ---
 
-## BUG-12 查證結果：待決策，未實作
+## BUG-12：查證、決策與實作（2026-08-07）
 
 規劃時寫的前提是「需先確認是否有對外整合方依賴未認證存取」。查證後發現**依賴方在內部**：
 
@@ -330,10 +330,37 @@ CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warni
 | 選項 | 作法 | 影響 |
 |---|---|---|
 | A | 維持公開，在文件記錄為「刻意的設計」 | 掃描仍可能標記；攻擊面維持現狀（完整 API 規格 23 KB 對外可讀） |
-| B | API 與 `/[locale]/docs` 頁面一併要求登入 | 需擴充 `isProtectedRoute()`，屬頁面層存取控制變更 |
+| **B** ✅ | **API 與 `/[locale]/docs` 頁面一併要求登入** | **需擴充 `isProtectedRoute()`，屬頁面層存取控制變更** |
 | C | 只收攏 `/api/openapi`，保留 `/api/docs/*` 靜態資訊 | 折衷，但 docs 頁的 SwaggerUI 對未登入者會壞 |
 
-> 📌 **此項需使用者裁決後才動手**，不由 AI 單方面決定既有功能的公開性。
+**使用者於 2026-08-07 裁決採 B**，已實作。
+
+### 實作內容
+
+| 位置 | 改動 |
+|---|---|
+| `PUBLIC_API_PREFIXES` | 移除 `/api/docs` 與 `/api/openapi`；保留 `/api/auth`、`/api/health` |
+| `isProtectedRoute()` | 新增 `restPath.startsWith('/docs')` |
+| 檔頭 JSDoc 路由分類 | 同步更新，避免文件與實作脫節 |
+
+動手前查證過呼叫方：`scripts/` 與 `.github/workflows/` 皆無引用，`/api/docs` 本身只是重定向到 `/docs` 頁面，因此依賴方全部是瀏覽器，收攏不影響任何自動化流程。
+
+> ⚠️ **`/documents` 不會被 `/docs` 誤判**：`'/documents'.startsWith('/docs')` 為 false（第 5 個字元 `u` ≠ `s`）。此點已由下方實測確認。
+
+### 實測結果（本機 dev server，`API_AUTH_GATE_MODE=enforce`）
+
+線上 Azure DEV 的認證閘為 enforce，本機預設是 monitor（僅記錄後放行），故驗證時明確設定為 enforce 以重現線上行為。
+
+| 請求 | 結果 | 判讀 |
+|---|---|---|
+| `/api/openapi` | **401** | 已收攏 |
+| `/api/docs/error-codes` | **401** | 已收攏 |
+| `/en/docs` | 307 → `/en/auth/login?callbackUrl=%2Fen%2Fdocs` | 已收攏，且返回路徑保留 |
+| `/en/docs/examples` | 307 → `/en/auth/login?callbackUrl=%2Fen%2Fdocs%2Fexamples` | 子路由一併涵蓋 |
+| `/en/documents` | 307 → `/en/auth/login?callbackUrl=%2Fen%2Fdocuments` | **回歸確認**：未被 `/docs` 誤判，路徑完整保留 |
+| `/api/auth/csrf` | 200 | 白名單仍有效 |
+| `/en/auth/login` | 200 | 公開頁未受影響 |
+| `/api/health` | **503** | 白名單仍有效 —— 503 是健康檢查偵測到本機資料庫未啟動，**若被認證閘擋下應為 401**，回 503 正好證明它通過了閘門 |
 
 ---
 
@@ -352,7 +379,7 @@ CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warni
 | `src/components/features/admin/config/ConfigEditDialog.tsx` | 補 `autoComplete="new-password"` | 二 | ✅ 已完成 |
 | `src/components/features/outlook/OutlookConfigForm.tsx` | 同上 | 二 | ✅ 已完成 |
 | `src/components/features/sharepoint/SharePointConfigForm.tsx` | 同上 | 二 | ✅ 已完成 |
-| `src/middleware.ts` | 調整 `PUBLIC_API_PREFIXES`（收攏 `/api/openapi`） | 二 | ⏸️ 待決策（見 §BUG-12） |
+| `src/middleware.ts` | `PUBLIC_API_PREFIXES` 移除 `/api/docs` 與 `/api/openapi`；`isProtectedRoute()` 新增 `/docs` | 二 | ✅ 已完成（選項 B） |
 | `src/lib/safe-redirect.ts` | **新增** —— 站內路徑白名單驗證 | 二 |
 | `src/app/[locale]/(auth)/auth/login/page.tsx` | 第 72 行套用 `toSafeRedirect()` | 二 |
 | `src/components/features/auth/LoginForm.tsx` | 第 136 行套用 `toSafeRedirect()` | 二 |
@@ -395,7 +422,11 @@ CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warni
 - [x] 全套件無回歸（489 passed / 0 failed）
 - [x] 三個設定表單的密碼欄位已補 `autoComplete="new-password"`
 - [ ] **端到端實測**：實際以瀏覽器走一次帶惡意 `callbackUrl` 的登入流程 —— 本機無可用資料庫，未執行
-- [ ] `/api/openapi` 未登入時回 401 —— **待決策，見 §BUG-12 查證結果**
+- [x] `/api/openapi` 與 `/api/docs/*` 未登入時回 401（本機 enforce 模式實測）
+- [x] `/en/docs` 與 `/en/docs/examples` 未登入時導向登入頁並保留返回路徑
+- [x] `/en/documents` 未被 `/docs` 誤判（回歸確認）
+- [x] `/api/health`、`/api/auth/*`、登入頁仍公開（回歸確認）
+- [ ] **登入後** SwaggerUI 能正常載入 `/api/openapi` —— 本機無資料庫無法登入，需部署後複驗
 - [ ] CI 四個安全 workflow 在有 high 漏洞時確實使 PR 失敗 —— **必須排在第三批相依升級之後**
 
 ### 第三批
