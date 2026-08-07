@@ -120,7 +120,7 @@
 | `fast-xml-parser` | DOCTYPE 實體名稱的正則注入導致實體編碼繞過 |
 | `next-intl` | open redirect（與 BUG-2 疊加） |
 
-> ⚠️ `@auth/core` 的 fail-open 模式需要特別留意：`src/middleware.ts:148` 的 `if (session?.user)` 與各 handler 的同型判斷正屬此類寫法。是否實際受影響，需在升級前依該 advisory 的觸發條件逐一確認。
+> 🔴 **本段原有的判斷已於 2026-08-07 證實為誤，見 §第三批評估 一**。原文寫「`src/middleware.ts:148` 的 `if (session?.user)` 屬於 fail-open 的脆弱寫法」—— 實際上 advisory 明文建議的**安全**做法正是取用 `.user`，該處寫法本來就正確；真正脆弱的是裸物件檢查（`!!auth`），全庫只有 3 處。該 advisory 亦掛在 `next-auth` 而非 `@auth/core`。
 
 ### 原因 5：`NEXT_LOCALE` 由 next-intl 預設行為設定（BUG-10）
 
@@ -361,6 +361,118 @@ CSP Report-Only 違規以 Playwright 開啟登入頁收集：**0 error、0 warni
 | `/api/auth/csrf` | 200 | 白名單仍有效 |
 | `/en/auth/login` | 200 | 公開頁未受影響 |
 | `/api/health` | **503** | 白名單仍有效 —— 503 是健康檢查偵測到本機資料庫未啟動，**若被認證閘擋下應為 401**，回 503 正好證明它通過了閘門 |
+
+---
+
+## 第三批評估：認證相依套件升級（2026-08-07，尚未動手）
+
+### 一、先更正本文件先前的一個判斷
+
+§原因 4 原本寫：
+
+> ⚠️ `@auth/core` 的 fail-open 模式需要特別留意：`src/middleware.ts:148` 的 `if (session?.user)` 與各 handler 的同型判斷正屬此類寫法。
+
+**這個判斷是錯的，而且方向相反。** 查閱 advisory 原文（GHSA-8fpg-xm3f-6cx3）後確認：
+
+| advisory 的判定 | 寫法 |
+|---|---|
+| **脆弱** | `const isLoggedIn = !!auth`、`if (req.auth)` —— 裸物件存在性檢查 |
+| **安全（advisory 明文建議的緩解方式）** | `const isLoggedIn = !!req.auth?.user` —— 取用具體的 user 屬性 |
+
+advisory 原文：「check for a concrete user/session property rather than the bare object, so a configuration-error object is not treated as an authenticated session」。
+
+因此 `src/middleware.ts` 的 `if (session?.user)` 與 `auth.config.ts:273` 的 `const isLoggedIn = !!auth?.user` **本來就是安全模式**，不需要修改。
+
+另一個更正：該 advisory 掛在 **`next-auth`**，不在 `@auth/core` 的 advisory 清單內。
+
+### 二、實際曝險盤點
+
+| 模式 | 數量 | 判定 |
+|---|---:|---|
+| 取用 `.user` 的安全模式（`session?.user` / `auth?.user`） | **369** | 符合 advisory 建議 |
+| 裸物件檢查 | **3** | 脆弱 |
+
+三處裸檢查：
+
+| 位置 | 寫法 | fail-open 時的後果 |
+|---|---|---|
+| `src/app/[locale]/(auth)/auth/login/page.tsx:77` | `if (session)` | 未認證者被誤導向 `/dashboard`（非繞過保護，體感是導向後又被擋） |
+| `src/app/[locale]/(auth)/auth/register/page.tsx:77` | `if (session)` | 同上 |
+| `src/app/[locale]/(dashboard)/layout.tsx:50` | `if (!session)` | 🔴 **不再導向登入頁 —— 整個 `(dashboard)` 路由組的頁面對未認證者渲染** |
+
+### 三、比 advisory 本身更值得處理的發現：頁面保護的單點依賴
+
+盤點第三處時發現一個**獨立於 advisory 的既有落差**：
+
+`(dashboard)` 路由組底下有 **13 個頂層路徑**，而 `src/middleware.ts` 的 `isProtectedRoute()` 只涵蓋 **3 個**：
+
+| 有 middleware 保護（雙重防線） | 只有 layout 保護（單點） |
+|---|---|
+| `/dashboard`、`/documents`、`/docs` | `/admin`、`/audit`、`/companies`、`/escalations`、`/global`、`/profile`、`/reports`、`/review`、`/rollback-history`、`/rules`、`/template-instances` |
+
+右欄 11 個路徑（含 `/admin` 底下 24 個管理模組）**唯一的頁面層防線就是那個裸檢查**。正常運作時它有效（`session` 為 `null`）；一旦 Auth.js 配置出錯（`AUTH_SECRET` 未設、provider 配置缺失），它就整批失效。
+
+> 📌 API 層不受此影響 —— middleware 的 API 認證閘用的是 `session?.user`（安全模式），且線上為 enforce。所以 fail-open 的後果是「頁面殼渲染」，資料仍取不到。但這仍是應該補的縱深防禦缺口。
+
+### 四、版本落差與修復版本
+
+| 套件 | 目前 | 修復版 | 版差性質 |
+|---|---|---|---|
+| `next-auth` | 5.0.0-beta.30 | **5.0.0-beta.32** | 同一 beta 通道，跨 2 個 beta |
+| `@auth/core` | 0.41.1 | **0.41.3** | patch |
+| `@auth/prisma-adapter` | 2.11.1 | 2.11.3 | patch |
+| `next` | 15.5.9 | **15.5.21 以上**（最新 15.5.23） | 同 minor，跨 14 個 patch |
+
+`next-auth@5.0.0-beta.32` 的 release note 說明其變更為純安全修復，未列任何破壞性 API 變更：
+
+> "Fixes auth checks failing open on provider configuration errors: a non-OK session response now yields no session instead of an error object, so checks like `!!auth` fail closed."
+
+**這代表升級本身就會讓那 3 處裸檢查改為 fail closed** —— 修不修改那 3 行都不再 fail open。但仍建議一併改為 `.user` 形式，理由是不把安全性寄託在單一套件版本上。
+
+### 五、🔴 升級的最大陷阱：不可使用 `npm audit fix`
+
+```
+npm view next-auth version  →  4.24.15
+```
+
+`4.24.15` 是 `latest` tag（v4 穩定版），而本專案走的是 **v5 beta 通道**。`npm audit fix` 會傾向解到 `latest`，把 `next-auth` 從 **v5 beta 降級成 v4** —— 兩者 API 完全不同（v5 的 `auth()` / `handlers` / `signIn` 匯出方式在 v4 不存在），將導致整個認證體系崩潰。
+
+**必須明確指定版本升級**：
+
+```bash
+npm install next-auth@5.0.0-beta.32 @auth/prisma-adapter@2.11.3
+npm install next@15.5.23
+```
+
+### 六、Next.js 的 middleware bypass —— 建議優先於 next-auth 處理
+
+`next@15.5.9` 落在多條 middleware 繞過 advisory 的範圍內：
+
+| Advisory | 嚴重度 | 影響範圍 |
+|---|---|---|
+| GHSA-26hh-7cqf-hhc6 | High 7.5 | Middleware / Proxy bypass via segment-prefetch routes（`<15.5.18`） |
+| GHSA-267c-6grr-h53f | High 7.5 | 同型（`<15.5.16`） |
+| GHSA-492v-c6pp-mqqv | High 8.1 | Middleware bypass via dynamic route parameter injection（`<15.5.16`） |
+| GHSA-36qx-fr4f-26g5 | High 7.5 | Middleware bypass in i18n applications（`<15.5.16`） |
+
+**為何這對本專案特別嚴重**：本專案的 API 認證閘（CHANGE-078）**完全建立在 middleware 上**，FIX-170 第二批把 `/api/openapi` 的保護也放在同一層。middleware 若可被繞過，這道閘就整體失效 —— 且最後一條 advisory 明確點名 i18n 應用，而本專案全站走 `/[locale]/` 路由。
+
+就「已知可繞過的防線正在承載本專案的主要授權邏輯」而言，這比 fail-open（需要先發生配置錯誤才觸發）**更接近可直接利用**。
+
+### 七、建議的執行順序
+
+| 順序 | 動作 | 風險 | 驗證方式 |
+|---|---|---|---|
+| 1 | `next` 15.5.9 → 15.5.23 | 中（跨 14 個 patch，需完整回歸） | build + 全測試 + 本機路由驗證 + 部署後煙霧測試 |
+| 2 | `next-auth` → beta.32、`@auth/prisma-adapter` → 2.11.3 | 低（純安全修復，無 API 變更） | 登入 / 登出 / session 過期 / Azure AD 流程 |
+| 3 | 3 處裸檢查改為 `.user` 形式 | 極低 | 單元測試 + 路由驗證 |
+| 4 | 補 `isProtectedRoute()` 缺的 11 個路徑 | 中（可能影響既有導覽） | 逐路徑未登入實測 |
+| 5 | 其餘 30+ 個相依漏洞分批處理 | 依套件而定 | 個別評估 |
+| 6 | 解除 CI 的 `continue-on-error`（BUG-9） | —— | PR 實測會擋 |
+
+> ⚠️ 第 1 項的驗證有實質困難：本機無可用資料庫，登入後的頁面無法測。Next.js 跨 14 個 patch 的升級**應該要有登入後的完整回歸**，否則問題只會在部署後才浮現。建議在有資料庫的環境執行，或接受「先部署到 DEV 再驗證」的順序並準備好回滾。
+
+> 📌 第 4 項嚴格說超出 FIX-170 原定範圍（DoD Checklist 沒有這條），但它是第三批盤點的直接產物，且與 BUG-7 同屬認證強化。是否納入本 FIX 或另開編號，待決定。
 
 ---
 
