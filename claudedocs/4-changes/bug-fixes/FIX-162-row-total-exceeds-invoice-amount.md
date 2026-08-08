@@ -4,8 +4,8 @@
 > **發現方式**: 375 份樣本全覆蓋驗證，12 個 template instance 逐列追溯（[TEST-REPORT-006](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md)）
 > **影響範圍**: `template_field_mappings` → 模板實例列值 → 匯出報表金額**虛增**
 > **優先級**: 高（9 列超出合計 **20,638.44**，方向與漏帳相反，會高估成本）
-> **狀態**: 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；**A 類已執行「合併欄位定義」但刻意不重新提取**，見 §A 類已執行；B 類原訂修法經全母體模擬後**否決**，見 §B 類）
-> **相關**: [FIX-158](FIX-158-mapping-field-definition-misalignment.md)（🔴 其修法的核心假設被本案推翻）、[FIX-152](FIX-152-dhl-multi-shipment-aggregate-amount-leak.md)（DHL 多筆併單的合計外洩）、[FIX-160](FIX-160-template-mapping-unreferenced-extracted-charges.md)（反方向：漏帳）
+> **狀態**: 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；**A 類已執行「合併欄位定義」但刻意不重新提取**，見 §A 類已執行；B 類原訂修法經全母體模擬後**否決**，見 §B 類。2026-08-08 複驗：兩類根因均獲獨立支持，但 B 類多出一份未列入的文件，§實測清單 應視為下界）
+> **相關**: [FIX-158](FIX-158-mapping-field-definition-misalignment.md)（🔴 其修法的核心假設被本案推翻）、[FIX-152](FIX-152-dhl-multi-shipment-aggregate-amount-leak.md)（DHL 多筆併單的合計外洩）、[FIX-160](FIX-160-template-mapping-unreferenced-extracted-charges.md)（反方向：漏帳）、[FIX-110](FIX-110-lineitem-charge-alias-hit-rate-audit.md)（其 §9.2 的「欄位數 > 行項數 8 筆」追查後全部落在本 FIX 兩類內）
 
 ---
 
@@ -168,6 +168,47 @@ Stage 3 把哪一個放進 `express_worldwide_nondoc` **並不一致**：
 
 🔴 這一段是修法**執行前的模擬**擋下來的。若只看那 3 份超出的文件，「移除 fuel_surcharge」看起來完全正確 —— 3 份全部歸零。**修法驗證必須跑全母體，不能只驗出問題的那幾份。**
 
+#### 複驗（2026-08-08）：形態成立，但多出一份未列入的文件
+
+發現自 [FIX-110](FIX-110-lineitem-charge-alias-hit-rate-audit.md) §9.2 遺留的「A 類中欄位數 > 行項數 8 筆」追查 —— 該 8 筆全部落在本 FIX 的 A / B 兩類內，**未發現新根因**。追查過程順帶對 DHL 做了一次獨立複驗。
+
+判準改為算術式：**`field_mappings` 費用欄位合計 − 基準值，是否恰等於 `fuel_surcharge`**。以全庫 DHL（各檔名最新一筆提取）為母體：
+
+| 項目 | 份數 |
+|---|---:|
+| DHL 文件 | 45 |
+| 其中有 `fuel_surcharge` 欄位 | 37 |
+| 🔴 超出量**恰等** `fuel_surcharge`（＝ `nondoc` 抓到 Total） | **3** |
+| ✅ 欄位合計 == 基準（＝ `nondoc` 抓到 Standard，`fuel` 是必要補項） | 24 |
+| 其他（混合或無基準） | 10 |
+
+「3 份重複」這個數量與上方模擬一致，**形態與比例都得到獨立支持**。但成員不完全相同：
+
+| 文件 | 超出 | `fuel_surcharge` | 是否見於上表 |
+|---|---:|---:|---|
+| `DHL_RCEX250146_09847` | 4,662.63 | 4,662.63 | ✅ 是 |
+| `DHL_RCEX250035,0036_6800` | 3,060.93 | 3,060.93 | ✅ 是 |
+| **`DHL_RCEX240682_57590`** | **1,153.18** | **1,153.18** | 🔴 **否 —— 未見於本 FIX 任何位置** |
+
+上表列的第三筆 `DHL_RCEX250212_24745` 在此判準下不成立（超出 1,574.28、`fuel_surcharge` 1,881.68），與該表自身標註的「混合情況」一致 —— 其差額為 `fuel_surcharge` 1,881.68 減去漏接的 `EXPRESS 12:00 DOC` 307.40。
+
+⚠️ **兩邊母體不同**（本節 45 份 vs 上方模擬的 26 份），差異可能僅源於範圍，不必然表示原統計有誤。但 `DHL_RCEX240682_57590` 確實從未被記錄過，**§實測清單 的 9 列與 20,638.44 應視為下界**。
+
+#### 複驗順帶浮現的兩組訊號 —— 已於同日追查完畢
+
+上表「其他 10 份」中有兩組異常，**不屬本 FIX 已確認的兩類**。兩組均已查明，各自另有歸屬：
+
+| 文件 | 差 | 初判 | 查證結果 |
+|---|---:|---|---|
+| `DHL_RCEX240640_53822` | **+19,110.75** | ~~疑似 [FIX-152](FIX-152-dhl-multi-shipment-aggregate-amount-leak.md) 的多筆併單合計外洩~~ | 🔴 **初判已推翻** → [FIX-174](FIX-174-subtotal-reads-extra-charges-total.md) |
+| `DHL_RCEX240709_99161`、`DHL_RCEX250347_61464`、`DHL_RCEX250410,0411,0412_69413` | 各 **−40.00** | 固定費用無欄位承接 | ✅ 初判成立 → `RESIDENTIAL ADDRESS`，見 [FIX-110](FIX-110-lineitem-charge-alias-hit-rate-audit.md) §9.7 |
+
+**第一組的初判是錯的。** 以發票原文文字層核對後，`DHL_RCEX240640_53822` 的明細沒有任何一筆是合計（那才是 FIX-152 的形態），真正的問題是 **`subtotal` 被讀成 Extra 欄的合計 5,832.47**，而 `lineItems` 也整批只取自「Analysis of Extra Charges」區塊 —— 兩者同源、同時不完整，於是精確吻合並使對帳閘放行，主運費 19,886.20 憑空消失。已另立 [FIX-174](FIX-174-subtotal-reads-extra-charges-total.md)。
+
+🔴 **該 FIX 與本 FIX §B 類同根因、反方向** —— 都是「同一列有 Standard / Extra / Total 三個數字時取錯了哪一個」，但 §B 類取到 Total 造成**虛增**，FIX-174 取到 Extra 造成**漏帳**。若日後採 Prompt 層修法，兩者應一併處理。
+
+第二組的「三份同為 −40」推論成立：查證後為 `RESIDENTIAL ADDRESS` 固定附加費，全庫 4 份、4/4 完全無欄位承接。固定金額的重複出現確實指向規則層而非個別文件，與 §一個可能的規律 對 `RIL_RHIM260091` / `260092` 超出額相同的推論同型。
+
 ---
 
 ## 修法選項（待拍板）
@@ -328,4 +369,5 @@ B = 該文件模板實例列上所有數值欄位的總和
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-04
+**最後更新**: 2026-08-08（B 類獨立複驗：形態與比例獲支持，補入未列入的 `DHL_RCEX240682_57590`；兩組待查訊號同日追查完畢並各自歸屬，其中「疑似 FIX-152」的初判經發票原文推翻，另立 FIX-174）
+**修訂歷史**: 2026-08-04（建立：兩類根因確認並經發票原文證實）
