@@ -682,7 +682,11 @@ advisory 範圍為 `<=5.6.0`，5.10.1 為同 major 內升級。
 
 Prisma 7 把 CLI 變成 `@prisma/client` 的執行期相依，因此 CLI 自身的相依（`hono`、`effect` 等）全部進入生產樹。
 
-**四、`@prisma/client` 的宣告缺口已變形，未消失。** §步驟 5 記載它「沒有宣告在 `package.json`」，現況是**已宣告，但在 `devDependencies`**（`package.json:140`）。由於 `src/` 大量直接 `import` 它，屬執行期相依，位置仍是錯的 —— 目前只靠上述傳遞路徑才沒有出事。若要升 `@prisma/client` 解上表第二類的 6 個 high，應一併把它移到 `dependencies`。
+**四、`@prisma/client` 的宣告缺口已變形，未消失。** §步驟 5 記載它「沒有宣告在 `package.json`」，現況是**已宣告，但在 `devDependencies`**（`package.json:140`）。由於 `src/` 大量直接 `import` 它，屬執行期相依，位置仍是錯的 —— 目前只靠上述傳遞路徑才沒有出事。
+
+> ✅ **本節的待辦已由 [FIX-176](FIX-176-remaining-high-dependency-advisories.md) 於 2026-08-08 承接並大部分完成**：high 21 → **6**、總計 35 → **13**。升 `@prisma/client` + `prisma` 到 7.9.1 一次解決 7 個（不需移動宣告位置即可繞開該缺口）；另以 overrides 解決 8 個，其中 `minimatch` / `brace-expansion` / `picomatch` 採巢狀分線處理。剩餘 6 個全部需要 major 升級，屬 H2，詳見 FIX-176 §剩餘 6 個 high。
+>
+> 📌 `@prisma/client` 宣告位置錯誤（在 `devDependencies` 而實為執行期相依）**仍未修正** —— FIX-176 依 surgical 原則只改版本、未動宣告位置，此項續留待辦。
 
 ---
 
