@@ -4,7 +4,7 @@
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory）。**待人工處理**：將 `npm-audit` 加入 main 的 required status checks（需 repo admin，否則此閘不會擋合併）。**待辦**：BUG-7（防暴力破解）、BUG-8（PII 遮罩）、剩餘 20 個 high、`@prisma/client` 宣告缺口。**已排除**：步驟 4 另開編號處理）
+> **狀態**: 🚧 部分完成（2026-08-08 複驗更新 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 已歸零**）；步驟 6 / BUG-9 採選項 B 完成；**`npm-audit` 已進入 main 的 required status checks，該閘現已真正生效**；步驟 4 已另開 [FIX-175](FIX-175-protected-route-coverage-gap.md) 完成。**待辦**：BUG-7（防暴力破解，參數已於 2026-08-08 拍板，見 §第三批 BUG-7）、BUG-8（PII 遮罩，維持登記）、剩餘 **21** 個 high）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -201,7 +201,25 @@ export function toSafeRedirect(url: string | undefined, fallback = '/dashboard')
 
 **BUG-7**：需新增 `User.failedLoginAttempts` / `User.lockedUntil` 欄位（Prisma migration）+ `authorize()` 累計邏輯 + 解鎖路徑。屬 H1（動到認證流程），需先確認鎖定閾值（DoD 建議 3–5 次）與解鎖方式（時間解鎖 / 自助 / 管理員）。
 
+> ✅ **參數已於 2026-08-08 由使用者拍板**（實作仍待排程）：
+>
+> | 項目 | 決定 |
+> |---|---|
+> | 鎖定閾值 | **連續 5 次**密碼錯誤 |
+> | 鎖定時長 | **15 分鐘**，到期自動解鎖 |
+> | 額外解鎖途徑 | 管理員可手動解鎖（處理緊急情況） |
+> | 計數歸零 | 成功登入即歸零 |
+>
+> 取 DoD 建議區間（3–5 次）的上限，是為降低正常使用者的誤鎖率；採自動解鎖而非永久鎖定，
+> 是因為本專案 Azure 環境無 SMTP（見 memory `project_azure_email_verification`），
+> 永久鎖定會讓每一次誤鎖都變成管理員工單。
+>
+> ⚠️ 實作時仍須注意：錯誤訊息**不得洩漏帳號是否存在**，亦不得因鎖定而回傳與一般密碼錯誤不同的訊息，
+> 否則會把防暴力破解變成帳號列舉管道。
+
 **BUG-8**：需先盤點「哪些欄位算 PII」，再決定遮罩層放在 service 還是 API 序列化層。此項在無高敏感欄位的現況下優先級最低。
+
+> 📌 **2026-08-08 使用者決定：暫不處理，維持登記。** 依 §原因 6 的查證，`prisma/schema.prisma` 無 `bankAccount` / `taxId` / `iban` / `swiftCode` 等高敏感欄位，1,665 個檔案的 Luhn 卡號掃描 0 命中，當下實際曝險低。缺的是機制而非資料，故排在 BUG-7 之後。
 
 ### 需他人協助（BUG-13 / DoD #6）
 
@@ -642,6 +660,30 @@ advisory 範圍為 `<=5.6.0`，5.10.1 為同 major 內升級。
 | `@prisma/config`、`@prisma/dev`、`@hono/node-server`、`hono`、`effect`、`lodash` | 隨 `prisma` CLI 升級 | 受上述 `@prisma/client` 宣告缺口阻擋 |
 | `axios`、`form-data`、`tmp`、`minimatch`、`picomatch`、`brace-expansion`、`defu`、`immutable`、`js-yaml` | 可比照 `fast-xml-parser` 逐一 override | 尚未做——每個都需獨立驗證，且本機無法做登入後回歸 |
 
+### 2026-08-08 複驗：數字與「受 major 阻擋」的說法都需修正
+
+重跑 `npm audit --omit=dev --json` 並解析，結果與上表有兩處出入：
+
+**一、總數由 20 變 21。** `nanoid` 是 08-07 之後新增的 high advisory（2 條），屬傳遞相依。目前計數：critical 0 / high **21** / moderate 13 / low 1，總計 **35**（生產相依 763 個套件）。
+
+**二、「受 major 升級阻擋」只適用於其中 4 個，不是全部。** 依 npm 回報的 `fixAvailable` 重新分類：
+
+| 類別 | 數量 | 套件 | 性質 |
+|---|---:|---|---|
+| 真需 major 升級 | 4 | `next`、`postcss`、`sharp`（三者全綁 `next@16.3.0`）、`nodemailer`（→9.0.5） | H2，需 approval |
+| 受 prisma 鏈阻擋 | 6 | `prisma`、`@prisma/config`、`@prisma/dev`、`hono`、`@hono/node-server`、`effect` | 升 `@prisma/client` 7.2.0 → 7.9.1 即可，**同 major** |
+| 純傳遞、同 range 可修 | 11 | `axios`、`form-data`、`tmp`、`minimatch`、`picomatch`、`brace-expansion`、`defu`、`immutable`、`js-yaml`、`lodash`、`nanoid` | 比照 `fast-xml-parser` 逐一 `overrides`，不觸發 H2 |
+
+**三、prisma 鏈為何出現在 `--omit=dev` 的結果中。** 查相依樹確認它是**經生產相依進來的**，不是 dev 洩漏：
+
+```
+@auth/prisma-adapter@2.11.3 → @prisma/client@7.2.0 → prisma@7.2.0
+```
+
+Prisma 7 把 CLI 變成 `@prisma/client` 的執行期相依，因此 CLI 自身的相依（`hono`、`effect` 等）全部進入生產樹。
+
+**四、`@prisma/client` 的宣告缺口已變形，未消失。** §步驟 5 記載它「沒有宣告在 `package.json`」，現況是**已宣告，但在 `devDependencies`**（`package.json:140`）。由於 `src/` 大量直接 `import` 它，屬執行期相依，位置仍是錯的 —— 目前只靠上述傳遞路徑才沒有出事。若要升 `@prisma/client` 解上表第二類的 6 個 high，應一併把它移到 `dependencies`。
+
 ---
 
 ## 第三批步驟 6 / BUG-9：已採選項 B 實作（2026-08-07）
@@ -687,6 +729,23 @@ required status checks: type-check, lint, unit-tests, build, docs-check
 
 **要讓此閘真正生效，需由 repo admin 將 `npm-audit` 加入 required status checks。** 此為分支保護設定變更，影響全團隊的合併流程，未由 AI 代為執行。已在 workflow 檔頭以 🔴 標註。
 
+### ✅ 已解決（2026-08-08 複驗）
+
+重新查詢分支保護設定，`npm-audit` **已在清單內**，上述缺口不再成立：
+
+```
+required status checks: type-check, lint, unit-tests, build, docs-check, npm-audit
+```
+
+同時複驗門檻行為，確認此閘不會誤擋現有 PR：
+
+| 指令 | exit code | 意義 |
+|---|---|---|
+| `npm audit --omit=dev --audit-level=critical` | **0** | CI 實際使用的門檻 —— critical 已歸零，會通過 |
+| `npm audit --omit=dev --audit-level=high` | 1 | 若當初未改門檻，所有 PR 會被擋 |
+
+即這道閘現在能擋住任何新引入的 critical，且不影響既有的 21 個 high。
+
 ### 其餘三個安全 workflow 維持 advisory
 
 `security-sast.yml`（semgrep）、`security-secrets.yml`（gitleaks）、`security-container.yml`（trivy）皆未在本次變更範圍內，仍為 advisory。使用者選擇的選項 B 僅涵蓋 npm audit。
@@ -722,6 +781,8 @@ CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workf
 3. **風險與驗證需求不同。** 擴充 `isProtectedRoute()` 可能影響既有導覽行為，需逐路徑實測，而本 FIX 已橫跨三批。
 
 > 📌 待辦已登記於此，避免遺失：`(dashboard)` 路由組的 13 個頂層路徑中，`isProtectedRoute()` 僅涵蓋 `/dashboard`、`/documents`、`/docs`；`/admin`、`/audit`、`/companies`、`/escalations`、`/global`、`/profile`、`/reports`、`/review`、`/rollback-history`、`/rules`、`/template-instances` 共 11 個僅有 layout 一道防線。
+
+> ✅ **已於 2026-08-08 由 [FIX-175](FIX-175-protected-route-coverage-gap.md) 完成**。清單改為具名常數 `PROTECTED_PAGE_PREFIXES`，涵蓋全部 14 個前綴；22 個案例實測通過，並以 negative control 證明係依清單攔截而非無差別攔截。此處的「另開編號」決定至此結案。
 
 ---
 
@@ -793,13 +854,14 @@ CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workf
 - [x] `/en/documents` 未被 `/docs` 誤判（回歸確認）
 - [x] `/api/health`、`/api/auth/*`、登入頁仍公開（回歸確認）
 - [ ] **登入後** SwaggerUI 能正常載入 `/api/openapi` —— 本機無資料庫無法登入，需部署後複驗
-- [ ] CI 四個安全 workflow 在有 high 漏洞時確實使 PR 失敗 —— **必須排在第三批相依升級之後**
+- [x] ~~CI 四個安全 workflow 在有 high 漏洞時確實使 PR 失敗~~ —— **已改採選項 B**：只有 `npm-audit` 移除 advisory 且門檻設為 `critical`（非 high），其餘三個 workflow 維持 advisory。2026-08-08 複驗確認 `npm-audit` 已進入 required status checks，該閘實際生效；`--audit-level=critical` exit 0、`--audit-level=high` exit 1，即擋新 critical 而不擋既有 21 個 high
 
 ### 第三批
 
-- [ ] `npm audit --omit=dev --audit-level=high` 回報 0 筆
-- [ ] 連續 5 次密碼錯誤後帳號被鎖定，且錯誤訊息不洩漏帳號是否存在
-- [ ] 解鎖路徑可用
+- [ ] `npm audit --omit=dev --audit-level=high` 回報 0 筆 —— 2026-08-08 複驗仍為 **21 筆**
+- [ ] 連續 **5** 次密碼錯誤後帳號被鎖定 **15 分鐘**，且錯誤訊息不洩漏帳號是否存在（參數已拍板，實作待排程）
+- [ ] 鎖定到期後自動解鎖，且管理員可手動提前解鎖
+- [ ] 成功登入後失敗計數歸零
 - [ ] 既有登入流程（Azure AD SSO + 本地帳號）不受影響
 
 ### 全批次完成後
@@ -848,4 +910,4 @@ CI 的 gate 條件是 `npm audit --audit-level=high --omit=dev`（`.github/workf
 ---
 
 *文件建立日期: 2026-08-07*
-*最後更新: 2026-08-07*
+*最後更新: 2026-08-08（複驗五項待辦：required check 已生效、漏洞分類更正、BUG-7 參數拍板、BUG-8 維持登記、步驟 4 由 FIX-175 完成）*
