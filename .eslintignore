@@ -1,0 +1,18 @@
+# FIX-176 / Next.js 16 升級：`next lint` 已於 Next 16 移除，lint 改為直接呼叫 ESLint CLI。
+# 原本的忽略範圍由 `next lint` 內建提供，移除後必須在此明確列出，否則會掃進建置產物與非 JS 目錄。
+
+node_modules/
+.next/
+out/
+build/
+coverage/
+
+# 建置產物與靜態資產
+public/
+next-env.d.ts
+
+# 非 JavaScript / TypeScript 的服務
+python-services/
+
+# 不可逆資料操作的前置快照（見 CLAUDE.md §不可逆資料操作紀律）
+.snapshots/

@@ -4,7 +4,7 @@
 > **發現方式**: FIX-171 第三批步驟 5 遺留待辦。2026-08-08 重新掃描時發現原記載的「20 個 high、受 major 升級阻擋」兩項都不準確
 > **影響頁面/功能**: 不影響功能，屬供應鏈安全。`npm-audit` 已是 main 的 required status check（門檻 critical）
 > **優先級**: 中
-> **狀態**: 🚧 部分完成（2026-08-08 —— high 21 → **6**、總計 35 → **13**；剩餘 6 個全部需要 major 升級，屬 H2，待 approval）
+> **狀態**: 🚧 部分完成（2026-08-08 —— 第一階段 high 21 → 6；第二階段完成 `immutable` 3→4 與 `next` 15→16，high **6 → 4**、總計 **12**。剩餘 4 個全部源於同一個上游死結：`nodemailer` 9 受 `next-auth` 的 peer 宣告阻擋，詳見 §第二階段）
 > **相關**: [FIX-171](FIX-171-secure-dev-dod-checklist-gaps.md)（本 FIX 的來源，§第三批步驟 5）
 
 ---
@@ -119,6 +119,8 @@ Missing: @swc/helpers@0.5.23 from lock file
 
 ## 剩餘 6 個 high：全部需要 major 升級（H2，待 approval）
 
+> ✅ **使用者於 2026-08-08 批准，處理結果見 §第二階段**：`immutable` 與 `next` 兩項完成（解除 5 個），`nodemailer` 受上游 peer 限制阻擋。以下為批准當下的評估，保留供追溯。
+
 | 套件 | 目前 | 需要 | 阻礙 |
 |---|---|---|---|
 | `immutable` | 3.8.2 | 4.3.9 | major 3 → 4。連帶影響 `swagger-ui-react` |
@@ -138,12 +140,125 @@ Missing: @swc/helpers@0.5.23 from lock file
 
 ---
 
+---
+
+## 第二階段：3 個 major 升級（2026-08-08，使用者批准 H2）
+
+### 結果：high 6 → 4
+
+| | 第一階段後 | 第二階段後 |
+|---|---:|---:|
+| critical | 0 | 0 |
+| **high** | **6** | **4** |
+| moderate | 6 | 7 |
+| low | 1 | 1 |
+| **總計** | **13** | **12** |
+
+| 升級 | 結果 |
+|---|---|
+| `immutable` 3.8.2 → **4.3.9** | ✅ 完成，連帶解除 `swagger-ui-react` |
+| `next` 15.5.23 → **16.3.0** | ✅ 完成，連帶解除 `postcss` 與 `sharp` |
+| `nodemailer` 7.0.12 → 9.0.5 | ❌ **受阻**，見下 |
+
+### 🔴 `nodemailer` 的上游死結
+
+`next-auth@5.0.0-beta.32` 與 `@auth/core@0.41.3` 宣告的 peer 範圍是 `nodemailer@"^7.0.7 || ^8.0.5"`，**不接受 9.x**。而 nodemailer 的 advisory 範圍是 `<=9.0.0` —— 也就是 **8.x 沒有任何安全版本**，必須到 9.x。
+
+實測三條路都不通：
+
+| 嘗試 | 結果 |
+|---|---|
+| 直接裝 `nodemailer@^9.0.5` | 裝得上，但相依樹被標為 `invalid`，**後續任何 `npm install` 都因 ERESOLVE 失敗** —— 這不是警告，是會卡住整個相依安裝流程 |
+| 加 `@types/nodemailer@^8.0.1` | 直接被 peer 衝突擋下 |
+| 宣告保持 8.x、以 `overrides` 強制 9.x | npm 拒絕：`EOVERRIDE: Override for nodemailer@^8.0.11 conflicts with direct dependency`。npm 不允許對**直接相依**設定不同 spec 的 override |
+
+因此回退為 `^8.0.11`（next-auth 允許的最高版）。代價是 4 個 high：`nodemailer` 自身，加上因它而中招的 `@auth/core`、`@auth/prisma-adapter`、`next-auth`。
+
+**實際曝險評估**：本專案**未使用** next-auth 的 email provider（`src/lib/auth.config.ts` 的 `buildProviders()` 未註冊 Nodemailer/Email provider，全庫亦無 `providers/nodemailer` 引用）。nodemailer 的唯一使用點是 `src/lib/email.ts`，走自建 SMTP 設定寄送驗證信。所以 next-auth 那 3 個標記屬於「相依關係上的傳染」，並非實際可觸發的路徑。
+
+**剩餘選項**：
+
+| 選項 | 作法 | 代價 |
+|---|---|---|
+| **A** ✅ | **維持 8.0.11，接受風險並加防護** | 4 個 high 持續存在，但無實際可觸發路徑 |
+| B | `.npmrc` 設 `legacy-peer-deps=true` 後升到 9.x | 全專案的 peer 檢查一併放寬，可能掩蓋其他真實衝突 |
+| C | 改用其他 SMTP 套件取代 `src/lib/email.ts` 的 nodemailer | 屬 H2 換 vendor，且需重寫寄信邏輯 |
+
+### ✅ 使用者於 2026-08-08 裁決採 A —— 判斷依據與防護措施
+
+**採 A 的理由不是「等等看」，而是這個 advisory 在本專案打不到。**
+
+查證 advisory 全文後確認觸發條件很具體：
+
+> Nodemailer: Message-level **`raw` option** bypasses `disableFileAccess` / `disableUrlAccess`,
+> enabling arbitrary file read and full-response SSRF in the delivered message（CVSS 7.1）
+
+而 `src/lib/email.ts` 的 `sendEmail()` 是全專案唯一的寄信出口，其 `mailOptions` 由五個固定欄位構造（`from` / `to` / `subject` / `html` / `text`），**沒有 `raw`、沒有 `attachments`**；參數型別 `SendEmailOptions` 亦只定義四個欄位，呼叫端在型別層面就無法注入。
+
+三項佐證：
+
+| 事實 | 意義 |
+|---|---|
+| `5.0.0-beta.32` 已是 next-auth 最新版（無 beta.33+） | 「升 next-auth 解決」不成立，等待是唯一乾淨路徑 |
+| beta.32 的 peer 已含 `next: ^16.0.0` | 專案跟得上其更新節奏，peer 放寬後可迅速跟進 |
+| CI 的 npm-audit 門檻為 **critical** | 這 4 個 high 不會阻擋合併，無立即痛點 |
+
+**不採 B 的理由**：`legacy-peer-deps` 會讓全專案的 peer 檢查失效，而 peer 衝突正是這次揭露問題的機制 —— 若當初它是關的，nodemailer 9 會靜默裝上，直到 next-auth 真的呼叫其 API 才爆。為一個打不到的漏洞關掉一個有效的警報並不划算。
+
+**不採 C 的理由**：屬 H2 換 vendor，需重寫寄信邏輯並重新驗證，收益僅是消除一個無法觸發的 advisory。
+
+#### 🔴 已加的防護：這個判斷依賴 `email.ts` 保持封閉
+
+單純「接受風險」有個弱點 —— 上述結論成立的**唯一**前提是 `sendEmail()` 不轉傳額外欄位。若日後有人把介面改成透傳 nodemailer 選項，或加入 `attachments`，曝險就實際化，而且**不會有任何警報**（npm audit 的數字不會變）。
+
+因此加了兩層防護：
+
+| 層 | 內容 |
+|---|---|
+| 說明 | `src/lib/email.ts` 檔頭與 `SendEmailOptions` 加註警示，寫明 allowlist 的性質、advisory 的觸發條件、以及解除條件；`mailOptions` 內加註「不可加入 `...options` 展開」 |
+| 測試 | 新增 `tests/unit/lib/email-options-allowlist.test.ts`（7 個案例）：斷言轉傳給 `sendMail()` 的物件只含五個既定 key，並逐一驗證 `raw` / `attachments` / `envelope` / `dkim` / `encoding` 即使被呼叫端夾帶也不會轉傳 |
+
+> **測試的辨別力已用 mutation 驗證**：暫時在 `mailOptions` 加入 `...options` 後重跑，**7 個案例中 5 個立即失敗**（另 2 個為不含違規欄位的正常案例，本就應通過），確認這組測試不是只會亮綠燈的裝飾。
+
+#### 複查條件
+
+`next-auth` 發布新 beta 時重新檢查其 `nodemailer` peer 範圍；一旦接受 9.x，即可升級並移除 `email.ts` 的限制說明與上述測試檔。
+
+### Next.js 16 需要的三項配套變更
+
+升級不是純相依變動，Next 16 移除了兩個既有依賴的機制：
+
+**一、`NextConfig` 移除 `eslint` 選項。** `next.config.ts` 原有 `eslint: { ignoreDuringBuilds: true }`，在 16 會直接讓 `type-check` 失敗（TS2353）。已刪除 —— Next 16 的 `next build` 本就不再執行 ESLint，行為等價。
+
+**二、`next lint` 子命令已移除。** `npm run lint` 原本是 `next lint`，在 16 會把 `lint` 當成目錄參數而報「Invalid project directory」。已改為直接呼叫 ESLint CLI。
+
+**三、新增 `.eslintignore`。** 原本的忽略範圍由 `next lint` 內建提供，改用 ESLint CLI 後必須明確列出，否則會掃進 `.next/`、`public/`、`python-services/` 等目錄。
+
+> 🔴 **一個容易誤判的地方**：lint script 若寫成 `eslint .`，會掃出 **3559 個問題（150 errors / 3409 warnings）** 而讓 CI 失敗。這些**不是升級造成的** —— `next lint` 原本只掃 `app`／`pages`／`components`／`lib`／`src`，而 `eslint .` 掃全部，把 `scripts/`、`tests/` 等從未納入 lint 的程式碼一併拉了進來。
+>
+> 已將範圍收斂為 `eslint src`，與 `next lint` 等價（實測 exit 0、333 warnings、0 errors）。**擴大 lint 覆蓋範圍是獨立議題，不應由一次相依升級夾帶。**
+
+### `eslint-config-next` 未一併升級
+
+`eslint-config-next@16.3.0` 要求 `eslint >= 9`，而本專案在 `eslint@^8.57.0`。ESLint 9 的 flat config 是重大遷移，會連鎖出第四個 major 升級，故維持 `^15.0.0`。它是 dev 期的 lint 規則來源，與 Next.js 執行期無關，實測 lint 正常運作。
+
+---
+
 ## 修改的檔案
 
-| 檔案 | 修改內容 | 狀態 |
-|------|----------|------|
-| `package.json` | `overrides` 由 1 項擴為 12 項（含 5 組巢狀分線）；`js-yaml` 宣告 `^4.1.1` → `^4.3.1`；`@prisma/client` 與 `prisma` 宣告 `^7.2.0` → `^7.9.1` | ✅ 已完成 |
-| `package-lock.json` | 隨上述變更更新，並**於 Linux 容器重新生成**以補齊平台專屬條目 | ✅ 已完成 |
+| 檔案 | 修改內容 | 階段 | 狀態 |
+|------|----------|------|------|
+| `package.json` | `overrides` 由 1 項擴為 12 項（含 5 組巢狀分線）；`js-yaml` 宣告 `^4.1.1` → `^4.3.1`；`@prisma/client` 與 `prisma` 宣告 `^7.2.0` → `^7.9.1` | 一 | ✅ 已完成 |
+| `package-lock.json` | 隨變更更新，並**於 Linux 容器重新生成**以補齊平台專屬條目 | 一・二 | ✅ 已完成 |
+| `package.json` | 新增 `immutable: ^4.3.9` override；`next` → `^16.3.0`；`nodemailer` → `^8.0.11`；`lint` script 由 `next lint` 改為 `eslint src --ext .js,.jsx,.ts,.tsx` | 二 | ✅ 已完成 |
+| `next.config.ts` | 移除 Next 16 已不支援的 `eslint.ignoreDuringBuilds` | 二 | ✅ 已完成 |
+| `.eslintignore` | **新增** —— 補上原由 `next lint` 內建提供的忽略範圍 | 二 | ✅ 已完成 |
+| `src/lib/email.ts` | 檔頭與 `SendEmailOptions` 加註 nodemailer 選項封閉性的安全前提；`mailOptions` 加註不可展開 | 二 | ✅ 已完成 |
+| `tests/unit/lib/email-options-allowlist.test.ts` | **新增** —— 7 個案例，鎖住 `sendEmail()` 的欄位 allowlist | 二 | ✅ 已完成 |
+| `tsconfig.json` | **由 `next build` 自動修改**：`jsx` 由 `preserve` 改為 `react-jsx`；`include` 新增 `.next/dev/types/**/*.ts` | 二 | ✅ 已完成 |
+| `next-env.d.ts` | **由 `next build` 自動修改**：`/// <reference path>` 改為 `import` 語法，並新增 `root-params.d.ts`（該檔標註 should not be edited，本即自動生成） | 二 | ✅ 已完成 |
+
+> 📌 上述兩個檔案由 Next 16 的 build 自動改寫，非手動編輯。其中 `jsx: preserve → react-jsx` 是實質變更（改用 React 17+ 的新 JSX transform）—— `type-check`、`build`、`test` 皆在此變更**之後**通過，確認相容。這兩項必須一併提交，否則每次 build 都會重新產生未提交的差異。
 
 ---
 
@@ -157,6 +272,21 @@ Missing: @swc/helpers@0.5.23 from lock file
 - [x] **Linux 容器 `npm ci` 通過**（`node:22-slim`）—— 這是本次唯一能揭露 lock 缺項的檢查
 - [x] `npm audit --omit=dev` 複驗：critical 0 / high 6 / moderate 6 / low 1
 - [x] 逐一確認 override 後的實際安裝版本落在安全範圍（非僅信任 audit 的彙總）
+
+### 第二階段（`immutable` 4.3.9 + `next` 16.3.0）
+
+- [x] `npx prisma generate` 通過
+- [x] `npm run type-check` 通過（修正 `next.config.ts` 的 `eslint` 選項後）
+- [x] `npm run lint` 通過（exit 0、333 warnings、0 errors，範圍與 `next lint` 等價）
+- [x] `npm run test` —— **496** passed / 2 skipped / **0 failed**（489 + 新增的 7 個郵件選項案例）
+- [x] **mutation 驗證**：暫時在 `mailOptions` 加入 `...options`，7 個案例中 5 個立即失敗 —— 確認回歸保護具辨別力
+- [x] `npm run build` 通過（**Next.js 16.3.0**，先 `rm -rf .next` 避免 15 的產物殘留）
+- [x] `npm run i18n:check` 通過（三語言翻譯完整）
+- [x] **Linux 容器 `npm ci` 通過**（`node:22-slim`，lock 已重新生成）
+- [x] `npm audit --omit=dev` 複驗：critical 0 / high **4** / moderate 7 / low 1
+- [x] 確認 `next@16.3.0` 與 `nodemailer@8.0.11` 為實際安裝版本
+
+> ⚠️ **Next 16 升級的驗證缺口比前一階段更值得重視**：本機無法登入，因此 App Router 在登入後的行為、middleware 在 16 的實際表現皆未實測。而本專案的 API 認證閘與頁面保護（FIX-175）**完全建立在 middleware 上**，這正是 Next 16 最可能出現行為變化之處。部署到 DEV 後應優先走一次登入與受保護路由的端到端驗證。
 
 ### 未涵蓋
 

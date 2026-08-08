@@ -8,10 +8,28 @@
  *
  *   開發環境如未配置 SMTP，將使用 console.log 輸出郵件內容。
  *
+ * 🔴 **本模組的選項必須維持封閉（FIX-176）**
+ *
+ *   `nodemailer` 目前停在 8.0.11 且**無安全版本可用**：其 advisory 涵蓋 `<=9.0.0`，
+ *   而 `next-auth` / `@auth/core` 宣告的 peer 範圍是 `^7.0.7 || ^8.0.5`，不接受 9.x。
+ *   升到 9.x 會使相依樹變成 invalid 並讓後續所有 `npm install` 以 ERESOLVE 失敗。
+ *
+ *   該 advisory（CVSS 7.1）的觸發條件是 **message-level `raw` 選項**繞過
+ *   `disableFileAccess` / `disableUrlAccess`，導致任意檔案讀取與 SSRF。
+ *   本專案之所以不受影響，唯一的理由是 `sendEmail()` 只轉傳五個固定欄位，
+ *   呼叫端無法把 `raw`、`attachments` 之類的選項送進 `sendMail()`。
+ *
+ *   ⚠️ 因此**不可**將 `SendEmailOptions` 改為透傳 nodemailer 的選項物件，
+ *   也不可新增 `raw` / `attachments` / `envelope` 等欄位 —— 那會讓一個目前
+ *   打不到的漏洞變成實際可觸發，且不會有任何警報。
+ *   `tests/unit/lib/email-options-allowlist.test.ts` 對此設有回歸保護。
+ *
+ *   解除條件：`next-auth` 放寬 peer 範圍至接受 nodemailer 9.x 後升級，屆時可移除本限制。
+ *
  * @module src/lib/email
  * @author Development Team
  * @since Epic 18 - Story 18.1
- * @lastModified 2026-01-19
+ * @lastModified 2026-08-08 (FIX-176：記錄選項封閉性的安全前提)
  *
  * @dependencies
  *   - nodemailer - SMTP 郵件傳輸
@@ -60,6 +78,10 @@ function getTransporter(): Transporter {
 
 /**
  * 郵件發送選項
+ *
+ * 🔴 **這是一份 allowlist，不是「目前用得到的欄位」** —— 新增欄位前請先讀
+ * 檔頭的 FIX-176 說明。擴充為透傳 nodemailer 選項會使 CVSS 7.1 的
+ * `raw` 選項漏洞變成可觸發。
  */
 interface SendEmailOptions {
   /** 收件人地址 */
@@ -98,6 +120,8 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
     subject: options.subject,
     html: options.html,
     text: options.text,
+    // ⚠️ 不可加入 `...options` 之類的展開 —— 見檔頭 FIX-176 說明。
+    // 那會讓呼叫端得以傳入 `raw`，使 CVSS 7.1 的 nodemailer 漏洞變成可觸發。
   }
 
   // 開發環境僅 console.log
