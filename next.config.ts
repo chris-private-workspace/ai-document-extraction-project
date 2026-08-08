@@ -115,14 +115,10 @@ const nextConfig: NextConfig = {
   // Dockerfile 已 COPY @napi-rs/canvas 與其 linux-x64-gnu prebuilt（FIX-080），runtime 找得到。
   serverExternalPackages: ['re2-wasm', 'pdfkit', '@napi-rs/canvas'],
 
-  // ESLint configuration for build
-  // Note: Warnings are treated as errors in production build by default
-  // Setting ignoreDuringBuilds to allow build with warnings (temporary for testing)
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors. These should be fixed before production.
-    ignoreDuringBuilds: true,
-  },
+  // FIX-176: Next.js 16 移除了 NextConfig 的 `eslint` 選項（`next build` 不再執行
+  // ESLint，`next lint` 亦已棄用），原本的 `eslint.ignoreDuringBuilds: true` 因此刪除。
+  // 該設定原是為了讓帶 warning 的 build 能通過，而 16 的 build 本就不跑 lint，
+  // 行為等價。lint 仍由 CI 的獨立 job 執行。
 
   // Configure image domains if needed
   images: {

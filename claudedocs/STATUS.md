@@ -90,7 +90,7 @@
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 | [FIX-169](4-changes/bug-fixes/FIX-169-e2e-coverage-audit-residual-gaps.md) | e2e coverage audit residual gaps | 🚧 部分完成（2026-08-06 —— 補救與量測已完成並重新驗證，見 §量測結果；殘餘 4 份缺口逐份根因已查明但皆未處理，見 §殘… |
 | [FIX-171](4-changes/bug-fixes/FIX-171-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 部分完成（2026-08-08 複驗更新 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批… |
-| [FIX-176](4-changes/bug-fixes/FIX-176-remaining-high-dependency-advisories.md) | remaining high dependency advisories | 🚧 部分完成（2026-08-08 —— high 21 → 6、總計 35 → 13；剩餘 6 個全部需要 major 升級，屬 H2… |
+| [FIX-176](4-changes/bug-fixes/FIX-176-remaining-high-dependency-advisories.md) | remaining high dependency advisories | 🚧 部分完成（2026-08-08 —— 第一階段 high 21 → 6；第二階段完成 `immutable` 3→4 與 `next… |
 
 ## ❓ 狀態無法解析（2）
 
