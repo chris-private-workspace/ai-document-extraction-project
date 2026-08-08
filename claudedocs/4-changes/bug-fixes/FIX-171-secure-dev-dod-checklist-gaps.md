@@ -1,10 +1,10 @@
-# FIX-171: 依公司 Secure Development DoD Checklist 對標 —— 13 項安全缺口
+# FIX-171: 依公司 Secure Development DoD Checklist 對標 —— 14 項安全缺口
 
 > **建立日期**: 2026-08-07
 > **發現方式**: 依公司安全團隊提供的 `docs/09-reference/security-check/`（SCM/ITPM 掃描報告衍生的 28 項 DoD Checklist）對本專案做代碼靜態檢查 + Azure DEV 線上黑箱驗證
 > **影響頁面/功能**: 全站 HTTP 回應標頭、登入流程（`/[locale]/auth/login`）、Cookie、對外 API 攻擊面、生產相依套件、CI 安全 gate
 > **優先級**: 高（含 3 個 critical 相依漏洞與 1 個 open redirect；其餘為掃描必然標記的 Level 2–3 項目）
-> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory，且**已加入 main 的 required status checks**，該閘現會實際擋下合併）。**Azure DEV 線上驗證完成**：9 個安全標頭 / cookie 強化 / fail-open 修復皆已生效；`API_AUTH_GATE_MODE` 經 monitor 日誌分析後切為 `enforce`，`/api/openapi` 缺口已封；**登入後煙霧測試通過**（6 個頁面、10 個 API 全部正常，console 零錯誤）。**BUG-7 已實作**（閾值 5 次 + 管理員手動解鎖 + `prisma/unlock-user.js` CLI 死鎖後備；schema / migration / drift script 三處同步，解鎖腳本端到端驗證含冪等 —— 但 `authorize()` 的「連續失敗 5 次會鎖住」尚未執行時驗證）。**待辦**：BUG-8（PII 遮罩）、剩餘 20 個 high、BUG-13 與 SCM 存取限制（需 Azure 寫入權限）、登入路徑的 IP 層速率限制（BUG-7 的可被用於阻斷他人風險）。**已排除**：步驟 4 另開編號處理。**測試中另發現 3 個既有缺陷**（非本 FIX 造成），其中登入錯誤訊息誤導性較高，建議另開編號）
+> **狀態**: 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–3 完成（`next` 15.5.23、`next-auth` beta.32、裸檢查清零，**fail-open 已於本機重現並驗證修復**）；步驟 5 部分完成（**critical 漏洞已歸零**，剩 20 個 high 受 major 升級阻擋）；步驟 6 / BUG-9 採選項 B 完成（npm-audit 門檻 critical + 移除 advisory，且**已加入 main 的 required status checks**，該閘現會實際擋下合併）。**Azure DEV 線上驗證完成**：9 個安全標頭 / cookie 強化 / fail-open 修復皆已生效；`API_AUTH_GATE_MODE` 經 monitor 日誌分析後切為 `enforce`，`/api/openapi` 缺口已封；**登入後煙霧測試通過**（6 個頁面、10 個 API 全部正常，console 零錯誤）。**BUG-7 已實作**（閾值 5 次 + 管理員手動解鎖 + `prisma/unlock-user.js` CLI 死鎖後備；schema / migration / drift script 三處同步，解鎖腳本端到端驗證含冪等 —— 但 `authorize()` 的「連續失敗 5 次會鎖住」尚未執行時驗證）。**BUG-8 已查證結案**（2026-08-08）：QID 150602 的 24 個「有效卡號」**確認為 ISO 8601 時間戳誤報**（形態全為 `NNNN-NN-NNTNN:NN:NN`、prefix 全 `2026`、無任一符合卡別前綴），不實作卡號遮罩。**但查證過程發現真實外洩，已登記為 BUG-14**：`/api/admin/users` 與 `/api/admin/users/{id}` 回傳全部使用者的 bcrypt 密碼雜湊（Azure DEV 線上實測），根因為 `user.service.ts` 用 `include` 而非 `select`；**DoD #11 因此由 ✅ 更正為 ❌**。**待辦**：BUG-14（修復中）、剩餘 20 個 high、BUG-13 與 SCM 存取限制（需 Azure 寫入權限）、登入路徑的 IP 層速率限制（BUG-7 的可被用於阻斷他人風險）。**已排除**：步驟 4 另開編號處理。**測試中另發現 3 個既有缺陷**（非本 FIX 造成），其中登入錯誤訊息誤導性較高，建議另開編號）
 > **相關**: [FIX-050](FIX-050-auth-config-pii-leakage-console-logs.md)、[FIX-051](FIX-051-db-context-sql-injection-city-codes.md)、[FIX-052](FIX-052-rate-limit-single-instance-redis-migration.md)（同屬安全稽核系列）、`docs/08-security-and-governance/`（Epic 22 治理評估，AppSec-08 已標記 L0 但未實作）
 
 ---
@@ -19,10 +19,18 @@
 
 | 結果 | 數量 | 項次 |
 |------|-----:|------|
-| ✅ 通過 | 14 | 1, 3, 4, 8, 9, 10, 11, 12, 13, 17, 22, 23, 25, 26 |
+| ✅ 通過 | 13 | 1, 3, 4, 8, 9, 10, 12, 13, 17, 22, 23, 25, 26 |
 | ⚠️ 部分符合 | 4 | 5, 7, 15, 19 |
-| ❌ 失敗 | 9 | 2, 14, 16, 18, 20, 21, 24, 27, 28 |
+| ❌ 失敗 | 10 | 2, **11**, 14, 16, 18, 20, 21, 24, 27, 28 |
 | ❓ 無法驗證 | 1 | 6 |
+
+> 🔴 **DoD #11 於 2026-08-08 由 ✅ 更正為 ❌（BUG-14）**。原判定只檢查了 `forgot-password` 流程，
+> **未檢查管理 API** —— 實際上 `/api/admin/users` 與 `/api/admin/users/{id}` 正在回傳所有使用者的
+> bcrypt 密碼雜湊。這是**對標本身的漏判**，不是後來才出現的迴歸；發現途徑見 §BUG-8 查證。
+>
+> 另註：**DoD #6 亦已由 ❓ 無法驗證 變為 ❌ 確認未限制** —— SP 取得讀取權限後查得
+> `scmIpSecurityRestrictions` 為 Allow all（見 §Azure DEV 線上驗證）。上表尚未反映該項變動，
+> 因其修復需 Azure 寫入權限，仍列於「需他人協助」。
 
 ### 待處理子問題
 
@@ -41,6 +49,7 @@
 | BUG-11 | 15 | 3 個設定表單的密碼欄位無 `autoComplete` 屬性 | 低 | 150112 | 代碼靜態 |
 | BUG-12 | 19 | `/api/openapi` 未認證可讀完整 API 規格（23 KB） | 低 | 150004 / 150228 | 線上實測 |
 | BUG-13 | 5 | 平台預設網址 `*.azurewebsites.net` 仍對外可達，其憑證 CN 與自訂網域不符 | 低 | certificate-common-name-mismatch | 線上實測 |
+| **BUG-14** | **11** | **`/api/admin/users` 與 `/api/admin/users/{id}` 回傳全部使用者的 bcrypt 密碼雜湊，並帶出 `passwordResetToken` / `emailVerificationToken` 結構** | **高** | 150375 同類 | **Azure DEV 線上實測** |
 
 ---
 
@@ -134,6 +143,54 @@
 
 > 目前 `prisma/schema.prisma` 中沒有 `bankAccount` / `taxId` / `iban` / `swiftCode` 等明確的高敏感欄位，且卡號掃描 0 命中，所以此項的**當下實際曝險低於 SCM 應用的 24 個實例**。但缺口在於「沒有機制」，而非「目前沒有資料」。
 
+### 原因 7：管理 API 用 `include` 而非 `select`，帶出全部純量欄位（BUG-14）
+
+`src/services/user.service.ts` 的多個查詢以 `include: { roles: ... }` 取回使用者。
+**Prisma 在使用 `include` 時會回傳該 model 的所有純量欄位** —— 包含 `password`、
+`passwordResetToken`、`emailVerificationToken`。這些函數的回傳值被 API 路由直接序列化給客戶端。
+
+受影響的服務函數（皆位於 `src/services/user.service.ts`）：
+
+| 行號 | 函數 | 是否直達 API 回應 |
+|---:|---|---|
+| 872 | `getUsers()` | ✅ `/api/admin/users` GET — **線上已證實外洩** |
+| 316 | `getUserByIdWithRoles()` | ✅ `/api/admin/users/{id}` GET — **線上已證實外洩**；另被 7 個子路由用作權限前置檢查 |
+| 428 | `updateUserWithRoles()` | ✅ `/api/admin/users/{id}` PATCH 回傳更新後物件 |
+| 619 | `createUser()` | ✅ `/api/admin/users` POST 回傳新建物件 |
+| 83 | `getUserWithRoles()` | ❌ `src/` 中**無任何呼叫者** |
+| 906 | `getAllUsersWithRoles()` | ❌ `src/` 中**無任何呼叫者** |
+| 959 | `searchUsers()` | ❌ `src/` 中**無任何呼叫者**（唯一命中是 `use-debounce.ts` 的 JSDoc 範例文字） |
+
+> **後三者未修改**，理由：它們是既有死代碼，沒有外洩路徑；且其宣告型別為
+> `UserWithRoles extends PrismaUser`（**型別本身即含 `password`**），改 `select` 需連帶改動
+> `src/types/user.ts` 的公用型別，影響面超出本 FIX 範圍（H3）。
+> 已在此登記，若日後有人啟用這三個函數，必須一併改為 `select`。
+
+> 對照組：`/api/v1/users/me` 與 `/api/roles` 的回應**乾淨**，證明問題不是全站性的序列化缺陷，
+> 而是這一組查詢的寫法問題。`getUserById()`（第 47 行）用裸 `findUnique` 無 `select`，同樣回傳
+> 全欄位，但其回傳值目前未直接進入 API 回應。
+
+**為何嚴重度定為高**：`passwordResetToken` 現值為 null 只是因為當下無人在重設密碼。該欄位**結構已在回應中**，
+一旦有使用者發起重設，持有 `USER_MANAGE` 權限者即可讀到他人的重設 token —— 那是直接的帳號接管途徑，
+不需要破解 bcrypt。
+
+#### 🔴 為何這個缺口能存在這麼久：`as` 斷言掩蓋了執行時行為
+
+四個函數的回傳型別（`UserDetailWithRoles`、`UserListItemWithCity`、`CreatedUserWithRoles`）
+**都已正確宣告、都不含 `password`**。問題出在收尾那一行：
+
+```typescript
+return user as UserDetailWithRoles | null     // ← 斷言
+data: data as UserListItemWithCity[],          // ← 斷言
+```
+
+`as` 告訴編譯器「相信我，這就是那個型別」，於是**型別檢查看起來完全乾淨**，
+而執行時 Prisma 仍照 `include` 回傳全部欄位並被 `JSON.stringify` 原樣送出。
+
+這正是 §診斷紀律 中「代碼證明可能、資料證明實際」的實例：
+**讀型別定義會得出「沒有外洩」的錯誤結論，只有打實際的 API 才看得到**。
+本次也確實是靠線上實測發現，而非靜態檢查。
+
 ---
 
 ## 解決方案
@@ -202,6 +259,30 @@ export function toSafeRedirect(url: string | undefined, fallback = '/dashboard')
 **BUG-7**：需新增 `User.failedLoginAttempts` / `User.lockedUntil` 欄位（Prisma migration）+ `authorize()` 累計邏輯 + 解鎖路徑。屬 H1（動到認證流程），需先確認鎖定閾值（DoD 建議 3–5 次）與解鎖方式（時間解鎖 / 自助 / 管理員）。
 
 **BUG-8**：需先盤點「哪些欄位算 PII」，再決定遮罩層放在 service 還是 API 序列化層。此項在無高敏感欄位的現況下優先級最低。
+（→ 2026-08-08 查證結果見 §BUG-8 查證：QID 150602 **證實為誤報**，不應實作卡號遮罩。）
+
+### BUG-14：管理 API 密碼雜湊外洩（2026-08-08 新增）
+
+把 `src/services/user.service.ts` 中會流向 API 回應的查詢改為明確 `select`，只取實際需要的欄位。
+**不採用「回傳後刪欄位」的做法** —— 那是遺漏一處就再次外洩的形態，而 `select` 是預設安全（新增敏感欄位不會自動被帶出）。
+
+```typescript
+// 共用的安全欄位清單，供各查詢複用
+const USER_PUBLIC_SELECT = {
+  id: true, email: true, name: true, status: true, azureAdId: true,
+  cityId: true, emailVerified: true, lastLoginAt: true,
+  createdAt: true, updatedAt: true,
+  // 明確不取：password、passwordResetToken、passwordResetExpires、
+  //          emailVerificationToken、failedLoginAttempts、lockedUntil
+} satisfies Prisma.UserSelect
+```
+
+實作順序：先修 `getUsers()` 與 `getUserByIdWithRoles()`（**已證實外洩的兩處**），
+再處理 `updateUserWithRoles()` / `createUser()`，最後確認三個待確認函數的呼叫者。
+
+⚠️ 型別影響：這些函數目前宣告回傳 `UserWithRoles`（源自 Prisma 的 `User` 型別，含 `password`）。
+改為 `select` 後回傳型別會收窄，需同步調整型別定義。**若有前端或服務層讀取被移除的欄位，
+type-check 會直接報錯** —— 這正是要的效果：讓編譯器把所有依賴點指出來，而不是靠人工搜尋。
 
 ### 需他人協助（BUG-13 / DoD #6）
 
@@ -961,6 +1042,52 @@ SUSPENDED 的語義是「管理員主動停權」。混用會讓管理員看到 
 
 ---
 
+## BUG-8 查證：QID 150602 為誤報，QID 150375 導出 BUG-14（2026-08-08）
+
+### QID 150602（24 個「有效信用卡號」）：**確認誤報**
+
+掃描報告宣稱找到 24 個通過 Luhn 檢查的卡號。實際在 Azure DEV 線上逐層查證：
+
+| 檢查層 | 分母 | 13 位以上數字串 | 通過 Luhn | 結論 |
+|---|---:|---:|---:|---|
+| 登入後頁面 DOM（documents / template-instances） | 2 頁 | **0**（最長 12 位） | 0 | 無 |
+| 公開端點（`/api/openapi` 等） | 4 端點 | **0** | 0 | 無 |
+| `/api/documents` JSON 回應 | 1 端點 | 60 | **11** | 見下 |
+
+那 11 個「通過 Luhn」的字串，形態**全部一致**：
+
+```
+shape  : NNNN-NN-NNTNN:NN:NN   （去分隔符後 14 位）
+prefix : 2026                   （11/11）
+```
+
+即 `2026-08-07T09:45:53` 這類 **ISO 8601 時間戳**。去掉分隔符後恰為 14 位數字，
+而任意數字串通過 Luhn 的機率約 1/10 —— 60 個候選出現 11 個命中屬預期範圍。
+
+**判準**：無任何一個符合實際卡別前綴（Visa `4`、Mastercard `5[1-5]`/`2[2-7]`、
+Amex `34`/`37`、JCB `35`）。**Luhn 通過是必要條件，不是充分條件**；掃描器只驗了必要條件。
+
+> **結論：不應實作卡號遮罩。** 對時間戳做遮罩會破壞文件列表、處理時間軸與匯出功能。
+> 此項應以「誤報」回應安全團隊，並附上本節的形態證據。
+
+### QID 150375：查證過程中發現真實外洩 → 登記為 BUG-14
+
+轉查 QID 150375（敏感資料外洩）時，逐端點檢查回應 JSON 是否含 `password` 欄位：
+
+| 端點 | `password` 欄位 | 值長度 | 判定 |
+|---|---|---:|---|
+| `/api/admin/users` | `.data[0].password` **有值** | 60 | 🔴 bcrypt 雜湊外洩 |
+| `/api/admin/users/{id}` | `.data.password` **有值** | 60 | 🔴 bcrypt 雜湊外洩 |
+| `/api/v1/users/me` | 不存在 | — | ✅ 乾淨 |
+| `/api/roles` | 不存在 | — | ✅ 乾淨 |
+
+長度 60 是 bcrypt 雜湊的標準長度（`$2b$` + cost + 22 字元 salt + 31 字元 hash）。
+同一回應另含 `passwordResetToken` 與 `emailVerificationToken` 欄位（當下值為 null）。
+
+根因與修復方案見 §原因 7 與 §解決方案 BUG-14。
+
+---
+
 ## 修改的檔案
 
 | 檔案 | 修改內容 | 批次 | 狀態 |
@@ -995,6 +1122,7 @@ SUSPENDED 的語義是「管理員主動停權」。混用會讓管理員看到 
 | `package.json` / `package-lock.json` | 相依套件升級 | 三 |
 | `prisma/schema.prisma` + migration | `User.failedLoginAttempts` / `User.lockedUntil` | 三 |
 | `src/lib/auth.config.ts` | `authorize()` 加失敗累計與鎖定判斷 | 三 |
+| `src/services/user.service.ts` | **BUG-14**：`getUsers()` / `getUserByIdWithRoles()` / `updateUserWithRoles()` / `createUser()` 四處查詢由 `include` 改為 `select`，欄位與各自的回傳型別逐項對齊 | 四 |
 
 > ⚠️ `package-lock.json` 的更新必須留意跨平台問題：Windows 產生的 lock 缺 Linux 專屬相依，會使 CI 的 `npm ci` 失敗（已復發兩次）。辨識訊號為 type-check / lint / i18n 三個 job 在 8–10 秒內同時失敗、而 docs-check 獨自通過。
 
@@ -1038,6 +1166,18 @@ SUSPENDED 的語義是「管理員主動停權」。混用會讓管理員看到 
 - [ ] 解鎖路徑可用
 - [ ] 既有登入流程（Azure AD SSO + 本地帳號）不受影響
 
+### 第四批（BUG-14）
+
+- [x] `npm run type-check` 通過（exit 0）—— 四個回傳型別本來就不含 `password`，改 `select` 後執行時行為與型別宣告一致
+- [x] `next lint` 對 `user.service.ts` 零警告
+- [ ] 🔴 **部署後於 Azure DEV 重測 `/api/admin/users` 與 `/api/admin/users/{id}`，確認回應不含 `password`** —— 這是**唯一能證明修復生效**的檢查，因為外洩是在線上實測發現的，必須用同一方法做前後對照
+- [ ] 同時確認 `passwordResetToken` / `emailVerificationToken` 已不在回應結構中
+- [ ] 回歸：使用者管理頁的列表、詳情、編輯、新增四個流程仍正常（欄位收窄後前端不應缺值）
+
+> ⚠️ **本機無法驗證**：此 worktree 沒有 `.env`（僅 `.env.example`），無資料庫連線，
+> 無法在本機呼叫這些函數檢查實際回傳欄位。曾嘗試以 `ts-node` 直接呼叫 service 驗證，
+> 因缺少連線設定而中止，臨時腳本已刪除。**故第四批與 BUG-7 同樣屬於「已實作、待線上驗證」**。
+
 ### 全批次完成後
 
 - [ ] 重跑本文件 §檢查方法 的全部靜態與線上檢查，28 項對照結果更新
@@ -1062,12 +1202,12 @@ SUSPENDED 的語義是「管理員主動停權」。混用會讓管理員看到 
 | 8 | Session 與 Cookie | 認證後重新產生 Session ID | ✅ | JWT 策略，登入即發新 token |
 | 9 | Session 與 Cookie | CSPRNG ≥ 128 bits | ✅ | NextAuth JWT 以 `AUTH_SECRET` 簽章 |
 | 10 | Session 與 Cookie | 瀏覽器儲存無憑證 / token / 個資 | ✅ | 僅存城市篩選、檢視模式、語言偏好 |
-| 11 | 認證與密碼 | 密碼不在其他請求回應出現 | ✅ | `forgot-password` 的 `password` 選取僅用於判斷本地帳號，不回傳 |
+| 11 | 認證與密碼 | 密碼不在其他請求回應出現 | ❌ | **BUG-14**：`/api/admin/users` 與 `/api/admin/users/{id}` 回傳 bcrypt 雜湊。（`forgot-password` 流程本身正確，但原判定只查了該流程，漏查管理 API） |
 | 12 | 認證與密碼 | 加 salt 強雜湊 | ✅ | `bcryptjs` cost 12（`src/lib/password.ts:21`） |
 | 13 | 認證與密碼 | 密碼表單僅走 HTTPS | ✅ | HTTP 已 301 轉址 |
 | 14 | 認證與密碼 | 防暴力破解 | ❌ | 無鎖定、無速率限制 |
 | 15 | 認證與密碼 | 敏感欄位 autocomplete + 密碼規則 | ⚠️ | 3 個設定表單缺屬性；密碼規則已有 |
-| 16 | 資料保護 | 伺服器端遮罩 PII | ❌ | 無業務資料遮罩機制 |
+| 16 | 資料保護 | 伺服器端遮罩 PII | ❌ | 無業務資料遮罩機制。**但 QID 150602 的 24 個「卡號」已證實為 ISO 8601 時間戳誤報**，不應據此實作卡號遮罩（見 §BUG-8 查證） |
 | 17 | 資料保護 | 測試資料無有效卡號 | ✅ | 1,665 檔案 Luhn 掃描 0 命中 |
 | 18 | 資料保護 | 移除指紋標頭 | ❌ | `X-Powered-By: Next.js` 線上實測存在 |
 | 19 | 資料保護 | 無強制瀏覽可得資源 | ⚠️ | `public/` 僅 `.gitkeep`；但 `/api/openapi` 公開 |

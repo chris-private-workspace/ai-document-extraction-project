@@ -311,11 +311,27 @@ export interface UserDetailWithRoles {
 export async function getUserByIdWithRoles(
   id: string
 ): Promise<UserDetailWithRoles | null> {
+  // FIX-171 / BUG-14：必須用 select 而非 include。
+  // Prisma 的 include 會回傳 User 的**所有純量欄位**，包含 password、
+  // passwordResetToken、emailVerificationToken —— 本函數的回傳值會直接
+  // 序列化成 API 回應，用 include 等同對外公開密碼雜湊。
+  // 下方欄位清單刻意與 UserDetailWithRoles 逐項對齊；新增欄位請同步兩處。
   const user = await prisma.user.findUnique({
     where: { id },
-    include: {
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      image: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      lastLoginAt: true,
       roles: {
-        include: {
+        select: {
+          id: true,
+          roleId: true,
+          cityId: true,
           role: {
             select: {
               id: true,
@@ -423,11 +439,24 @@ export async function updateUserWithRoles(
     }
 
     // 3. 返回更新後的用戶
+    // FIX-171 / BUG-14：用 select 而非 include，避免帶出 password 等敏感欄位。
+    // 欄位清單與 UserDetailWithRoles 逐項對齊。
     return tx.user.findUniqueOrThrow({
       where: { id: userId },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        image: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        lastLoginAt: true,
         roles: {
-          include: {
+          select: {
+            id: true,
+            roleId: true,
+            cityId: true,
             role: {
               select: {
                 id: true,
@@ -614,11 +643,20 @@ export async function createUser(
     })
 
     // 4. 返回完整用戶資料
+    // FIX-171 / BUG-14：用 select 而非 include —— 此處剛設定完密碼雜湊，
+    // 用 include 會把它直接回傳給建立者。欄位與 CreatedUserWithRoles 對齊。
     const createdUser = await tx.user.findUnique({
       where: { id: newUser.id },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        image: true,
+        status: true,
+        createdAt: true,
+        lastLoginAt: true,
         roles: {
-          include: {
+          select: {
             role: { select: { id: true, name: true } },
             city: { select: { id: true, name: true, code: true } },
           },
@@ -864,14 +902,25 @@ export async function getUsers(params: GetUsersParams): Promise<UsersResult> {
 
   // 執行並行查詢（資料 + 總數）
   const [data, total] = await prisma.$transaction([
+    // FIX-171 / BUG-14：用 select 而非 include。此查詢會回傳**全部使用者**，
+    // 用 include 等同一次外洩所有人的 password 雜湊給任何具 USER_MANAGE 權限者。
+    // 欄位清單與 UserListItemWithCity 逐項對齊。
     prisma.user.findMany({
       where,
       skip: (page - 1) * pageSize,
       take: pageSize,
       orderBy: { [sortBy]: sortOrder },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        image: true,
+        status: true,
+        createdAt: true,
+        lastLoginAt: true,
         roles: {
-          include: {
+          select: {
+            cityId: true,
             role: {
               select: { id: true, name: true },
             },
