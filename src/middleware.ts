@@ -12,7 +12,8 @@
  *
  *   路由分類：
  *   - 公開頁面：/[locale]/auth/*
- *   - 受保護頁面：/[locale]/dashboard/*、/[locale]/documents/*、/[locale]/docs/*（FIX-171）
+ *   - 受保護頁面：`PROTECTED_PAGE_PREFIXES` 列出的 14 個前綴，即 (dashboard) 路由組的
+ *     13 個頂層路徑加上 /[locale]/docs/*（FIX-175 補齊，此前只涵蓋其中 3 個）
  *   - 公開 API（無需認證）：/api/auth/*、/api/health
  *   - 對外 ApiKey API（middleware 放行，由 handler 驗 ApiKey）：/api/v1/invoices、/api/v1/webhooks、/api/n8n/webhook
  *   - 受保護 API（middleware 要求 session）：其餘所有 /api/*（含 FIX-171 收攏的 /api/docs、/api/openapi）
@@ -23,7 +24,7 @@
  * @module src/middleware
  * @author Development Team
  * @since Epic 17 - Story 17.1 (i18n Infrastructure Setup)
- * @lastModified 2026-08-07 (FIX-171：安全標頭、NEXT_LOCALE cookie 補強、API 文件收攏)
+ * @lastModified 2026-08-08 (FIX-175：受保護頁面清單由 3 個補齊為 14 個)
  *
  * @features
  *   - Accept-Language header 語言偵測
@@ -73,22 +74,52 @@ function extractLocaleFromPath(pathname: string): { locale: Locale | null; restP
 }
 
 /**
+ * 需登入才能存取的頁面路徑前綴
+ *
+ * @description
+ *   來源：`src/app/[locale]/(dashboard)/` 的 13 個頂層路徑，加上 FIX-171 / BUG-12
+ *   收攏的 `/docs`（API 文件頁與其載入的 `/api/openapi` 必須同時收攏 —— 只鎖 API
+ *   會讓公開頁的 SwaggerUI 拿到 401 而壞掉）。
+ *
+ *   🔴 **新增 `(dashboard)` 頂層路徑時必須同步加入本清單**。清單與目錄結構之間沒有
+ *   自動同步機制，FIX-175 修的正是長期漂移的後果：本清單一度只有 3 項，其餘 11 個
+ *   路徑的唯一防線是 `(dashboard)/layout.tsx` 的單次 session 檢查。
+ *
+ *   ⚠️ 採 `startsWith` 比對，故新增前綴前必須確認不會誤中公開路徑 `/auth/*`。
+ *   兩組近似路徑已驗證互不誤判：
+ *   - `/audit` 與 `/auth`：第 4 個字元 `d` ≠ `h`
+ *   - `/docs` 與 `/documents`：第 5 個字元 `s` ≠ `u`
+ *
+ *   誤判 `/auth` 的後果是未登入者無法抵達登入頁，形成 FIX-171 記載過的
+ *   「登入頁不可用」故障形態，因此該項為回歸測試的必驗項。
+ */
+const PROTECTED_PAGE_PREFIXES = [
+  '/admin',
+  '/audit',
+  '/companies',
+  '/dashboard',
+  '/docs',
+  '/documents',
+  '/escalations',
+  '/global',
+  '/profile',
+  '/reports',
+  '/review',
+  '/rollback-history',
+  '/rules',
+  '/template-instances',
+]
+
+/**
  * 檢查路徑是否為受保護路由
  *
  * @description
- *   FIX-171 / BUG-12：新增 `/docs`。API 文件頁與其載入的 `/api/openapi` 必須同時
- *   收攏 —— 只鎖 API 會讓公開頁的 SwaggerUI 拿到 401 而壞掉。
- *
- *   ⚠️ `/documents` 不會被 `/docs` 誤判：`'/documents'.startsWith('/docs')` 為 false
- *   （第 5 個字元 `u` ≠ `s`）。兩者各自獨立比對。
+ *   此為頁面層的**第一道**防線（Edge）。第二道是 `(dashboard)/layout.tsx` 的
+ *   session 檢查 —— 兩者刻意並存，不可因為本清單已涵蓋而移除 layout 的檢查。
  */
 function isProtectedRoute(pathname: string): boolean {
   const { restPath } = extractLocaleFromPath(pathname)
-  return (
-    restPath.startsWith('/dashboard') ||
-    restPath.startsWith('/documents') ||
-    restPath.startsWith('/docs')
-  )
+  return PROTECTED_PAGE_PREFIXES.some((prefix) => restPath.startsWith(prefix))
 }
 
 /**

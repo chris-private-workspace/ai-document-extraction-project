@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
-| FIX | 176 | FIX-174 | **FIX-175** |
+| FIX | 177 | FIX-175 | **FIX-176** |
 
 ## 📋 未開始（40）
 
@@ -90,7 +90,7 @@
 | [FIX-161](4-changes/bug-fixes/FIX-161-mapping-references-undefined-company-fields.md) | mapping references undefined company fields | 🚧 部分完成（2026-08-04，2 項已修並驗證通過，見 §已修正；原列的 9 項經逐條追查後為 4 項誤報 + 5 項真缺陷，其餘… |
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 | [FIX-169](4-changes/bug-fixes/FIX-169-e2e-coverage-audit-residual-gaps.md) | e2e coverage audit residual gaps | 🚧 部分完成（2026-08-06 —— 補救與量測已完成並重新驗證，見 §量測結果；殘餘 4 份缺口逐份根因已查明但皆未處理，見 §殘… |
-| [FIX-171](4-changes/bug-fixes/FIX-171-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 部分完成（2026-08-07 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批步驟 1–… |
+| [FIX-171](4-changes/bug-fixes/FIX-171-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 部分完成（2026-08-08 複驗更新 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批… |
 
 ## ❓ 狀態無法解析（2）
 
@@ -109,7 +109,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（217）
+## ✅ 已完成（218）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -330,4 +330,5 @@
 | [FIX-157](4-changes/bug-fixes/FIX-157-formula-all-null-writes-zero.md) | formula all null writes zero | ✅ 已完成（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / … |
 | [FIX-158](4-changes/bug-fixes/FIX-158-mapping-field-definition-misalignment.md) | mapping field definition misalignment | ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入本機與 Azure DEV。問題一已實機驗證通過，見 §實機驗證… |
 | [FIX-168](4-changes/bug-fixes/FIX-168-vat-mapping-inconsistent-across-companies.md) | vat mapping inconsistent across companies | ✅ 已結案（2026-08-05 決定維持現狀、不修改任何 mapping —— 見 §結案決定與保留的已知影響） |
+| [FIX-175](4-changes/bug-fixes/FIX-175-protected-route-coverage-gap.md) | protected route coverage gap | ✅ 已完成（2026-08-08 —— `isProtectedRoute()` 由 3 個前綴補齊為 14 個；22 個案例實測全數符合… |
 

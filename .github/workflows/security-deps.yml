@@ -1,20 +1,22 @@
 # Dependency Audit — npm audit + pip-audit
 # Story 22-4 AC5 (SDLC-04)：偵測 npm / pip 相依套件的 HIGH/CRITICAL 漏洞
 #
-# 漸進式 rollout 現況（FIX-171 步驟 6，2026-08-07）：
-#   - npm-audit：已 **enforce**，門檻為 critical。FIX-171 已將 critical 清零
-#     （3 → 0），故此閘現在會通過，並能擋下任何新引入的 critical。
-#     ⚠️ 門檻**尚未**升到 high：仍有 20 個既有 high 漏洞，其中 next / postcss /
-#     sharp 的修復全部綁定 next@16（major 升級），nodemailer 需自身 major，
-#     其餘受 @prisma/client 未在 package.json 宣告的缺口阻擋。詳見 FIX-171。
+# 漸進式 rollout 現況（FIX-171 步驟 6，2026-08-08 複驗）：
+#   - npm-audit：已 **enforce**，門檻為 critical，且**已列入 main 的 required
+#     status checks**（type-check / lint / unit-tests / build / docs-check /
+#     npm-audit），因此失敗會實際阻擋合併。FIX-171 已將 critical 清零（3 → 0），
+#     故此閘現在會通過，並能擋下任何新引入的 critical。
+#     ⚠️ 門檻**尚未**升到 high：仍有 21 個既有 high。其中僅 4 個真需 major 升級
+#     （next / postcss / sharp 全綁 next@16，nodemailer 需自身 major）；6 個可
+#     藉升級 @prisma/client 7.2.0 → 7.9.1 解除（同 major）；其餘 11 個為純傳遞
+#     相依，可比照 fast-xml-parser 逐一 overrides。詳見 FIX-171。
 #   - pip-audit：維持 advisory。`python-services/extraction/requirements.txt`
 #     現有 **42 個已知漏洞**，且 pip-audit 無 severity 門檻選項，移除
 #     continue-on-error 會立即擋下所有 PR。需先處理該批漏洞。
 #
-# 🔴 重要：workflow 定義 ≠ GitHub 分支保護設定。本 job 目前**不在** main 的
-#    required status checks 清單內（該清單為 type-check / lint / unit-tests /
-#    build / docs-check），因此失敗**不會**阻擋合併。要真正生效，需由 repo admin
-#    將 `npm-audit` 加入 required checks。
+# 🔴 提醒：workflow 定義 ≠ GitHub 分支保護設定。上述 required checks 清單是
+#    2026-08-08 查詢 API 的結果，不會隨本檔案變動而更新 —— 新增 job 時必須另外
+#    到分支保護設定登記，否則該 job 失敗不會阻擋合併。
 name: Dependency Audit
 
 on:
