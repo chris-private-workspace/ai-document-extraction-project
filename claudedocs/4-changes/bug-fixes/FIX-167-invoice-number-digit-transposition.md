@@ -3,15 +3,19 @@
 > **建立日期**: 2026-08-05
 > **發現方式**: 對發票原文核對（[TEST-REPORT-006 §8.1 / §8.4](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md)）
 > **影響範圍**: Stage 3 欄位提取 `invoice_number`（`stage-3-extraction.service.ts` + Stage 3 Prompt）
-> **優先級**: 中（號碼是對外對帳與查詢的主鍵；但金額不受影響，且非必現）
+> **優先級**: 中（號碼是對外對帳與查詢的主鍵；本 FIX 所列案例的金額未受影響，且非必現。⚠️ 但「金額不會出錯」已被 [FIX-173](FIX-173-numeric-field-single-digit-misread.md) 推翻 —— 那是另一形態，不影響本 FIX 的量化，惟評估整體提取可靠度時不可再引用此句）
 > **狀態**: 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%）
-> **相關**: [FIX-166](FIX-166-vat-extracted-as-line-item-charge.md)（同一輪核對發現、同屬非確定性）、[CHANGE-113](../feature-changes/CHANGE-113-line-item-group-key-multi-shipment-invoice.md)（其階段一 A3 記有側躺頁未轉正時模型讀錯 AWB 字元的實測）
+> **相關**: [FIX-166](FIX-166-vat-extracted-as-line-item-charge.md)（同一輪核對發現、同屬非確定性）、[FIX-173](FIX-173-numeric-field-single-digit-misread.md)（金額欄位的單碼誤讀；形態不同，是否同源待更多樣本）、[CHANGE-113](../feature-changes/CHANGE-113-line-item-group-key-multi-shipment-invoice.md)（其階段一 A3 記有側躺頁未轉正時模型讀錯 AWB 字元的實測）
 
 ---
 
 ## 問題描述
 
-`invoice_number` 出現字元層級的錯誤 —— 錯位或多插字元，其餘欄位（日期、金額、明細）全部正確。
+`invoice_number` 出現字元層級的錯誤 —— 錯位或多插字元，**在下列各筆中**，其餘欄位（日期、金額、明細）全部正確。
+
+> 🔴 **2026-08-08 修正**：初版此處寫的是無條件的「其餘欄位全部正確」。該陳述已被 [FIX-173](FIX-173-numeric-field-single-digit-misread.md) 推翻 —— 金額欄位同樣會出錯（兩筆經發票原文確證：`1,550`→`1500`、`2,800`→`2300`）。
+>
+> 兩者**形態不同**：本 FIX 是字元計數失準（長度改變或順序重排），FIX-173 是同位置的單碼替換（長度不變）。是否同源尚無足夠樣本判定，故分立兩份記錄。此處的限定只是把陳述縮回它實際成立的範圍（本 FIX 所列的這幾份文件），不改變本 FIX 的任何量化結論。
 
 ### 累積實例
 
@@ -205,4 +209,5 @@ Nippon 那筆有檔名 `_9898` 作為第三方佐證，判定可靠。Toll 的�
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-05（第二次修訂：補影響面與修法可行性量化，修正修法 C 的維度與 B/C 的優先關係）
+**最後更新**: 2026-08-08（第三次修訂：縮回「其餘欄位全部正確」的適用範圍 —— 金額欄位的誤讀已由 [FIX-173](FIX-173-numeric-field-single-digit-misread.md) 確證；量化結論不變）
+**修訂歷史**: 2026-08-05（第二次修訂：補影響面與修法可行性量化，修正修法 C 的維度與 B/C 的優先關係）

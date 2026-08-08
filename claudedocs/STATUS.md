@@ -8,9 +8,9 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
-| FIX | 174 | FIX-172 | **FIX-173** |
+| FIX | 175 | FIX-173 | **FIX-174** |
 
-## 📋 未開始（38）
+## 📋 未開始（39）
 
 > 完全未動工的規劃。
 
@@ -54,6 +54,7 @@
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%） |
 | [FIX-170](4-changes/bug-fixes/FIX-170-epic19-template-apis-missing-auth.md) | epic19 template apis missing auth | 📋 規劃中 |
 | [FIX-172](4-changes/bug-fixes/FIX-172-template-instance-rows-orphan-document-refs.md) | template instance rows orphan document refs | 📋 規劃中 |
+| [FIX-173](4-changes/bug-fixes/FIX-173-numeric-field-single-digit-misread.md) | numeric field single digit misread | 📋 規劃中（2 筆已用發票原文確證；確定性 1/8 已測；修法未拍板） |
 
 ## 🚧 進行中 / 部分完成（28）
 
