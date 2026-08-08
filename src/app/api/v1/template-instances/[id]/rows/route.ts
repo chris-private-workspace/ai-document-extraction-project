@@ -27,6 +27,7 @@ import {
   templateInstanceRowQuerySchema,
 } from '@/validations/template-instance';
 import type { TemplateInstanceRowFilters } from '@/types/template-instance';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // Types
@@ -54,6 +55,9 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
 
@@ -156,6 +160,9 @@ export async function GET(request: NextRequest, context: RouteParams) {
  */
 export async function POST(request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
     const body = await request.json();
 

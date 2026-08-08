@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { dataTemplateService } from '@/services/data-template.service';
 import { updateDataTemplateSchema } from '@/validations/data-template';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // GET Handler
@@ -43,6 +44,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await params;
 
     const template = await dataTemplateService.getById(id);
@@ -102,6 +106,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -188,6 +195,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await params;
 
     // 檢查模版是否存在

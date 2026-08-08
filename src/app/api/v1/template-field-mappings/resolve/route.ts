@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { templateFieldMappingService } from '@/services/template-field-mapping.service';
 import { resolveMappingParamsSchema } from '@/validations/template-field-mapping';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // POST Handler
@@ -68,6 +69,9 @@ import { resolveMappingParamsSchema } from '@/validations/template-field-mapping
  */
 export async function POST(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const body = await request.json();
 
     // 驗證輸入資料

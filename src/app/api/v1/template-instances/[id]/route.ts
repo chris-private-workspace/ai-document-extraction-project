@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { templateInstanceService } from '@/services/template-instance.service';
 import { updateTemplateInstanceSchema } from '@/validations/template-instance';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // Types
@@ -48,6 +49,9 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
     const includeTemplate = searchParams.get('includeTemplate') !== 'false';
@@ -109,6 +113,9 @@ export async function GET(request: NextRequest, context: RouteParams) {
  */
 export async function PATCH(request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
     const body = await request.json();
 
@@ -203,6 +210,9 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
  */
 export async function DELETE(_request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
 
     await templateInstanceService.delete(id);

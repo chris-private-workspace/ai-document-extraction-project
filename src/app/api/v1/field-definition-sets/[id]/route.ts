@@ -17,6 +17,7 @@ import {
   deleteFieldDefinitionSet,
 } from '@/services/field-definition-set.service';
 import { updateFieldDefinitionSetSchema } from '@/lib/validations/field-definition-set.schema';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -27,6 +28,9 @@ interface RouteParams {
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await params;
     const result = await getFieldDefinitionSetById(id);
 
@@ -62,6 +66,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -114,6 +121,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await params;
     await deleteFieldDefinitionSet(id);
 
