@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { autoTemplateMatchingService } from '@/services/auto-template-matching.service';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // Validation Schema
@@ -49,6 +50,9 @@ const checkConfigQuerySchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     // 1. 解析查詢參數
     const { searchParams } = new URL(request.url);
     const params = {

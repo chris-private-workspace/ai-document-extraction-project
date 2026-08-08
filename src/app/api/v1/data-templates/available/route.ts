@@ -20,6 +20,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { dataTemplateService } from '@/services/data-template.service';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // GET Handler
@@ -39,6 +40,9 @@ import { dataTemplateService } from '@/services/data-template.service';
  */
 export async function GET(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId') || undefined;
 

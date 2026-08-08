@@ -25,6 +25,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { templateExportService, type RowFilter } from '@/services/template-export.service';
 import { templateInstanceService } from '@/services/template-instance.service';
+import { requireApiSession } from '@/lib/auth/api-session';
+import { PERMISSIONS } from '@/types/permissions';
 
 // ============================================================================
 // Types
@@ -54,6 +56,9 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession(PERMISSIONS.REPORT_EXPORT);
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
 
