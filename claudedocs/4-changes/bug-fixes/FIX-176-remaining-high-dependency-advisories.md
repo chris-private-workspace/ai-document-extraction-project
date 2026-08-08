@@ -176,13 +176,53 @@ Missing: @swc/helpers@0.5.23 from lock file
 
 **實際曝險評估**：本專案**未使用** next-auth 的 email provider（`src/lib/auth.config.ts` 的 `buildProviders()` 未註冊 Nodemailer/Email provider，全庫亦無 `providers/nodemailer` 引用）。nodemailer 的唯一使用點是 `src/lib/email.ts`，走自建 SMTP 設定寄送驗證信。所以 next-auth 那 3 個標記屬於「相依關係上的傳染」，並非實際可觸發的路徑。
 
-**剩餘選項**（皆需決策，未擅自採用）：
+**剩餘選項**：
 
 | 選項 | 作法 | 代價 |
 |---|---|---|
-| A | 維持現狀，等 `next-auth` 放寬 peer 範圍 | 4 個 high 持續存在 |
+| **A** ✅ | **維持 8.0.11，接受風險並加防護** | 4 個 high 持續存在，但無實際可觸發路徑 |
 | B | `.npmrc` 設 `legacy-peer-deps=true` 後升到 9.x | 全專案的 peer 檢查一併放寬，可能掩蓋其他真實衝突 |
 | C | 改用其他 SMTP 套件取代 `src/lib/email.ts` 的 nodemailer | 屬 H2 換 vendor，且需重寫寄信邏輯 |
+
+### ✅ 使用者於 2026-08-08 裁決採 A —— 判斷依據與防護措施
+
+**採 A 的理由不是「等等看」，而是這個 advisory 在本專案打不到。**
+
+查證 advisory 全文後確認觸發條件很具體：
+
+> Nodemailer: Message-level **`raw` option** bypasses `disableFileAccess` / `disableUrlAccess`,
+> enabling arbitrary file read and full-response SSRF in the delivered message（CVSS 7.1）
+
+而 `src/lib/email.ts` 的 `sendEmail()` 是全專案唯一的寄信出口，其 `mailOptions` 由五個固定欄位構造（`from` / `to` / `subject` / `html` / `text`），**沒有 `raw`、沒有 `attachments`**；參數型別 `SendEmailOptions` 亦只定義四個欄位，呼叫端在型別層面就無法注入。
+
+三項佐證：
+
+| 事實 | 意義 |
+|---|---|
+| `5.0.0-beta.32` 已是 next-auth 最新版（無 beta.33+） | 「升 next-auth 解決」不成立，等待是唯一乾淨路徑 |
+| beta.32 的 peer 已含 `next: ^16.0.0` | 專案跟得上其更新節奏，peer 放寬後可迅速跟進 |
+| CI 的 npm-audit 門檻為 **critical** | 這 4 個 high 不會阻擋合併，無立即痛點 |
+
+**不採 B 的理由**：`legacy-peer-deps` 會讓全專案的 peer 檢查失效，而 peer 衝突正是這次揭露問題的機制 —— 若當初它是關的，nodemailer 9 會靜默裝上，直到 next-auth 真的呼叫其 API 才爆。為一個打不到的漏洞關掉一個有效的警報並不划算。
+
+**不採 C 的理由**：屬 H2 換 vendor，需重寫寄信邏輯並重新驗證，收益僅是消除一個無法觸發的 advisory。
+
+#### 🔴 已加的防護：這個判斷依賴 `email.ts` 保持封閉
+
+單純「接受風險」有個弱點 —— 上述結論成立的**唯一**前提是 `sendEmail()` 不轉傳額外欄位。若日後有人把介面改成透傳 nodemailer 選項，或加入 `attachments`，曝險就實際化，而且**不會有任何警報**（npm audit 的數字不會變）。
+
+因此加了兩層防護：
+
+| 層 | 內容 |
+|---|---|
+| 說明 | `src/lib/email.ts` 檔頭與 `SendEmailOptions` 加註警示，寫明 allowlist 的性質、advisory 的觸發條件、以及解除條件；`mailOptions` 內加註「不可加入 `...options` 展開」 |
+| 測試 | 新增 `tests/unit/lib/email-options-allowlist.test.ts`（7 個案例）：斷言轉傳給 `sendMail()` 的物件只含五個既定 key，並逐一驗證 `raw` / `attachments` / `envelope` / `dkim` / `encoding` 即使被呼叫端夾帶也不會轉傳 |
+
+> **測試的辨別力已用 mutation 驗證**：暫時在 `mailOptions` 加入 `...options` 後重跑，**7 個案例中 5 個立即失敗**（另 2 個為不含違規欄位的正常案例，本就應通過），確認這組測試不是只會亮綠燈的裝飾。
+
+#### 複查條件
+
+`next-auth` 發布新 beta 時重新檢查其 `nodemailer` peer 範圍；一旦接受 9.x，即可升級並移除 `email.ts` 的限制說明與上述測試檔。
 
 ### Next.js 16 需要的三項配套變更
 
@@ -213,6 +253,8 @@ Missing: @swc/helpers@0.5.23 from lock file
 | `package.json` | 新增 `immutable: ^4.3.9` override；`next` → `^16.3.0`；`nodemailer` → `^8.0.11`；`lint` script 由 `next lint` 改為 `eslint src --ext .js,.jsx,.ts,.tsx` | 二 | ✅ 已完成 |
 | `next.config.ts` | 移除 Next 16 已不支援的 `eslint.ignoreDuringBuilds` | 二 | ✅ 已完成 |
 | `.eslintignore` | **新增** —— 補上原由 `next lint` 內建提供的忽略範圍 | 二 | ✅ 已完成 |
+| `src/lib/email.ts` | 檔頭與 `SendEmailOptions` 加註 nodemailer 選項封閉性的安全前提；`mailOptions` 加註不可展開 | 二 | ✅ 已完成 |
+| `tests/unit/lib/email-options-allowlist.test.ts` | **新增** —— 7 個案例，鎖住 `sendEmail()` 的欄位 allowlist | 二 | ✅ 已完成 |
 | `tsconfig.json` | **由 `next build` 自動修改**：`jsx` 由 `preserve` 改為 `react-jsx`；`include` 新增 `.next/dev/types/**/*.ts` | 二 | ✅ 已完成 |
 | `next-env.d.ts` | **由 `next build` 自動修改**：`/// <reference path>` 改為 `import` 語法，並新增 `root-params.d.ts`（該檔標註 should not be edited，本即自動生成） | 二 | ✅ 已完成 |
 
@@ -236,7 +278,8 @@ Missing: @swc/helpers@0.5.23 from lock file
 - [x] `npx prisma generate` 通過
 - [x] `npm run type-check` 通過（修正 `next.config.ts` 的 `eslint` 選項後）
 - [x] `npm run lint` 通過（exit 0、333 warnings、0 errors，範圍與 `next lint` 等價）
-- [x] `npm run test` —— 489 passed / 2 skipped / **0 failed**
+- [x] `npm run test` —— **496** passed / 2 skipped / **0 failed**（489 + 新增的 7 個郵件選項案例）
+- [x] **mutation 驗證**：暫時在 `mailOptions` 加入 `...options`，7 個案例中 5 個立即失敗 —— 確認回歸保護具辨別力
 - [x] `npm run build` 通過（**Next.js 16.3.0**，先 `rm -rf .next` 避免 15 的產物殘留）
 - [x] `npm run i18n:check` 通過（三語言翻譯完整）
 - [x] **Linux 容器 `npm ci` 通過**（`node:22-slim`，lock 已重新生成）
