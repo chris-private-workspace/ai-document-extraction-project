@@ -8,7 +8,7 @@
 | 類型 | 份數 | 目前最大編號 | 下一個可用 |
 |------|------|-------------|-----------|
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
-| FIX | 177 | FIX-175 | **FIX-176** |
+| FIX | 178 | FIX-176 | **FIX-177** |
 
 ## 📋 未開始（39）
 
@@ -56,7 +56,7 @@
 | [FIX-173](4-changes/bug-fixes/FIX-173-numeric-field-single-digit-misread.md) | numeric field single digit misread | 📋 規劃中（2 筆已用發票原文確證；確定性 1/8 已測；修法未拍板） |
 | [FIX-174](4-changes/bug-fixes/FIX-174-subtotal-reads-extra-charges-total.md) | subtotal reads extra charges total | 📋 規劃中（影響面已量化：全庫 DHL 3 筆、漏帳合計 20,268.40；根因經發票原文證實；修法未拍板） |
 
-## 🚧 進行中 / 部分完成（28）
+## 🚧 進行中 / 部分完成（29）
 
 > 含「已實作待驗證」「Phase 1 完成、Phase 2 未做」等未收尾項。
 
@@ -90,6 +90,7 @@
 | [FIX-162](4-changes/bug-fixes/FIX-162-row-total-exceeds-invoice-amount.md) | row total exceeds invoice amount | 🚧 部分完成（2026-08-04。根因已確認並經發票原文證實；A 類已執行「合併欄位定義」但刻意不重新提取，見 §A 類已執行；B 類… |
 | [FIX-169](4-changes/bug-fixes/FIX-169-e2e-coverage-audit-residual-gaps.md) | e2e coverage audit residual gaps | 🚧 部分完成（2026-08-06 —— 補救與量測已完成並重新驗證，見 §量測結果；殘餘 4 份缺口逐份根因已查明但皆未處理，見 §殘… |
 | [FIX-171](4-changes/bug-fixes/FIX-171-secure-dev-dod-checklist-gaps.md) | secure dev dod checklist gaps | 🚧 部分完成（2026-08-08 複驗更新 —— 第一批全數完成；第二批 BUG-2 / BUG-11 / BUG-12 完成；第三批… |
+| [FIX-176](4-changes/bug-fixes/FIX-176-remaining-high-dependency-advisories.md) | remaining high dependency advisories | 🚧 部分完成（2026-08-08 —— high 21 → 6、總計 35 → 13；剩餘 6 個全部需要 major 升級，屬 H2… |
 
 ## ❓ 狀態無法解析（2）
 
