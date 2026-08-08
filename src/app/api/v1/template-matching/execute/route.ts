@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { templateMatchingEngineService } from '@/services/template-matching-engine.service';
 import { executeMatchRequestSchema } from '@/validations/template-matching';
 import { MatchingEngineError } from '@/types/template-matching-engine';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // POST - Execute Template Matching
@@ -50,6 +51,9 @@ import { MatchingEngineError } from '@/types/template-matching-engine';
  */
 export async function POST(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     // 1. 解析請求體
     const body = await request.json();
 

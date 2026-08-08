@@ -18,6 +18,7 @@ import {
   createFieldDefinitionSetSchema,
   getFieldDefinitionSetsQuerySchema,
 } from '@/lib/validations/field-definition-set.schema';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 /**
  * GET /api/v1/field-definition-sets
@@ -25,6 +26,9 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { searchParams } = new URL(request.url);
     const queryParams = Object.fromEntries(searchParams.entries());
 
@@ -69,6 +73,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const body = await request.json();
 
     const parsed = createFieldDefinitionSetSchema.safeParse(body);

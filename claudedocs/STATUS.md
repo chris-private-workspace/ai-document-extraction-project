@@ -10,7 +10,7 @@
 | CHANGE | 114 | CHANGE-116 | **CHANGE-117** |
 | FIX | 176 | FIX-174 | **FIX-175** |
 
-## 📋 未開始（40）
+## 📋 未開始（39）
 
 > 完全未動工的規劃。
 
@@ -52,7 +52,6 @@
 | [FIX-165](4-changes/bug-fixes/FIX-165-auto-template-matching-never-ran.md) | auto template matching never ran | 📋 規劃中（2026-08-05 第二次修訂：初版的統計數字全部作廢，改以代碼演繹論證，見 §實測資料） |
 | [FIX-166](4-changes/bug-fixes/FIX-166-vat-extracted-as-line-item-charge.md) | vat extracted as line item charge | 📋 規劃中（影響面已量化：全庫 15 筆，2026-08-08 由 9 筆上修，見 §A3；路由實測 9/9 為 `AUTO_APPRO… |
 | [FIX-167](4-changes/bug-fixes/FIX-167-invoice-number-digit-transposition.md) | invoice number digit transposition | 📋 規劃中（影響面已量化：Toll 泰國件 5/51 = 9.8%；修法 B 可行性 98.4%） |
-| [FIX-170](4-changes/bug-fixes/FIX-170-epic19-template-apis-missing-auth.md) | epic19 template apis missing auth | 📋 規劃中 |
 | [FIX-172](4-changes/bug-fixes/FIX-172-template-instance-rows-orphan-document-refs.md) | template instance rows orphan document refs | 📋 規劃中 |
 | [FIX-173](4-changes/bug-fixes/FIX-173-numeric-field-single-digit-misread.md) | numeric field single digit misread | 📋 規劃中（2 筆已用發票原文確證；確定性 1/8 已測；修法未拍板） |
 | [FIX-174](4-changes/bug-fixes/FIX-174-subtotal-reads-extra-charges-total.md) | subtotal reads extra charges total | 📋 規劃中（影響面已量化：全庫 DHL 3 筆、漏帳合計 20,268.40；根因經發票原文證實；修法未拍板） |
@@ -109,7 +108,7 @@
 | [FIX-010](4-changes/bug-fixes/FIX-010-pdfjs-dist-esm-module-error.md) | pdfjs dist esm module error | ⏸️ 已取代（被 FIX-026 最終方案取代） |
 | [FIX-088](4-changes/bug-fixes/FIX-088-systematic-hardcoded-chinese-audit.md) | systematic hardcoded chinese audit | ⬆️ 已升級為 CHANGE-088（2026-06-20）— 階段一盤點完成並經主 session 逐一複驗，確認真洩漏跨 6 模組 7… |
 
-## ✅ 已完成（217）
+## ✅ 已完成（218）
 
 | 編號 | 標題 | 狀態 |
 |------|------|------|
@@ -330,4 +329,5 @@
 | [FIX-157](4-changes/bug-fixes/FIX-157-formula-all-null-writes-zero.md) | formula all null writes zero | ✅ 已完成（2026-08-03，採「完全不寫入該 key」與 DIRECT 一致；本地 `type-check` / `lint` / … |
 | [FIX-158](4-changes/bug-fixes/FIX-158-mapping-field-definition-misalignment.md) | mapping field definition misalignment | ✅ 已完成（2026-08-03，兩項設定變更皆已以 gated 腳本寫入本機與 Azure DEV。問題一已實機驗證通過，見 §實機驗證… |
 | [FIX-168](4-changes/bug-fixes/FIX-168-vat-mapping-inconsistent-across-companies.md) | vat mapping inconsistent across companies | ✅ 已結案（2026-08-05 決定維持現狀、不修改任何 mapping —— 見 §結案決定與保留的已知影響） |
+| [FIX-170](4-changes/bug-fixes/FIX-170-epic19-template-apis-missing-auth.md) | epic19 template apis missing auth | ✅ 已完成（2026-08-08 —— 22 個 route、36 個 handler 全數加上 handler 層認證閘並實測驗證；匯出… |
 

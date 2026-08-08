@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { templateFieldMappingService } from '@/services/template-field-mapping.service';
 import { updateTemplateFieldMappingSchema } from '@/validations/template-field-mapping';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // Types
@@ -48,6 +49,9 @@ interface RouteParams {
  */
 export async function GET(_request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
 
     const mapping = await templateFieldMappingService.getById(id);
@@ -104,6 +108,9 @@ export async function GET(_request: NextRequest, context: RouteParams) {
  */
 export async function PATCH(request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
     const body = await request.json();
 
@@ -192,6 +199,9 @@ export async function PATCH(request: NextRequest, context: RouteParams) {
  */
 export async function DELETE(_request: NextRequest, context: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await context.params;
 
     await templateFieldMappingService.delete(id);

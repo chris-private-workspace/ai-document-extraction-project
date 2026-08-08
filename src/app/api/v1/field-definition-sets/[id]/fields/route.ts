@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getFieldsForSet } from '@/services/field-definition-set.service';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -20,6 +21,9 @@ interface RouteParams {
  */
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { id } = await params;
     const fields = await getFieldsForSet(id);
 

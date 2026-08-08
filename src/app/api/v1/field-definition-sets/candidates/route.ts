@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { getCandidateFields } from '@/services/field-definition-set.service';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 /**
  * GET /api/v1/field-definition-sets/candidates
@@ -19,6 +20,9 @@ import { getCandidateFields } from '@/services/field-definition-set.service';
  */
 export async function GET() {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const candidates = getCandidateFields();
 
     return NextResponse.json({

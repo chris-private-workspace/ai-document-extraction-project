@@ -30,6 +30,7 @@ import {
   templateFieldMappingQuerySchema,
 } from '@/validations/template-field-mapping';
 import type { TemplateFieldMappingFilters } from '@/types/template-field-mapping';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 // ============================================================================
 // GET Handler
@@ -48,6 +49,9 @@ import type { TemplateFieldMappingFilters } from '@/types/template-field-mapping
  */
 export async function GET(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { searchParams } = new URL(request.url);
 
     // 解析查詢參數
@@ -133,6 +137,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const body = await request.json();
 
     // 驗證輸入資料

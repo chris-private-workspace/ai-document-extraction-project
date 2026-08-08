@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getResolvedFields } from '@/services/field-definition-set.service';
 import { resolveFieldsQuerySchema } from '@/lib/validations/field-definition-set.schema';
+import { requireApiSession } from '@/lib/auth/api-session';
 
 /**
  * GET /api/v1/field-definition-sets/resolve?companyId=xxx&documentFormatId=yyy
@@ -28,6 +29,9 @@ import { resolveFieldsQuerySchema } from '@/lib/validations/field-definition-set
  */
 export async function GET(request: NextRequest) {
   try {
+    const gate = await requireApiSession();
+    if (!gate.ok) return gate.response;
+
     const { searchParams } = new URL(request.url);
     const queryParams = Object.fromEntries(searchParams.entries());
 
