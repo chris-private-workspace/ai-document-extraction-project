@@ -4,8 +4,8 @@
 > **發現方式**: 掃描件抽樣核對，對發票原文逐項比對（[TEST-REPORT-006 §8.4](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md)）
 > **影響範圍**: Stage 3 欄位提取（`stage-3-extraction.service.ts` + Stage 3 Prompt）；後果落在 `lineItems` 與對帳閘
 > **優先級**: 高（不是金額抽錯，是**讓唯一生效的品質閘失效**）
-> **狀態**: 📋 規劃中（影響面已量化：全庫 9 筆；**路由實測 9/9 為 `AUTO_APPROVE`，正對照 7/7 為 `FULL_REVIEW`**）
-> **相關**: [FIX-147](FIX-147-stage3-wrapped-line-description-misjoin.md)（對帳閘）、[FIX-148](FIX-148-v31-pipeline-discards-routing-decision.md)（其餘降級全部失效，對帳閘是唯一實際作用者）、[FIX-151](FIX-151-reconcile-uses-tax-inclusive-total.md)（對帳基準改用 `subtotal`）
+> **狀態**: 📋 規劃中（影響面已量化：全庫 **15 筆**，2026-08-08 由 9 筆上修，見 §A3；**路由實測 9/9 為 `AUTO_APPROVE`，正對照 7/7 為 `FULL_REVIEW`**；補掃的 6 筆亦 6/6 繞過對帳閘）
+> **相關**: [FIX-147](FIX-147-stage3-wrapped-line-description-misjoin.md)（對帳閘）、[FIX-148](FIX-148-v31-pipeline-discards-routing-decision.md)（其餘降級全部失效，對帳閘是唯一實際作用者）、[FIX-151](FIX-151-reconcile-uses-tax-inclusive-total.md)（對帳基準改用 `subtotal`；🔴 與本 FIX 的交互作用見 §B）、[FIX-173](FIX-173-numeric-field-single-digit-misread.md)（其全庫對帳掃描帶出本 FIX 的 6 筆漏網）
 
 ---
 
@@ -76,6 +76,8 @@ Stage 3 把發票的**稅額**當成一筆費用列進 `lineItems`。
 
 ### A. 影響面：全庫 9 筆，且 **9/9 全部繞過對帳閘**
 
+> 🔴 **2026-08-08 修正：本節的 9 筆是低估，實際 15 筆。** 低估源於本節的**篩選判準**（明細 description 含 `VAT` / `GST` 字樣）—— 有 6 筆的稅額列描述根本不含這些字樣。**但下方「9/9 繞過對帳閘」的結論不但成立，且在 15/15 上依然成立**，補掃的 6 筆全部繞過。詳見 §A3 影響面修正。
+
 2026-08-05 掃描全部 623 筆 `extraction_result`：
 
 | 分類 | 筆數 |
@@ -84,7 +86,7 @@ Stage 3 把發票的**稅額**當成一筆費用列進 `lineItems`。
 | 明細含 `VAT` / `GST` 字樣 | **9** |
 | 🔴 且行項合計恰等 `total_amount`（＝繞過對帳閘） | **9（100%）** |
 
-發生率 9 / 511 = **1.8%**。完整清單：
+發生率 9 / 511 = **1.8%**（⚠️ 依 §A3 修正後為 15 / 571 = **2.6%**）。完整清單：
 
 ```
 NEX_RHIM250005_0803.pdf                 6筆 合計14980    total14980    subtotal14000    稅980
@@ -107,6 +109,8 @@ TOLL_RCEX260051_77741.pdf               5筆 合計235.63   total235.63   subtot
 **2. 不侷限 Nippon 泰國版面**
 
 `TOLL_RCEX260051_77741.pdf` 屬 Toll。初版定性為「Nippon 泰國版面的通用風險」**過窄**，應為「任何在總結區印稅額的版面」。
+
+> ✅ **2026-08-08 進一步佐證**：§A3 補掃的 6 筆**全部**是 Toll，使 Toll 佔比從 1/9 升至 7/15。此判斷不但成立，且原本 Toll 只有一筆的印象本身就是字串判準造成的假象。
 
 **3. 每一筆都算術自證，不需要看發票原文**
 
@@ -189,6 +193,34 @@ TOLL_RCEX260051_77741.pdf  AUTO_APPROVE   合計235.63  基準 total_amount(235.
 
 同一份 PDF、同一天、相隔約 5 小時，一次對一次錯。Prompt 版本在此區間內改變的可能性極低，因此「錯的是舊 Prompt、現在已改善」的假設**基本可以排除**。
 
+#### 🔴 第二個獨立的天然對照樣本（2026-08-08 補）
+
+上表那組是單一文件。`NEX_RCIM250082_6854.pdf` 在 DB 中同樣留有**兩筆**提取，形態完全相同：
+
+| 檔案 | 提取時間（UTC） | 明細 | 合計 | 對帳基準 | `mismatch` |
+|---|---|---|---:|---|:---:|
+| `NEX_RCIM250007_2168` | 08-03 19:56 | 6 筆 | 56,974 | `subtotal` | false |
+| 同一份 | 08-04 00:54 | **7 筆，含 `VAT 7%`** | 58,395 | `total_amount` | false |
+| `NEX_RCIM250082_6854` | 08-03 19:55 | 6 筆 | 20,127 | `subtotal` | false |
+| 同一份 | 08-04 00:54 | **7 筆，含 `VAT 7%`** | 20,701 | `total_amount` | false |
+
+（上一節的時間記為 03:56 / 08:54，與此處的 19:56 / 00:54 是同一組資料 —— 該節用本地時間、此表用 UTC。`NEX_RCIM250007_2168` 那組**不是新樣本**；新的是 `NEX_RCIM250082_6854`。）
+
+兩份都是**前一次對、後一次錯**，且錯誤發生在同一個時間窗（08-04 00:54 UTC）。這使 §B 的「非確定性」定性從單一樣本擴為兩個獨立樣本。
+
+#### 🔴 這組對照揭示了與 FIX-151 的交互作用
+
+值得注意的不是兩次結果不同，而是**兩次都 `mismatch: false`，卻走了不同的判定分支**：
+
+| 版本 | 行項合計 | 與 `subtotal` | 與 `total_amount` | 走哪個分支 | 結果 |
+|---|---:|---|---|---|---|
+| 6 筆（正確） | 56,974 | **相等** | 差 1,421 | [FIX-151](FIX-151-reconcile-uses-tax-inclusive-total.md) 新增的 `subtotal` 分支 | 放行 ✅ 正確 |
+| 7 筆（錯誤） | 58,395 | 差 1,421 | **相等** | 落回原本的 `total_amount` 邏輯 | 放行 🔴 應攔未攔 |
+
+FIX-151 新增 `subtotal` 分支的目的是消除誤報，**它達成了目的**（正確那次不再被誤報）。但在稅額誤入的情形下，錯誤那次會自動落回 `total_amount`，而稅額併入明細後合計必然等於含稅總額 —— 於是**兩種版本都被判為相符，一個都攔不下**。
+
+這不是 FIX-151 的缺陷（超出其設定的目標），但它是**兩份文件擺在一起才看得見的事**：單看正確那次會以為閘在作用，單看錯誤那次會以為閘從不觸發。修 FIX-166 時若打算動 `reconcileLineItemTotal`，必須同時考慮這兩條路徑。
+
 ### 副帶觀察：`vat_7` 以**欄位**形式存在 —— 已查證，屬設計內
 
 盲讀核對（[TEST-REPORT-006 §8.5](../../5-status/testing/reports/TEST-REPORT-006-full-sample-coverage-verification.md)）發現，Nippon 泰國版面的文件即使 `lineItems` **正確不含 VAT**，`fields` 中仍會有 `vat_7` 這個費用欄位（來自 `FIX-108 backfill`）。
@@ -199,9 +231,86 @@ TOLL_RCEX260051_77741.pdf  AUTO_APPROVE   合計235.63  基準 total_amount(235.
 
 ---
 
+## A3. 影響面修正：9 → 15 筆（2026-08-08）
+
+發現自 [FIX-173](FIX-173-numeric-field-single-digit-misread.md) 的全庫對帳掃描 —— 該掃描以「行項合計 vs `subtotal`」為判準，與本 FIX §A 的字串判準互相獨立，結果在稅額形態上多出 6 筆。
+
+### 差異來源：§A 用的是字串判準，不是算術判準
+
+用同一批資料（571 筆有 `lineItems` 的 `extraction_result`）跑三種判準做對照：
+
+| 判準 | 定義 | 命中 |
+|---|---|---:|
+| **A** | 明細 `description` 含 `VAT` / `GST` 字樣（§A 所用） | 10 |
+| **B** | 有一筆行項金額**精確等於** `vat` 欄位，且合計超出 `subtotal` | **15** |
+| C | 明細 `classifiedAs` 含 `tax` 字樣 | 見下方誤報警示 |
+
+A ⊂ B，B 多出的 5 筆全部是 Toll。另有 1 筆（`TOLL_RCEX240700_56839`，其 description 就是 `VAT`）**符合 §A 的判準卻未出現在 §A 的 9 筆清單中** —— 原因無從回溯（該次掃描的腳本已不存在），故此處只陳述當前可複現的數字。
+
+§A 記 9 筆 + 判準內漏列 1 筆 + 判準外漏抓 5 筆 = **15 筆**。
+
+### 補掃到的 6 筆
+
+```
+TOLL_RCEX240700_56839.pdf    3筆 合計64.2     total64.2     subtotal60       稅4.2
+TOLL_RCEX250719_75718.PDF    3筆 合計64.2     total64.2     subtotal60       稅4.2
+TOLL_RCEX260033_77335.pdf    5筆 合計186.23   total186.23   subtotal174.04   稅12.19
+TOLL_RCEX260077_78385.pdf    5筆 合計184.06   total184.06   subtotal172.02   稅12.04
+TOLL_RCEX260083_78386.pdf    5筆 合計235.67   total235.67   subtotal220.25   稅15.42
+TOLL_RCEX260187_81815.pdf    5筆 合計180.29   total180.29   subtotal168.5    稅11.79
+```
+
+**6/6 全部滿足「合計 == `total_amount`」** —— 與 §A 的 9 筆一致，§🔴 這組數字改變了三項判斷 的第 1 點（條件機率為 1）在 15/15 上依然成立。
+
+### 為什麼字串判準抓不到：稅額列的描述是**法律條款全文**
+
+補掃的 6 筆中有 4 筆，其稅額列的 `description` 不是「VAT」，而是發票頁尾整段的 Standard Trading Conditions 聲明：
+
+```
+金額 12.19  description "All services offered and provided by Toll Global Forwarding
+                        (Thailand) Co. Ltd and its affiliates …"   [classifiedAs=Other Charges]
+金額 11.79  description "All services offered and provided by … The most current
+                        version of the Conditions is published at"  [classifiedAs=Vat]
+```
+
+即 Stage 3 不只把稅額當成一筆費用，還**從頁尾的法律聲明段落取了描述文字**。
+
+🔴 其中 `TOLL_RCEX260033_77335` 的 `classifiedAs` 是 **`Other Charges`** 而非 `Vat` —— 這一筆比其餘的更危險：若模板有 `other_charges` 一類的 key，12.19 的稅額會被當成一般費用直接進運費成本，連「這是稅」的線索都不剩。
+
+### ⚠️ 字串判準的反方向：把 `classifiedAs` 納入會產生誤報
+
+判準 C 會多抓 5 筆 DHL，**經核對全部是誤報**：
+
+```
+DHL_RCIM250268_01010.pdf       4.64 "IMPORT EXPORT TAXES" + 155 "DUTY TAX PAID"
+DHL_RHEX250418_39354.pdf        210.4 "IMPORT EXPORT TAXES" + 155 "DUTY TAX PAID" + 0 "DUTIES & TAXES"
+DHL_RHEX250648_92810 (1).pdf   480.66 "IMPORT EXPORT TAXES" + 155 "DUTY TAX PAID"
+DHL_RHEX250649_93120.pdf       314.46 "IMPORT EXPORT TAXES" + 155 "DUTY TAX PAID"
+DHL_RHEX250197,198_92357.pdf   -723.01 "IMPORT EXPORT DUTIES" + -155 "DUTY TAX PAID"
+```
+
+這些是**快遞業的關稅代墊費**，本身就是 DHL 向客戶收取的正當費用項目，不是發票稅額。三項佐證：`subtotal == total_amount ==` 行項合計（三者完全相同，沒有額外稅額）、無 `vat` 欄位、幣別為 HKD（香港無 VAT）。最後一筆金額為負，是貸項通知單。
+
+**教訓：找「稅額誤入」不能靠描述或分類的字樣，必須用算術關係。** 快遞業的 Duty / Tax 是真費用，泰國件的稅額列則可能完全不含 tax 字樣 —— 字串判準在兩個方向都會出錯。§已量化 第 3 點（「每一筆都算術自證」）用的正是算術，但 §A 的**篩選**卻用了字串，兩者不一致，這就是低估的根源。
+
+### 稅基是**應稅子集**，不是 `subtotal` 全額
+
+FIX-173 初版曾因 `NEX_RCIM250007_2168`（超出量僅佔 `subtotal` 2.49%）、`NEX_RCIM250082_6854`（2.85%）不合 7% 而懷疑本 FIX 的歸類。查證後確認**本 FIX 的歸類正確**：泰國國際運費免稅，7% 只課在應稅子集上。
+
+| 檔案 | 應稅子集 | ×7% | 免稅（OCEAN FREIGHT） | 合計 | `subtotal` |
+|---|---:|---:|---:|---:|---:|
+| `NEX_RCIM250007_2168` | 20,300 | **1,421** | 36,674 | 56,974 | 56,974 ✓ |
+| `NEX_RCIM250082_6854` | 8,200 | **574** | 11,927 | 20,127 | 20,127 ✓ |
+
+以窮舉驗過，兩份各只有**唯一一個**行項子集的合計等於推算稅基。
+
+⚠️ 由此可知：**用「超出量 ÷ `subtotal` 是否等於稅率」來篩選會漏掉含免稅項的發票**。稅率的分母是應稅子集，而該子集在提取結果中沒有直接標記，只能反推。
+
+---
+
 ## 仍待量化
 
-1. **確定性**的樣本仍小 —— 目前僅 3 份 ×10 次；1/10 的信賴區間很寬。**影響面已不需再擴樣**（A 已全庫掃描）
+1. **確定性**的樣本仍小 —— 目前僅 3 份 ×10 次；1/10 的信賴區間很寬。**影響面已不需再擴樣**（A 已全庫掃描；⚠️ 但 §A3 顯示 A 的判準本身有缺口，若日後再擴掃須改用算術判準）
 2. 修法 D 上線後的**誤報**驗證 —— 現有 9 筆中誤報 0 筆，但樣本僅 9 筆，需在更大的資料上確認不會誤傷真的含稅字樣的服務費
 3. ~~釐清 Prompt 版本干擾~~ —— 已由同日兩次提取的對照收窄，見上方
 4. ~~查那 9 筆的實際 `routingPath`~~ —— 已完成，9/9 `AUTO_APPROVE`，見 §已量化 A2
@@ -280,4 +389,5 @@ TOLL_RCEX260051_77741.pdf  AUTO_APPROVE   合計235.63  基準 total_amount(235.
 ---
 
 **建立者**: AI 助手
-**最後更新**: 2026-08-05（第三次修訂：補路由實測與正負對照，解除「繞過閘僅為推導」的限制；記錄降級原因未持久化）
+**最後更新**: 2026-08-08（第四次修訂：影響面 9 → 15 筆並查明低估來源為字串判準；補第二個天然對照樣本與 FIX-151 的交互作用；記錄 5 筆 DHL 誤報作為判準警示）
+**修訂歷史**: 2026-08-05（第三次修訂：補路由實測與正負對照，解除「繞過閘僅為推導」的限制；記錄降級原因未持久化）
